@@ -1,5 +1,6 @@
 package com.lurenjia534.quotahub.ui.screens.home
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,17 +13,24 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DataUsage
-import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -30,24 +38,35 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.lurenjia534.quotahub.data.model.ModelRemain
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    viewModel: HomeViewModel = viewModel()
 ) {
+    val uiState by viewModel.uiState.collectAsState()
     var showBottomSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
 
@@ -60,9 +79,50 @@ fun HomeScreen(
         ) {
             GreetingSection()
             Spacer(modifier = Modifier.height(24.dp))
-            QuotaOverviewSection()
-            Spacer(modifier = Modifier.height(24.dp))
-            QuotaDetailCards()
+
+            if (uiState.isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
+            if (uiState.error != null) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = uiState.error!!,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
+            if (uiState.modelRemains.isNotEmpty()) {
+                QuotaOverviewSection(uiState.modelRemains)
+                Spacer(modifier = Modifier.height(24.dp))
+                QuotaDetailCards(uiState.modelRemains)
+            } else {
+                EmptyStateSection()
+            }
         }
         FloatingActionButton(
             onClick = { showBottomSheet = true },
@@ -82,6 +142,16 @@ fun HomeScreen(
                 sheetState = sheetState
             ) {
                 Column {
+                    ListItem(
+                        headlineContent = { Text("Add API Key") },
+                        leadingContent = {
+                            Icon(Icons.Default.Key, contentDescription = null)
+                        },
+                        modifier = Modifier.clickable {
+                            viewModel.showApiKeyDialog()
+                            showBottomSheet = false
+                        }
+                    )
                     ListItem(
                         headlineContent = { Text("Edit Quota") },
                         leadingContent = {
@@ -110,21 +180,76 @@ fun HomeScreen(
                 }
             }
         }
+
+        if (uiState.showApiKeyDialog) {
+            ApiKeyDialog(
+                apiKey = uiState.apiKey,
+                onApiKeyChange = viewModel::updateApiKey,
+                onDismiss = viewModel::hideApiKeyDialog,
+                onConfirm = viewModel::fetchModelRemains
+            )
+        }
     }
+}
+
+@Composable
+private fun ApiKeyDialog(
+    apiKey: String,
+    onApiKeyChange: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Enter API Key") },
+        text = {
+            Column {
+                Text(
+                    text = "Enter your MiniMax API key to view your quota information.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = apiKey,
+                    onValueChange = onApiKeyChange,
+                    label = { Text("API Key") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { onConfirm() }),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                enabled = apiKey.isNotBlank()
+            ) {
+                Text("Confirm")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @Composable
 private fun GreetingSection() {
     Column {
         Text(
-            text = "Welcome back!",
+            text = "Quota Overview",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "Here's your quota overview",
+            text = "Monitor your API usage",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -132,27 +257,71 @@ private fun GreetingSection() {
 }
 
 @Composable
-private fun QuotaOverviewSection() {
+private fun EmptyStateSection() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = Icons.Default.Key,
+                contentDescription = null,
+                modifier = Modifier.size(48.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "No API Key Set",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Tap + to add your API key",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun QuotaOverviewSection(modelRemains: List<ModelRemain>) {
+    val totalRemainingTime = modelRemains.sumOf { it.remainsTime }
+    val totalAllowance = modelRemains.sumOf { it.currentIntervalTotalCount }
+    val totalRemaining = modelRemains.sumOf { it.currentIntervalUsageCount }
+
+    val progress = if (totalAllowance > 0) {
+        (totalAllowance - totalRemaining).toFloat() / totalAllowance.toFloat()
+    } else 0f
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         OverviewCard(
-            title = "Data Usage",
-            used = "32.5",
-            total = "50",
-            unit = "GB",
-            progress = 0.65f,
+            title = "Calls Remaining",
+            used = totalRemaining.toString(),
+            total = totalAllowance.toString(),
+            progress = progress,
             icon = Icons.Default.DataUsage,
+            iconTint = getProgressColor(progress),
             modifier = Modifier.weight(1f)
         )
         OverviewCard(
-            title = "Storage",
-            used = "256",
-            total = "512",
-            unit = "GB",
-            progress = 0.5f,
-            icon = Icons.Default.Storage,
+            title = "Time Left",
+            used = formatTimeRemaining(totalRemainingTime),
+            total = "",
+            progress = 0f,
+            icon = Icons.Default.Schedule,
+            iconTint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.weight(1f)
         )
     }
@@ -163,16 +332,17 @@ private fun OverviewCard(
     title: String,
     used: String,
     total: String,
-    unit: String,
     progress: Float,
     icon: ImageVector,
+    iconTint: Color,
     modifier: Modifier = Modifier
 ) {
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -183,78 +353,80 @@ private fun OverviewCard(
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
+                    tint = iconTint,
+                    modifier = Modifier.size(28.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = "$used / $total $unit",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.surfaceVariant,
-            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(
+                verticalAlignment = Alignment.Bottom
+            ) {
+                Text(
+                    text = used,
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = iconTint
+                )
+                if (total.isNotEmpty()) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "/ $total",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                }
+            }
+            if (progress > 0) {
+                Spacer(modifier = Modifier.height(12.dp))
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp),
+                    color = getProgressColor(progress),
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun QuotaDetailCards() {
+private fun QuotaDetailCards(modelRemains: List<ModelRemain>) {
     Text(
-        text = "Quota Details",
+        text = "Model Details",
         style = MaterialTheme.typography.titleLarge,
         fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.onSurface
     )
     Spacer(modifier = Modifier.height(12.dp))
-    
-    QuotaDetailItem(
-        title = "Monthly Data",
-        description = "Mobile data this month",
-        used = "28.3 GB",
-        total = "50 GB",
-        progress = 0.57f
-    )
-    Spacer(modifier = Modifier.height(12.dp))
-    QuotaDetailItem(
-        title = "Cloud Storage",
-        description = "Cloud backup storage",
-        used = "15.2 GB",
-        total = "100 GB",
-        progress = 0.15f
-    )
-    Spacer(modifier = Modifier.height(12.dp))
-    QuotaDetailItem(
-        title = "Local Storage",
-        description = "Device internal storage",
-        used = "256 GB",
-        total = "512 GB",
-        progress = 0.5f
-    )
+
+    modelRemains.forEachIndexed { index, modelRemain ->
+        if (index > 0) {
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+        QuotaDetailItem(modelRemain)
+    }
 }
 
 @Composable
-private fun QuotaDetailItem(
-    title: String,
-    description: String,
-    used: String,
-    total: String,
-    progress: Float
-) {
+private fun QuotaDetailItem(modelRemain: ModelRemain) {
+    val remaining = modelRemain.currentIntervalUsageCount
+    val total = modelRemain.currentIntervalTotalCount
+    val used = total - remaining
+    val progress = if (total > 0) {
+        used.toFloat() / total.toFloat()
+    } else 0f
+
+    val progressColor = getProgressColor(progress)
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -270,50 +442,98 @@ private fun QuotaDetailItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        imageVector = if (progress >= 1f) Icons.Default.Warning else Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = progressColor,
+                        modifier = Modifier.size(24.dp)
                     )
-                    Text(
-                        text = description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = modelRemain.modelName,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = formatTimeRemaining(modelRemain.remainsTime),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
                 Column(
                     horizontalAlignment = Alignment.End
                 ) {
                     Text(
-                        text = used,
-                        style = MaterialTheme.typography.titleMedium,
+                        text = remaining.toString(),
+                        style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = progressColor
                     )
                     Text(
-                        text = "of $total",
-                        style = MaterialTheme.typography.bodySmall,
+                        text = "left",
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             LinearProgressIndicator(
                 progress = { progress },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(6.dp),
-                color = if (progress > 0.8f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    .height(10.dp),
+                color = progressColor,
                 trackColor = MaterialTheme.colorScheme.surfaceVariant,
             )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "${(progress * 100).toInt()}% used",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "${(progress * 100).toInt()}% used",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "$used / $total",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
+    }
+}
+
+@Composable
+private fun getProgressColor(progress: Float): Color {
+    return when {
+        progress >= 0.95f -> MaterialTheme.colorScheme.error
+        progress >= 0.80f -> MaterialTheme.colorScheme.tertiary
+        progress >= 0.60f -> MaterialTheme.colorScheme.secondary
+        else -> MaterialTheme.colorScheme.primary
+    }
+}
+
+private fun formatTimeRemaining(millis: Long): String {
+    val seconds = millis / 1000
+    val minutes = seconds / 60
+    val hours = minutes / 60
+    val days = hours / 24
+
+    return when {
+        days > 0 -> "${days}d ${hours % 24}h"
+        hours > 0 -> "${hours}h ${minutes % 60}m"
+        minutes > 0 -> "${minutes}m ${seconds % 60}s"
+        else -> "${seconds}s"
     }
 }
