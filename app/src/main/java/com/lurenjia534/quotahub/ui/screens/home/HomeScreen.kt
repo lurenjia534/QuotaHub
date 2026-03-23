@@ -20,11 +20,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DataUsage
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Key
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -52,12 +47,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.lurenjia534.quotahub.R
 import com.lurenjia534.quotahub.data.model.ModelRemain
 import com.lurenjia534.quotahub.data.repository.QuotaRepository
 
@@ -84,7 +81,7 @@ fun HomeScreen(
             GreetingSection()
             Spacer(modifier = Modifier.height(24.dp))
 
-            if (uiState.isLoading) {
+            if (uiState.isBootstrapping || (uiState.isLoading && uiState.modelRemains.isEmpty())) {
                 Box(
                     modifier = Modifier.fillMaxWidth(),
                     contentAlignment = Alignment.Center
@@ -124,7 +121,7 @@ fun HomeScreen(
                 QuotaOverviewSection(uiState.modelRemains)
                 Spacer(modifier = Modifier.height(24.dp))
                 QuotaDetailCards(uiState.modelRemains)
-            } else {
+            } else if (!uiState.isBootstrapping && !uiState.isLoading) {
                 EmptyStateSection()
             }
         }
@@ -147,37 +144,18 @@ fun HomeScreen(
             ) {
                 Column {
                     ListItem(
-                        headlineContent = { Text("Add API Key") },
+                        headlineContent = { Text("MiniMax Coding Plan(minimaxi.com)") },
                         leadingContent = {
-                            Icon(Icons.Default.Key, contentDescription = null)
+                            Icon(
+                                painter = painterResource(R.drawable.minimax_color),
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp),
+                                tint = Color.Unspecified
+                            )
                         },
                         modifier = Modifier.clickable {
                             viewModel.showApiKeyDialog()
                             showBottomSheet = false
-                        }
-                    )
-                    ListItem(
-                        headlineContent = { Text("Edit Quota") },
-                        leadingContent = {
-                            Icon(Icons.Default.Edit, contentDescription = null)
-                        }
-                    )
-                    ListItem(
-                        headlineContent = { Text("Set Reminder") },
-                        leadingContent = {
-                            Icon(Icons.Default.Notifications, contentDescription = null)
-                        }
-                    )
-                    ListItem(
-                        headlineContent = { Text("View History") },
-                        leadingContent = {
-                            Icon(Icons.Default.DateRange, contentDescription = null)
-                        }
-                    )
-                    ListItem(
-                        headlineContent = { Text("Delete") },
-                        leadingContent = {
-                            Icon(Icons.Default.Delete, contentDescription = null)
                         }
                     )
                     Spacer(modifier = Modifier.height(32.dp))
@@ -275,10 +253,10 @@ private fun EmptyStateSection() {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(
-                imageVector = Icons.Default.Key,
+                painter = painterResource(R.drawable.minimax_color),
                 contentDescription = null,
                 modifier = Modifier.size(48.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                tint = Color.Unspecified
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(

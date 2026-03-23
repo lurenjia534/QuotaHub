@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 data class HomeUiState(
+    val isBootstrapping: Boolean = true,
     val isLoading: Boolean = false,
     val modelRemains: List<ModelRemain> = emptyList(),
     val error: String? = null,
@@ -25,9 +26,27 @@ class HomeViewModel(private val repository: QuotaRepository) : ViewModel() {
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     init {
+        bootstrap()
         observeSavedApiKey()
         observeCachedModelRemains()
-        refreshSavedApiKey()
+    }
+
+    private fun bootstrap() {
+        viewModelScope.launch {
+            val savedApiKey = repository.apiKey.first()
+            val cachedModelRemains = repository.modelRemains.first()
+
+            _uiState.value = _uiState.value.copy(
+                isBootstrapping = false,
+                apiKey = savedApiKey?.key.orEmpty(),
+                hasApiKey = savedApiKey != null,
+                modelRemains = cachedModelRemains
+            )
+
+            if (savedApiKey != null) {
+                fetchModelRemains(savedApiKey.key)
+            }
+        }
     }
 
     private fun observeSavedApiKey() {
@@ -38,13 +57,6 @@ class HomeViewModel(private val repository: QuotaRepository) : ViewModel() {
                     hasApiKey = entity != null
                 )
             }
-        }
-    }
-
-    private fun refreshSavedApiKey() {
-        viewModelScope.launch {
-            val savedApiKey = repository.apiKey.first()?.key ?: return@launch
-            fetchModelRemains(savedApiKey)
         }
     }
 
