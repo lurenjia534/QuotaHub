@@ -5,17 +5,16 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import com.lurenjia534.quotahub.data.repository.QuotaRepository
+import com.lurenjia534.quotahub.data.provider.QuotaProviderRegistry
 import com.lurenjia534.quotahub.ui.screens.explore.ExploreScreen
 import com.lurenjia534.quotahub.ui.screens.home.HomeScreen
-import com.lurenjia534.quotahub.ui.screens.home.MiniMaxQuotaScreen
-import com.lurenjia534.quotahub.ui.screens.home.QuotaProvider
+import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaScreen
 import com.lurenjia534.quotahub.ui.screens.profile.ProfileScreen
 
 @Composable
 fun QuotaNavHost(
     navController: NavHostController,
-    repository: QuotaRepository,
+    providerRegistry: QuotaProviderRegistry,
     modifier: Modifier = Modifier
 ) {
     NavHost(
@@ -25,7 +24,7 @@ fun QuotaNavHost(
     ) {
         composable(route = Screen.Home.route) {
             HomeScreen(
-                repository = repository,
+                providerRegistry = providerRegistry,
                 onProviderClick = { provider ->
                     navController.navigate(Screen.ProviderDetail.createRoute(provider.id))
                 }
@@ -33,10 +32,14 @@ fun QuotaNavHost(
         }
 
         composable(route = Screen.ProviderDetail.route) { backStackEntry ->
-            when (backStackEntry.arguments?.getString(Screen.ProviderDetail.providerIdArg)) {
-                QuotaProvider.MiniMax.id -> MiniMaxQuotaScreen(repository = repository)
-                else -> HomeScreen(
-                    repository = repository,
+            val providerId = backStackEntry.arguments?.getString(Screen.ProviderDetail.providerIdArg)
+            val providerGateway = providerRegistry.get(providerId.orEmpty())
+
+            if (providerGateway != null) {
+                ProviderQuotaScreen(providerGateway = providerGateway)
+            } else {
+                HomeScreen(
+                    providerRegistry = providerRegistry,
                     onProviderClick = { provider ->
                         navController.navigate(Screen.ProviderDetail.createRoute(provider.id))
                     }

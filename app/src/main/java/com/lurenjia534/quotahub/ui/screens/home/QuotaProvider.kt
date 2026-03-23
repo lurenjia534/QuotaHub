@@ -7,13 +7,19 @@ enum class QuotaProvider(
     val id: String,
     val title: String,
     val subtitle: String,
-    @param:DrawableRes val iconRes: Int
+    @param:DrawableRes val iconRes: Int,
+    val credentialLabel: String,
+    val connectDescription: String,
+    val detailDescription: String
 ) {
     MiniMax(
         id = "minimax",
         title = "MiniMax Coding Plan",
         subtitle = "minimaxi.com",
-        iconRes = R.drawable.minimax_color
+        iconRes = R.drawable.minimax_color,
+        credentialLabel = "API Key",
+        connectDescription = "Connect to MiniMax API",
+        detailDescription = "Monitor your MiniMax quota usage"
     );
 
     companion object {

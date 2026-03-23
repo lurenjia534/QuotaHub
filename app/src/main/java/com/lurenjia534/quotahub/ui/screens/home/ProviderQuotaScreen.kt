@@ -48,18 +48,18 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.lurenjia534.quotahub.R
+import com.lurenjia534.quotahub.data.provider.QuotaProviderGateway
 import com.lurenjia534.quotahub.data.model.ModelRemain
-import com.lurenjia534.quotahub.data.repository.QuotaRepository
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MiniMaxQuotaScreen(
+fun ProviderQuotaScreen(
     modifier: Modifier = Modifier,
-    repository: QuotaRepository
+    providerGateway: QuotaProviderGateway
 ) {
-    val viewModel: HomeViewModel = viewModel(
-        factory = HomeViewModel.Factory(repository)
+    val viewModel: ProviderQuotaViewModel = viewModel(
+        key = "provider-quota-${providerGateway.provider.id}",
+        factory = ProviderQuotaViewModel.Factory(providerGateway)
     )
     val uiState by viewModel.uiState.collectAsState()
     val pullToRefreshState = rememberPullToRefreshState()
@@ -71,8 +71,8 @@ fun MiniMaxQuotaScreen(
             .pullToRefresh(
                 state = pullToRefreshState,
                 isRefreshing = isRefreshing,
-                enabled = uiState.hasApiKey && !uiState.isBootstrapping,
-                onRefresh = viewModel::fetchModelRemains
+                enabled = uiState.isConnected && !uiState.isBootstrapping,
+                onRefresh = viewModel::refresh
             )
     ) {
         Column(
@@ -81,7 +81,7 @@ fun MiniMaxQuotaScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            MiniMaxGreetingSection()
+            ProviderGreetingSection(provider = uiState.provider)
             Spacer(modifier = Modifier.height(24.dp))
 
             if (uiState.isBootstrapping || (uiState.isLoading && uiState.modelRemains.isEmpty())) {
@@ -125,7 +125,7 @@ fun MiniMaxQuotaScreen(
                 Spacer(modifier = Modifier.height(24.dp))
                 QuotaDetailCards(uiState.modelRemains)
             } else if (!uiState.isBootstrapping && !uiState.isLoading) {
-                MiniMaxEmptyStateSection()
+                ProviderEmptyStateSection(provider = uiState.provider)
             }
         }
 
@@ -135,39 +135,43 @@ fun MiniMaxQuotaScreen(
             state = pullToRefreshState
         )
 
-        if (uiState.showApiKeyDialog) {
-            MiniMaxApiKeyDialog(
-                apiKey = uiState.apiKey,
-                onApiKeyChange = viewModel::updateApiKey,
-                onDismiss = viewModel::hideApiKeyDialog,
-                onConfirm = viewModel::saveApiKeyAndFetch
+        if (uiState.showCredentialDialog) {
+            ProviderCredentialDialog(
+                provider = uiState.provider,
+                credentialInput = uiState.credentialInput,
+                isSaving = uiState.isLoading,
+                onCredentialChange = viewModel::updateCredentialInput,
+                onDismiss = viewModel::hideCredentialDialog,
+                onConfirm = viewModel::saveCredentialAndRefresh
             )
         }
     }
 }
 
 @Composable
-private fun MiniMaxApiKeyDialog(
-    apiKey: String,
-    onApiKeyChange: (String) -> Unit,
+private fun ProviderCredentialDialog(
+    provider: QuotaProvider,
+    credentialInput: String,
+    isSaving: Boolean,
+    onCredentialChange: (String) -> Unit,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Enter API Key") },
+        title = { Text("Connect ${provider.title}") },
         text = {
             Column {
                 Text(
-                    text = "Enter your MiniMax API key to view your quota information.",
+                    text = "Enter your ${provider.title} ${provider.credentialLabel.lowercase()} to sync quota information.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 OutlinedTextField(
-                    value = apiKey,
-                    onValueChange = onApiKeyChange,
-                    label = { Text("API Key") },
+                    value = credentialInput,
+                    onValueChange = onCredentialChange,
+                    label = { Text(provider.credentialLabel) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
@@ -179,13 +183,16 @@ private fun MiniMaxApiKeyDialog(
         confirmButton = {
             TextButton(
                 onClick = onConfirm,
-                enabled = apiKey.isNotBlank()
+                enabled = credentialInput.isNotBlank() && !isSaving
             ) {
-                Text("Confirm")
+                Text(if (isSaving) "Syncing..." else "Connect")
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !isSaving
+            ) {
                 Text("Cancel")
             }
         }
@@ -193,18 +200,18 @@ private fun MiniMaxApiKeyDialog(
 }
 
 @Composable
-private fun MiniMaxGreetingSection() {
+private fun ProviderGreetingSection(provider: QuotaProvider) {
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
-                painter = painterResource(R.drawable.minimax_color),
+                painter = painterResource(provider.iconRes),
                 contentDescription = null,
                 modifier = Modifier.size(28.dp),
                 tint = Color.Unspecified
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                text = "MiniMax Coding Plan",
+                text = provider.title,
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
@@ -212,7 +219,7 @@ private fun MiniMaxGreetingSection() {
         }
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "Monitor your MiniMax quota usage",
+            text = provider.detailDescription,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -220,7 +227,7 @@ private fun MiniMaxGreetingSection() {
 }
 
 @Composable
-private fun MiniMaxEmptyStateSection() {
+private fun ProviderEmptyStateSection(provider: QuotaProvider) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -234,7 +241,7 @@ private fun MiniMaxEmptyStateSection() {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(
-                painter = painterResource(R.drawable.minimax_color),
+                painter = painterResource(provider.iconRes),
                 contentDescription = null,
                 modifier = Modifier.size(48.dp),
                 tint = Color.Unspecified
@@ -247,7 +254,7 @@ private fun MiniMaxEmptyStateSection() {
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Add your MiniMax API key from the Home page to start syncing quota data.",
+                text = "Connect ${provider.title} from the Home page to start syncing quota data.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -310,9 +317,7 @@ private fun OverviewCard(
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
@@ -327,9 +332,7 @@ private fun OverviewCard(
                 )
             }
             Spacer(modifier = Modifier.height(16.dp))
-            Row(
-                verticalAlignment = Alignment.Bottom
-            ) {
+            Row(verticalAlignment = Alignment.Bottom) {
                 Text(
                     text = used,
                     style = MaterialTheme.typography.headlineMedium,
@@ -397,9 +400,7 @@ private fun QuotaDetailItem(modelRemain: ModelRemain) {
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -432,9 +433,7 @@ private fun QuotaDetailItem(modelRemain: ModelRemain) {
                         )
                     }
                 }
-                Column(
-                    horizontalAlignment = Alignment.End
-                ) {
+                Column(horizontalAlignment = Alignment.End) {
                     Text(
                         text = remaining.toString(),
                         style = MaterialTheme.typography.headlineSmall,

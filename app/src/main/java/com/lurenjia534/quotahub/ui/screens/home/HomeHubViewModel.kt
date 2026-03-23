@@ -3,96 +3,111 @@ package com.lurenjia534.quotahub.ui.screens.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.lurenjia534.quotahub.data.model.ModelRemain
-import com.lurenjia534.quotahub.data.repository.QuotaRepository
+import com.lurenjia534.quotahub.data.provider.QuotaProviderRegistry
+import com.lurenjia534.quotahub.data.provider.QuotaProviderSnapshot
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
+data class ProviderCardUiModel(
+    val provider: QuotaProvider,
+    val isConnected: Boolean,
+    val credential: String,
+    val modelCount: Int,
+    val remainingCalls: Int,
+    val remainingTime: Long?
+)
+
 data class HomeHubUiState(
     val isBootstrapping: Boolean = true,
     val isSaving: Boolean = false,
-    val hasMiniMaxProvider: Boolean = false,
-    val minimaxModelRemains: List<ModelRemain> = emptyList(),
-    val apiKey: String = "",
-    val showApiKeyDialog: Boolean = false,
+    val providerCards: List<ProviderCardUiModel> = emptyList(),
+    val selectedProvider: QuotaProvider? = null,
+    val credentialInput: String = "",
+    val showCredentialDialog: Boolean = false,
     val error: String? = null
 )
 
-class HomeHubViewModel(private val repository: QuotaRepository) : ViewModel() {
+class HomeHubViewModel(
+    private val providerRegistry: QuotaProviderRegistry
+) : ViewModel() {
     private val _uiState = MutableStateFlow(HomeHubUiState())
     val uiState: StateFlow<HomeHubUiState> = _uiState.asStateFlow()
 
     init {
         bootstrap()
-        observeApiKey()
-        observeModelRemains()
+        observeProviderSnapshots()
     }
 
     private fun bootstrap() {
         viewModelScope.launch {
-            val savedApiKey = repository.apiKey.first()
-            val cachedModelRemains = repository.modelRemains.first()
-
+            val snapshots = providerRegistry.snapshots.first()
             _uiState.value = _uiState.value.copy(
                 isBootstrapping = false,
-                hasMiniMaxProvider = savedApiKey != null,
-                apiKey = savedApiKey?.key.orEmpty(),
-                minimaxModelRemains = cachedModelRemains
+                providerCards = snapshots.map { it.toCardUiModel() }
             )
         }
     }
 
-    private fun observeApiKey() {
+    private fun observeProviderSnapshots() {
         viewModelScope.launch {
-            repository.apiKey.collect { entity ->
+            providerRegistry.snapshots.collect { snapshots ->
+                val currentSelectedProvider = _uiState.value.selectedProvider
+                val selectedSnapshot = snapshots.firstOrNull { it.provider == currentSelectedProvider }
+
                 _uiState.value = _uiState.value.copy(
-                    hasMiniMaxProvider = entity != null,
-                    apiKey = entity?.key.orEmpty()
+                    providerCards = snapshots.map { it.toCardUiModel() },
+                    credentialInput = if (_uiState.value.showCredentialDialog) {
+                        _uiState.value.credentialInput
+                    } else {
+                        selectedSnapshot?.credential.orEmpty()
+                    }
                 )
             }
         }
     }
 
-    private fun observeModelRemains() {
-        viewModelScope.launch {
-            repository.modelRemains.collect { modelRemains ->
-                _uiState.value = _uiState.value.copy(minimaxModelRemains = modelRemains)
-            }
-        }
+    fun showCredentialDialog(provider: QuotaProvider) {
+        val currentCredential = _uiState.value.providerCards
+            .firstOrNull { it.provider == provider }
+            ?.credential
+            .orEmpty()
+
+        _uiState.value = _uiState.value.copy(
+            selectedProvider = provider,
+            credentialInput = currentCredential,
+            showCredentialDialog = true,
+            error = null
+        )
     }
 
-    fun showApiKeyDialog() {
-        _uiState.value = _uiState.value.copy(showApiKeyDialog = true, error = null)
+    fun hideCredentialDialog() {
+        _uiState.value = _uiState.value.copy(showCredentialDialog = false)
     }
 
-    fun hideApiKeyDialog() {
-        _uiState.value = _uiState.value.copy(showApiKeyDialog = false)
+    fun updateCredentialInput(credential: String) {
+        _uiState.value = _uiState.value.copy(credentialInput = credential)
     }
 
-    fun updateApiKey(key: String) {
-        _uiState.value = _uiState.value.copy(apiKey = key)
-    }
-
-    fun saveMiniMaxProvider() {
-        val apiKey = _uiState.value.apiKey.trim()
-        if (apiKey.isBlank()) {
-            _uiState.value = _uiState.value.copy(error = "API key is required")
+    fun saveSelectedProviderCredential() {
+        val provider = _uiState.value.selectedProvider ?: return
+        val credential = _uiState.value.credentialInput.trim()
+        if (credential.isBlank()) {
+            _uiState.value = _uiState.value.copy(error = "${provider.credentialLabel} is required")
             return
         }
 
+        val gateway = providerRegistry.get(provider) ?: return
+
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSaving = true, error = null)
-            repository.saveApiKey(apiKey)
-            val result = repository.getModelRemains("Bearer $apiKey")
-            result.fold(
+            gateway.connect(credential).fold(
                 onSuccess = {
                     _uiState.value = _uiState.value.copy(
                         isSaving = false,
-                        showApiKeyDialog = false,
-                        hasMiniMaxProvider = true
+                        showCredentialDialog = false
                     )
                 },
                 onFailure = { error ->
@@ -109,11 +124,24 @@ class HomeHubViewModel(private val repository: QuotaRepository) : ViewModel() {
         _uiState.value = _uiState.value.copy(error = null)
     }
 
-    class Factory(private val repository: QuotaRepository) : ViewModelProvider.Factory {
+    private fun QuotaProviderSnapshot.toCardUiModel(): ProviderCardUiModel {
+        return ProviderCardUiModel(
+            provider = provider,
+            isConnected = isConnected,
+            credential = credential.orEmpty(),
+            modelCount = modelRemains.size,
+            remainingCalls = modelRemains.sumOf { it.currentIntervalUsageCount },
+            remainingTime = modelRemains.maxOfOrNull { it.remainsTime }
+        )
+    }
+
+    class Factory(
+        private val providerRegistry: QuotaProviderRegistry
+    ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(HomeHubViewModel::class.java)) {
-                return HomeHubViewModel(repository) as T
+                return HomeHubViewModel(providerRegistry) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class")
         }

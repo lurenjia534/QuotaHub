@@ -50,17 +50,17 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.lurenjia534.quotahub.data.repository.QuotaRepository
+import com.lurenjia534.quotahub.data.provider.QuotaProviderRegistry
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
-    repository: QuotaRepository,
+    providerRegistry: QuotaProviderRegistry,
     onProviderClick: (QuotaProvider) -> Unit
 ) {
     val viewModel: HomeHubViewModel = viewModel(
-        factory = HomeHubViewModel.Factory(repository)
+        factory = HomeHubViewModel.Factory(providerRegistry)
     )
     val uiState by viewModel.uiState.collectAsState()
     var showBottomSheet by remember { mutableStateOf(false) }
@@ -112,16 +112,22 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-            if (uiState.hasMiniMaxProvider) {
+            val connectedProviders = uiState.providerCards.filter { it.isConnected }
+            if (connectedProviders.isNotEmpty()) {
                 ProviderSectionTitle(title = "Connected Providers")
                 Spacer(modifier = Modifier.height(12.dp))
-                ProviderCard(
-                    provider = QuotaProvider.MiniMax,
-                    modelCount = uiState.minimaxModelRemains.size,
-                    remainingCalls = uiState.minimaxModelRemains.sumOf { it.currentIntervalUsageCount },
-                    remainingTime = uiState.minimaxModelRemains.maxOfOrNull { it.remainsTime },
-                    onClick = { onProviderClick(QuotaProvider.MiniMax) }
-                )
+                connectedProviders.forEachIndexed { index, providerCard ->
+                    if (index > 0) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+                    ProviderCard(
+                        provider = providerCard.provider,
+                        modelCount = providerCard.modelCount,
+                        remainingCalls = providerCard.remainingCalls,
+                        remainingTime = providerCard.remainingTime,
+                        onClick = { onProviderClick(providerCard.provider) }
+                    )
+                }
             } else if (!uiState.isBootstrapping) {
                 ProviderEmptyState()
             }
@@ -143,20 +149,22 @@ fun HomeScreen(
             ProviderBottomSheet(
                 sheetState = sheetState,
                 onDismiss = { showBottomSheet = false },
-                onMiniMaxClick = {
-                    viewModel.showApiKeyDialog()
+                providers = providerRegistry.providers,
+                onProviderClick = { provider ->
+                    viewModel.showCredentialDialog(provider)
                     showBottomSheet = false
                 }
             )
         }
 
-        if (uiState.showApiKeyDialog) {
+        if (uiState.showCredentialDialog) {
             ProviderApiKeyDialog(
-                apiKey = uiState.apiKey,
+                provider = uiState.selectedProvider ?: QuotaProvider.MiniMax,
+                credentialInput = uiState.credentialInput,
                 isSaving = uiState.isSaving,
-                onApiKeyChange = viewModel::updateApiKey,
-                onDismiss = viewModel::hideApiKeyDialog,
-                onConfirm = viewModel::saveMiniMaxProvider
+                onCredentialChange = viewModel::updateCredentialInput,
+                onDismiss = viewModel::hideCredentialDialog,
+                onConfirm = viewModel::saveSelectedProviderCredential
             )
         }
     }
@@ -351,7 +359,8 @@ private fun ProviderEmptyState() {
 private fun ProviderBottomSheet(
     sheetState: androidx.compose.material3.SheetState,
     onDismiss: () -> Unit,
-    onMiniMaxClick: () -> Unit
+    providers: List<QuotaProvider>,
+    onProviderClick: (QuotaProvider) -> Unit
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -382,54 +391,60 @@ private fun ProviderBottomSheet(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.secondaryContainer,
-                onClick = onMiniMaxClick
-            ) {
-                Row(
+            providers.forEachIndexed { index, provider ->
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(20.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(horizontal = 16.dp),
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    onClick = { onProviderClick(provider) }
                 ) {
-                    Surface(
-                        shape = MaterialTheme.shapes.medium,
-                        color = MaterialTheme.colorScheme.tertiary
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Surface(
+                            shape = MaterialTheme.shapes.medium,
+                            color = MaterialTheme.colorScheme.tertiary
+                        ) {
+                            Icon(
+                                painter = painterResource(provider.iconRes),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .padding(8.dp),
+                                tint = Color.Unspecified
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = provider.title,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                            Text(
+                                text = provider.subtitle,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         Icon(
-                            painter = painterResource(QuotaProvider.MiniMax.iconRes),
+                            imageVector = Icons.Default.ChevronRight,
                             contentDescription = null,
-                            modifier = Modifier
-                                .size(48.dp)
-                                .padding(8.dp),
-                            tint = Color.Unspecified
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f)
                         )
                     }
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = QuotaProvider.MiniMax.title,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                        Text(
-                            text = QuotaProvider.MiniMax.subtitle,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Icon(
-                        imageVector = Icons.Default.ChevronRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f)
-                    )
+                }
+
+                if (index < providers.lastIndex) {
+                    Spacer(modifier = Modifier.height(12.dp))
                 }
             }
 
@@ -455,27 +470,28 @@ private fun ProviderBottomSheet(
 
 @Composable
 private fun ProviderApiKeyDialog(
-    apiKey: String,
+    provider: QuotaProvider,
+    credentialInput: String,
     isSaving: Boolean,
-    onApiKeyChange: (String) -> Unit,
+    onCredentialChange: (String) -> Unit,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Connect MiniMax") },
+        title = { Text("Connect ${provider.title}") },
         text = {
             Column {
                 Text(
-                    text = "Enter your MiniMax API key to connect this provider and sync quota data.",
+                    text = "Enter your ${provider.title} ${provider.credentialLabel.lowercase()} to connect this provider and sync quota data.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 OutlinedTextField(
-                    value = apiKey,
-                    onValueChange = onApiKeyChange,
-                    label = { Text("MiniMax API Key") },
+                    value = credentialInput,
+                    onValueChange = onCredentialChange,
+                    label = { Text(provider.credentialLabel) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
@@ -487,7 +503,7 @@ private fun ProviderApiKeyDialog(
         confirmButton = {
             TextButton(
                 onClick = onConfirm,
-                enabled = apiKey.isNotBlank() && !isSaving
+                enabled = credentialInput.isNotBlank() && !isSaving
             ) {
                 Text(if (isSaving) "Syncing..." else "Connect")
             }
