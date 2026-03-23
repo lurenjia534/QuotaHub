@@ -15,15 +15,19 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.DataUsage
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -77,10 +81,33 @@ fun HomeScreen(
                 onDismissRequest = { showBottomSheet = false },
                 sheetState = sheetState
             ) {
-                Text(
-                    text = "Bottom Sheet Content",
-                    modifier = Modifier.padding(16.dp)
-                )
+                Column {
+                    ListItem(
+                        headlineContent = { Text("Edit Quota") },
+                        leadingContent = {
+                            Icon(Icons.Default.Edit, contentDescription = null)
+                        }
+                    )
+                    ListItem(
+                        headlineContent = { Text("Set Reminder") },
+                        leadingContent = {
+                            Icon(Icons.Default.Notifications, contentDescription = null)
+                        }
+                    )
+                    ListItem(
+                        headlineContent = { Text("View History") },
+                        leadingContent = {
+                            Icon(Icons.Default.DateRange, contentDescription = null)
+                        }
+                    )
+                    ListItem(
+                        headlineContent = { Text("Delete") },
+                        leadingContent = {
+                            Icon(Icons.Default.Delete, contentDescription = null)
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(32.dp))
+                }
             }
         }
     }
