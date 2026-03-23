@@ -21,16 +21,18 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        val application = application as QuotaApplication
+        val repository = application.repository
         setContent {
             QuotaHubTheme {
-                QuotaApp()
+                QuotaApp(repository = repository)
             }
         }
     }
 }
 
 @Composable
-fun QuotaApp() {
+fun QuotaApp(repository: com.lurenjia534.quotahub.data.repository.QuotaRepository) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -45,6 +47,7 @@ fun QuotaApp() {
     ) { innerPadding ->
         QuotaNavHost(
             navController = navController,
+            repository = repository,
             modifier = Modifier.padding(innerPadding)
         )
     }

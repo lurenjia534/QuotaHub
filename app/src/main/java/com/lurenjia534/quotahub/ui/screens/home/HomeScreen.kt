@@ -59,13 +59,17 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lurenjia534.quotahub.data.model.ModelRemain
+import com.lurenjia534.quotahub.data.repository.QuotaRepository
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
-    viewModel: HomeViewModel = viewModel()
+    repository: QuotaRepository
 ) {
+    val viewModel: HomeViewModel = viewModel(
+        factory = HomeViewModel.Factory(repository)
+    )
     val uiState by viewModel.uiState.collectAsState()
     var showBottomSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
@@ -186,7 +190,7 @@ fun HomeScreen(
                 apiKey = uiState.apiKey,
                 onApiKeyChange = viewModel::updateApiKey,
                 onDismiss = viewModel::hideApiKeyDialog,
-                onConfirm = viewModel::fetchModelRemains
+                onConfirm = viewModel::saveApiKeyAndFetch
             )
         }
     }
