@@ -5,9 +5,14 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [ApiKeyEntity::class], version = 1, exportSchema = false)
+@Database(
+    entities = [ApiKeyEntity::class, ModelRemainEntity::class],
+    version = 2,
+    exportSchema = false
+)
 abstract class QuotaDatabase : RoomDatabase() {
     abstract fun apiKeyDao(): ApiKeyDao
+    abstract fun modelRemainDao(): ModelRemainDao
 
     companion object {
         @Volatile
@@ -19,7 +24,9 @@ abstract class QuotaDatabase : RoomDatabase() {
                     context.applicationContext,
                     QuotaDatabase::class.java,
                     "quota_database"
-                ).build()
+                )
+                    .fallbackToDestructiveMigration(dropAllTables = true)
+                    .build()
                 INSTANCE = instance
                 instance
             }

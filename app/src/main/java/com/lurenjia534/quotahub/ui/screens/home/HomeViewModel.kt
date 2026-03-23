@@ -25,19 +25,33 @@ class HomeViewModel(private val repository: QuotaRepository) : ViewModel() {
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     init {
-        loadSavedApiKey()
+        observeSavedApiKey()
+        observeCachedModelRemains()
+        refreshSavedApiKey()
     }
 
-    private fun loadSavedApiKey() {
+    private fun observeSavedApiKey() {
         viewModelScope.launch {
             repository.apiKey.collect { entity ->
-                if (entity != null) {
-                    _uiState.value = _uiState.value.copy(
-                        apiKey = entity.key,
-                        hasApiKey = true
-                    )
-                    fetchModelRemains()
-                }
+                _uiState.value = _uiState.value.copy(
+                    apiKey = entity?.key.orEmpty(),
+                    hasApiKey = entity != null
+                )
+            }
+        }
+    }
+
+    private fun refreshSavedApiKey() {
+        viewModelScope.launch {
+            val savedApiKey = repository.apiKey.first()?.key ?: return@launch
+            fetchModelRemains(savedApiKey)
+        }
+    }
+
+    private fun observeCachedModelRemains() {
+        viewModelScope.launch {
+            repository.modelRemains.collect { modelRemains ->
+                _uiState.value = _uiState.value.copy(modelRemains = modelRemains)
             }
         }
     }
@@ -55,7 +69,10 @@ class HomeViewModel(private val repository: QuotaRepository) : ViewModel() {
     }
 
     fun fetchModelRemains() {
-        val apiKey = _uiState.value.apiKey
+        fetchModelRemains(_uiState.value.apiKey)
+    }
+
+    private fun fetchModelRemains(apiKey: String) {
         if (apiKey.isBlank()) {
             _uiState.value = _uiState.value.copy(error = "API key is required")
             return
@@ -65,10 +82,9 @@ class HomeViewModel(private val repository: QuotaRepository) : ViewModel() {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             val result = repository.getModelRemains("Bearer ${apiKey.trim()}")
             result.fold(
-                onSuccess = { response ->
+                onSuccess = {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
-                        modelRemains = response.modelRemains,
                         showApiKeyDialog = false,
                         hasApiKey = true
                     )

@@ -9,6 +9,9 @@ class QuotaApplication : Application() {
         QuotaDatabase.getDatabase(this)
     }
     val repository: QuotaRepository by lazy {
-        QuotaRepository(database.apiKeyDao())
+        QuotaRepository(
+            apiKeyDao = database.apiKeyDao(),
+            modelRemainDao = database.modelRemainDao()
+        )
     }
 }
