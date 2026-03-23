@@ -39,7 +39,12 @@ class QuotaRepository(
             val cachedAt = System.currentTimeMillis()
             modelRemainDao.clearModelRemains()
             modelRemainDao.upsertModelRemains(
-                response.modelRemains.map { it.toEntity(cachedAt) }
+                response.modelRemains.mapIndexed { index, modelRemain ->
+                    modelRemain.toEntity(
+                        displayOrder = index,
+                        cachedAt = cachedAt
+                    )
+                }
             )
             Result.success(response)
         } catch (e: Exception) {

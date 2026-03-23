@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ModelRemainDao {
-    @Query("SELECT * FROM model_remain ORDER BY modelName ASC")
+    @Query("SELECT * FROM model_remain ORDER BY displayOrder ASC")
     fun getModelRemains(): Flow<List<ModelRemainEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

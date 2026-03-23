@@ -8,6 +8,7 @@ import com.lurenjia534.quotahub.data.model.ModelRemain
 data class ModelRemainEntity(
     @PrimaryKey
     val modelName: String,
+    val displayOrder: Int,
     val startTime: Long,
     val endTime: Long,
     val remainsTime: Long,
@@ -37,9 +38,13 @@ fun ModelRemainEntity.toModelRemain(): ModelRemain {
     )
 }
 
-fun ModelRemain.toEntity(cachedAt: Long = System.currentTimeMillis()): ModelRemainEntity {
+fun ModelRemain.toEntity(
+    displayOrder: Int,
+    cachedAt: Long = System.currentTimeMillis()
+): ModelRemainEntity {
     return ModelRemainEntity(
         modelName = modelName,
+        displayOrder = displayOrder,
         startTime = startTime,
         endTime = endTime,
         remainsTime = remainsTime,

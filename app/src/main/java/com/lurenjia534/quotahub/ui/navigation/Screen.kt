@@ -14,6 +14,14 @@ sealed class Screen(val route: String) {
     // 首页 - 应用启动后的第一个屏幕
     data object Home : Screen("home")
 
+    data object ProviderDetail : Screen("provider/{providerId}") {
+        const val providerIdArg = "providerId"
+
+        fun createRoute(providerId: String): String {
+            return "provider/$providerId"
+        }
+    }
+
     // 探索页 - 用于浏览/搜索内容
     data object Explore : Screen("explore")
 
