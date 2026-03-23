@@ -16,6 +16,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DataUsage
 import androidx.compose.material.icons.filled.Schedule
@@ -26,14 +27,19 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.pullToRefresh
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -55,7 +61,8 @@ import com.lurenjia534.quotahub.data.model.ModelRemain
 @Composable
 fun ProviderQuotaScreen(
     modifier: Modifier = Modifier,
-    providerGateway: QuotaProviderGateway
+    providerGateway: QuotaProviderGateway,
+    onBackClick: () -> Unit
 ) {
     val viewModel: ProviderQuotaViewModel = viewModel(
         key = "provider-quota-${providerGateway.provider.id}",
@@ -64,86 +71,129 @@ fun ProviderQuotaScreen(
     val uiState by viewModel.uiState.collectAsState()
     val pullToRefreshState = rememberPullToRefreshState()
     val isRefreshing = uiState.isLoading && uiState.modelRemains.isNotEmpty()
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .pullToRefresh(
-                state = pullToRefreshState,
-                isRefreshing = isRefreshing,
-                enabled = uiState.isConnected && !uiState.isBootstrapping,
-                onRefresh = viewModel::refresh
-            )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp)
-        ) {
-            ProviderGreetingSection(provider = uiState.provider)
-            Spacer(modifier = Modifier.height(24.dp))
-
-            if (uiState.isBootstrapping || (uiState.isLoading && uiState.modelRemains.isEmpty())) {
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-
-            if (uiState.error != null) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+    Scaffold(
+        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        topBar = {
+            LargeTopAppBar(
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = Icons.Default.Warning,
+                            painter = painterResource(uiState.provider.iconRes),
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onErrorContainer
+                            modifier = Modifier.size(24.dp),
+                            tint = Color.Unspecified
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
-                            text = uiState.error!!,
-                            color = MaterialTheme.colorScheme.onErrorContainer
+                            text = uiState.provider.title,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-
-            if (uiState.modelRemains.isNotEmpty()) {
-                QuotaOverviewSection(uiState.modelRemains)
-                Spacer(modifier = Modifier.height(24.dp))
-                QuotaDetailCards(uiState.modelRemains)
-            } else if (!uiState.isBootstrapping && !uiState.isLoading) {
-                ProviderEmptyStateSection(provider = uiState.provider)
-            }
-        }
-
-        PullToRefreshDefaults.Indicator(
-            modifier = Modifier.align(Alignment.TopCenter),
-            isRefreshing = isRefreshing,
-            state = pullToRefreshState
-        )
-
-        if (uiState.showCredentialDialog) {
-            ProviderCredentialDialog(
-                provider = uiState.provider,
-                credentialInput = uiState.credentialInput,
-                isSaving = uiState.isLoading,
-                onCredentialChange = viewModel::updateCredentialInput,
-                onDismiss = viewModel::hideCredentialDialog,
-                onConfirm = viewModel::saveCredentialAndRefresh
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back"
+                        )
+                    }
+                },
+                scrollBehavior = scrollBehavior,
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surface
+                )
             )
+        }
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .pullToRefresh(
+                    state = pullToRefreshState,
+                    isRefreshing = isRefreshing,
+                    enabled = uiState.isConnected && !uiState.isBootstrapping,
+                    onRefresh = viewModel::refresh
+                )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp)
+            ) {
+                Text(
+                    text = uiState.provider.detailDescription,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+
+                if (uiState.isBootstrapping || (uiState.isLoading && uiState.modelRemains.isEmpty())) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
+                if (uiState.error != null) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = uiState.error!!,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
+                if (uiState.modelRemains.isNotEmpty()) {
+                    QuotaOverviewSection(uiState.modelRemains)
+                    Spacer(modifier = Modifier.height(24.dp))
+                    QuotaDetailCards(uiState.modelRemains)
+                } else if (!uiState.isBootstrapping && !uiState.isLoading) {
+                    ProviderEmptyStateSection(provider = uiState.provider)
+                }
+            }
+
+            PullToRefreshDefaults.Indicator(
+                modifier = Modifier.align(Alignment.TopCenter),
+                isRefreshing = isRefreshing,
+                state = pullToRefreshState
+            )
+
+            if (uiState.showCredentialDialog) {
+                ProviderCredentialDialog(
+                    provider = uiState.provider,
+                    credentialInput = uiState.credentialInput,
+                    isSaving = uiState.isLoading,
+                    onCredentialChange = viewModel::updateCredentialInput,
+                    onDismiss = viewModel::hideCredentialDialog,
+                    onConfirm = viewModel::saveCredentialAndRefresh
+                )
+            }
         }
     }
 }

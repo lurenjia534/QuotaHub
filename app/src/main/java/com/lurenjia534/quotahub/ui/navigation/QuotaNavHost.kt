@@ -36,7 +36,10 @@ fun QuotaNavHost(
             val providerGateway = providerRegistry.get(providerId.orEmpty())
 
             if (providerGateway != null) {
-                ProviderQuotaScreen(providerGateway = providerGateway)
+                ProviderQuotaScreen(
+                    providerGateway = providerGateway,
+                    onBackClick = { navController.popBackStack() }
+                )
             } else {
                 HomeScreen(
                     providerRegistry = providerRegistry,
