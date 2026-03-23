@@ -1,95 +1,254 @@
 package com.lurenjia534.quotahub.ui.screens.home
 
-/**
- * Box 是一个基础的布局组件，类似于传统 ViewSystem 中的 FrameLayout
- * 它的作用是将子元素堆叠在一起（后声明的在上层）
- * 在这里我们用它来居中显示 Text 组件
- */
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-
-/**
- * fillMaxSize() 是一个 Modifier 扩展函数
- * 作用是让组件填充父容器的全部尺寸
- * 相当于 Match_Parent（宽度和高度都100%）
- */
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-
-/**
- * Text 是 Material 3 的文本组件，用于显示文字内容
- * 类似于传统 ViewSystem 中的 TextView
- */
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.DataUsage
+import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-
-/**
- * Composable 注解标记这是一个 Compose UI 函数
- * 只有 @Composable 函数才能调用其他 Compose 组件
- */
 import androidx.compose.runtime.Composable
-
-/**
- * Alignment 是 Compose 提供的对齐方式工具类
- * Alignment.Center 表示居中对齐
- * 在 Box 中可以指定内容的对齐方式
- */
 import androidx.compose.ui.Alignment
-
-/**
- * Modifier 用于修改组件的布局参数和样式
- * 所有 Compose 组件都可以接收 Modifier 参数
- */
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 
-/**
- * 首页屏幕组件
- *
- * 功能说明：
- * - 这是用户点击底部导航栏 "Home" 后看到的第一个屏幕
- * - 目前只是一个占位页面，显示 "Home Screen" 文字
- *
- * 设计考量：
- * - 使用 Box + Alignment.Center 实现内容居中
- * - 使用 fillMaxSize() 让 Box 填满父容器
- *
- * @param modifier 外部传入的布局修饰符，用于调整组件的布局和样式
- *                  这个修饰符会被传递给父容器 Box
- *
- * 使用方式：
- * 在 QuotaNavHost 中作为 composable 的 content 被调用：
- * composable(route = Screen.Home.route) {
- *     HomeScreen()
- * }
- *
- * 或者带有修饰符：
- * HomeScreen(modifier = Modifier.padding(16.dp))
- */
 @Composable
 fun HomeScreen(
-    modifier: Modifier = Modifier  // 默认修饰符为空，允许外部传入自定义修饰符
+    modifier: Modifier = Modifier
 ) {
-    /**
-     * Box 布局组件
-     * - contentAlignment = Alignment.Center: 让内部内容居中显示
-     * - modifier = modifier.fillMaxSize(): 填满父容器全部空间
-     *
-     * 相当于 Android ViewSystem 中的：
-     * <FrameLayout>
-     *     <TextView
-     *         android:layout_gravity="center"
-     *         android:layout_width="match_parent"
-     *         android:layout_height="match_parent" />
-     * </FrameLayout>
-     */
-    Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp)
     ) {
-        /**
-         * Text 组件显示文本内容
-         * - text = "Home Screen": 要显示的文字
-         *
-         * 注意：这里没有传递 modifier 参数给 Text
-         * 因为 Text 会自动使用 Box 提供的居中对齐
-         */
-        Text(text = "Home Screen")
+        GreetingSection()
+        Spacer(modifier = Modifier.height(24.dp))
+        QuotaOverviewSection()
+        Spacer(modifier = Modifier.height(24.dp))
+        QuotaDetailCards()
+    }
+}
+
+@Composable
+private fun GreetingSection() {
+    Column {
+        Text(
+            text = "Welcome back!",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "Here's your quota overview",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun QuotaOverviewSection() {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        OverviewCard(
+            title = "Data Usage",
+            used = "32.5",
+            total = "50",
+            unit = "GB",
+            progress = 0.65f,
+            icon = Icons.Default.DataUsage,
+            modifier = Modifier.weight(1f)
+        )
+        OverviewCard(
+            title = "Storage",
+            used = "256",
+            total = "512",
+            unit = "GB",
+            progress = 0.5f,
+            icon = Icons.Default.Storage,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun OverviewCard(
+    title: String,
+    used: String,
+    total: String,
+    unit: String,
+    progress: Float,
+    icon: ImageVector,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "$used / $total $unit",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun QuotaDetailCards() {
+    Text(
+        text = "Quota Details",
+        style = MaterialTheme.typography.titleLarge,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurface
+    )
+    Spacer(modifier = Modifier.height(12.dp))
+    
+    QuotaDetailItem(
+        title = "Monthly Data",
+        description = "Mobile data this month",
+        used = "28.3 GB",
+        total = "50 GB",
+        progress = 0.57f
+    )
+    Spacer(modifier = Modifier.height(12.dp))
+    QuotaDetailItem(
+        title = "Cloud Storage",
+        description = "Cloud backup storage",
+        used = "15.2 GB",
+        total = "100 GB",
+        progress = 0.15f
+    )
+    Spacer(modifier = Modifier.height(12.dp))
+    QuotaDetailItem(
+        title = "Local Storage",
+        description = "Device internal storage",
+        used = "256 GB",
+        total = "512 GB",
+        progress = 0.5f
+    )
+}
+
+@Composable
+private fun QuotaDetailItem(
+    title: String,
+    description: String,
+    used: String,
+    total: String,
+    progress: Float
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Column(
+                    horizontalAlignment = Alignment.End
+                ) {
+                    Text(
+                        text = used,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "of $total",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp),
+                color = if (progress > 0.8f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "${(progress * 100).toInt()}% used",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
