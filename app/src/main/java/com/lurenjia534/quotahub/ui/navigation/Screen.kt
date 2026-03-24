@@ -22,11 +22,8 @@ sealed class Screen(val route: String) {
         }
     }
 
-    // 探索页 - 用于浏览/搜索内容
-    data object Explore : Screen("explore")
-
-    // 个人中心页 - 用户信息和设置
-    data object Profile : Screen("profile")
+    // 设置页 - 用户配置和应用设置
+    data object Settings : Screen("settings")
 }
 
 /**
@@ -41,6 +38,5 @@ sealed class Screen(val route: String) {
  */
 val bottomNavItems = listOf(
     Screen.Home,
-    Screen.Explore,
-    Screen.Profile
+    Screen.Settings
 )

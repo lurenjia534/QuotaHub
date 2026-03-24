@@ -10,10 +10,8 @@ package com.lurenjia534.quotahub.ui.navigation
  * Material Icons 包含 5000+ 图标，material-icons-extended 包提供了全部图标
  */
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Person
 
@@ -45,7 +43,7 @@ data class BottomNavItem(
 /**
  * 底部导航栏的完整数据列表
  *
- * 这里定义了三项导航：Home、Explore、Profile
+ * 这里定义了两项导航：Home、Settings
  * 每个导航项都配置了：
  * - label: 用户可见的文本
  * - selectedIcon: 选中时显示实心图标
@@ -65,15 +63,9 @@ val bottomNavItemsData = listOf(
         route = Screen.Home.route               // 路由地址 "home"
     ),
     BottomNavItem(
-        label = "Explore",
-        selectedIcon = Icons.Filled.Explore,    // 实心 Explore 图标
-        unselectedIcon = Icons.Outlined.Explore, // 描边 Explore 图标
-        route = Screen.Explore.route            // 路由地址 "explore"
-    ),
-    BottomNavItem(
-        label = "Profile",
+        label = "Settings",
         selectedIcon = Icons.Filled.Person,     // 实心 Person 图标
         unselectedIcon = Icons.Outlined.Person,  // 描边 Person 图标
-        route = Screen.Profile.route            // 路由地址 "profile"
+        route = Screen.Settings.route           // 路由地址 "settings"
     )
 )

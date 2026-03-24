@@ -1,4 +1,4 @@
-package com.lurenjia534.quotahub.ui.screens.profile
+package com.lurenjia534.quotahub.ui.screens.settings
 
 /**
  * Box 是一个基础的布局组件，类似于传统 ViewSystem 中的 FrameLayout
@@ -40,25 +40,25 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 
 /**
- * 个人中心页面组件
+ * 设置页面组件
  *
  * 功能说明：
- * - 这是用户点击底部导航栏 "Profile" 后看到的屏幕
- * - 目前只是一个占位页面，显示 "Profile Screen" 文字
+ * - 这是用户点击底部导航栏 "Settings" 后看到的屏幕
+ * - 目前只是一个占位页面，显示 "Settings Screen" 文字
  * - 未来可以在这里展示用户信息、设置选项等
  *
  * 设计考量：
  * - 使用 Box + Alignment.Center 实现内容居中
  * - 使用 fillMaxSize() 让 Box 填满父容器全部空间
- * - 与 HomeScreen、ExploreScreen 保持一致的代码结构
+ * - 与 HomeScreen 保持一致的代码结构
  *
  * @param modifier 外部传入的布局修饰符，用于调整组件的布局和样式
  *                  这个修饰符会被传递给父容器 Box
  *
  * 使用方式：
  * 在 QuotaNavHost 中作为 composable 的 content 被调用：
- * composable(route = Screen.Profile.route) {
- *     ProfileScreen()
+ * composable(route = Screen.Settings.route) {
+ *     SettingsScreen()
  * }
  *
  * 扩展建议：
@@ -70,7 +70,7 @@ import androidx.compose.ui.Modifier
  * - 退出登录按钮
  */
 @Composable
-fun ProfileScreen(
+fun SettingsScreen(
     modifier: Modifier = Modifier  // 默认修饰符为空，允许外部传入自定义修饰符
 ) {
     /**
@@ -92,11 +92,11 @@ fun ProfileScreen(
     ) {
         /**
          * Text 组件显示文本内容
-         * - text = "Profile Screen": 要显示的文字
+         * - text = "Settings Screen": 要显示的文字
          *
          * 注意：这里没有传递 modifier 参数给 Text
          * 因为 Text 会自动使用 Box 提供的居中对齐
          */
-        Text(text = "Profile Screen")
+        Text(text = "Settings Screen")
     }
 }

@@ -6,10 +6,9 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.lurenjia534.quotahub.data.provider.QuotaProviderRegistry
-import com.lurenjia534.quotahub.ui.screens.explore.ExploreScreen
 import com.lurenjia534.quotahub.ui.screens.home.HomeScreen
 import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaScreen
-import com.lurenjia534.quotahub.ui.screens.profile.ProfileScreen
+import com.lurenjia534.quotahub.ui.screens.settings.SettingsScreen
 
 @Composable
 fun QuotaNavHost(
@@ -50,12 +49,8 @@ fun QuotaNavHost(
             }
         }
 
-        composable(route = Screen.Explore.route) {
-            ExploreScreen()
-        }
-
-        composable(route = Screen.Profile.route) {
-            ProfileScreen()
+        composable(route = Screen.Settings.route) {
+            SettingsScreen()
         }
     }
 }
