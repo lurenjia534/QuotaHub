@@ -2,7 +2,9 @@ package com.lurenjia534.quotahub.ui.screens.home
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -322,28 +325,58 @@ private fun QuotaOverviewSection(modelRemains: List<ModelRemain>) {
         (totalAllowance - totalRemaining).toFloat() / totalAllowance.toFloat()
     } else 0f
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        OverviewCard(
-            title = "Calls Remaining",
-            used = totalRemaining.toString(),
-            total = totalAllowance.toString(),
-            progress = progress,
-            icon = Icons.Default.DataUsage,
-            iconTint = getProgressColor(progress),
-            modifier = Modifier.weight(1f)
-        )
-        OverviewCard(
-            title = "Time Left",
-            used = formatTimeRemaining(totalRemainingTime),
-            total = "",
-            progress = 0f,
-            icon = Icons.Default.Schedule,
-            iconTint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.weight(1f)
-        )
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val isWideScreen = maxWidth >= 360.dp
+
+        if (isWideScreen) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OverviewCard(
+                    title = "Calls Remaining",
+                    used = totalRemaining.toString(),
+                    total = totalAllowance.toString(),
+                    progress = progress,
+                    icon = Icons.Default.DataUsage,
+                    iconTint = getProgressColor(progress),
+                    modifier = Modifier.weight(1f)
+                )
+                OverviewCard(
+                    title = "Time Left",
+                    used = formatTimeRemaining(totalRemainingTime),
+                    total = "",
+                    progress = 0f,
+                    icon = Icons.Default.Schedule,
+                    iconTint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        } else {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OverviewCard(
+                    title = "Calls Remaining",
+                    used = totalRemaining.toString(),
+                    total = totalAllowance.toString(),
+                    progress = progress,
+                    icon = Icons.Default.DataUsage,
+                    iconTint = getProgressColor(progress),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OverviewCard(
+                    title = "Time Left",
+                    used = formatTimeRemaining(totalRemainingTime),
+                    total = "",
+                    progress = 0f,
+                    icon = Icons.Default.Schedule,
+                    iconTint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
     }
 }
 
@@ -358,7 +391,7 @@ private fun OverviewCard(
     modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = modifier,
+        modifier = modifier.height(IntrinsicSize.Min),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
@@ -367,7 +400,10 @@ private fun OverviewCard(
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
@@ -378,16 +414,24 @@ private fun OverviewCard(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
                 )
             }
             Spacer(modifier = Modifier.height(16.dp))
-            Row(verticalAlignment = Alignment.Bottom) {
+            Row(
+                verticalAlignment = Alignment.Bottom,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Text(
                     text = used,
-                    style = MaterialTheme.typography.headlineMedium,
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    color = iconTint
+                    color = iconTint,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
                 if (total.isNotEmpty()) {
                     Spacer(modifier = Modifier.width(4.dp))
@@ -395,7 +439,9 @@ private fun OverviewCard(
                         text = "/ $total",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 4.dp)
+                        modifier = Modifier.padding(bottom = 4.dp),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -409,6 +455,9 @@ private fun OverviewCard(
                     color = getProgressColor(progress),
                     trackColor = MaterialTheme.colorScheme.surfaceVariant,
                 )
+                Spacer(modifier = Modifier.height(12.dp))
+            } else {
+                Spacer(modifier = Modifier.height(32.dp))
             }
         }
     }
