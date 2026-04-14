@@ -117,6 +117,17 @@ class SubscriptionRepository(
         subscriptionDao.updateSubscription(entity)
     }
 
+    /**
+     * 更新订阅的自定义标题
+     *
+     * 用于用户自定义订阅的显示名称。
+     * 如果传入空字符串或空白字符，会被当作null处理，
+     * 即移除自定义标题，使用默认名称。
+     *
+     * @param subscriptionId 订阅ID
+     * @param customTitle 新的自定义标题，null或空白表示移除自定义标题
+     * @return 操作结果，成功时Unit，失败时返回包含异常的Result
+     */
     suspend fun updateSubscriptionTitle(subscriptionId: Long, customTitle: String?): Result<Unit> {
         return runCatching {
             val currentSubscription = subscriptionDao.getSubscriptionOnce(subscriptionId)
