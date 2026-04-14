@@ -50,17 +50,17 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.lurenjia534.quotahub.data.provider.QuotaProviderRegistry
+import com.lurenjia534.quotahub.data.provider.SubscriptionRegistry
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
-    providerRegistry: QuotaProviderRegistry,
-    onProviderClick: (QuotaProvider) -> Unit
+    subscriptionRegistry: SubscriptionRegistry,
+    onSubscriptionClick: (Long) -> Unit
 ) {
     val viewModel: HomeHubViewModel = viewModel(
-        factory = HomeHubViewModel.Factory(providerRegistry)
+        factory = HomeHubViewModel.Factory(subscriptionRegistry)
     )
     val uiState by viewModel.uiState.collectAsState()
     var showBottomSheet by remember { mutableStateOf(false) }
@@ -99,7 +99,7 @@ fun HomeScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Warning,
-                            contentDescription = null,
+                            contentDescription = "Warning",
                             tint = MaterialTheme.colorScheme.onErrorContainer
                         )
                         Spacer(modifier = Modifier.width(12.dp))
@@ -112,20 +112,22 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-            val connectedProviders = uiState.providerCards.filter { it.isConnected }
-            if (connectedProviders.isNotEmpty()) {
-                ProviderSectionTitle(title = "Connected Providers")
+            val connectedSubscriptions = uiState.subscriptionCards.filter { it.isConnected }
+            if (connectedSubscriptions.isNotEmpty()) {
+                ProviderSectionTitle(title = "My Subscriptions")
                 Spacer(modifier = Modifier.height(12.dp))
-                connectedProviders.forEachIndexed { index, providerCard ->
+                connectedSubscriptions.forEachIndexed { index, subscriptionCard ->
                     if (index > 0) {
                         Spacer(modifier = Modifier.height(12.dp))
                     }
-                    ProviderCard(
-                        provider = providerCard.provider,
-                        modelCount = providerCard.modelCount,
-                        remainingCalls = providerCard.remainingCalls,
-                        remainingTime = providerCard.remainingTime,
-                        onClick = { onProviderClick(providerCard.provider) }
+                    SubscriptionCard(
+                        displayTitle = subscriptionCard.displayTitle,
+                        subtitle = subscriptionCard.subtitle,
+                        providerIconRes = subscriptionCard.providerIconRes,
+                        modelCount = subscriptionCard.modelCount,
+                        remainingCalls = subscriptionCard.remainingCalls,
+                        remainingTime = subscriptionCard.remainingTime,
+                        onClick = { onSubscriptionClick(subscriptionCard.subscriptionId) }
                     )
                 }
             } else if (!uiState.isBootstrapping) {
@@ -141,7 +143,7 @@ fun HomeScreen(
         ) {
             Icon(
                 imageVector = Icons.Default.Add,
-                contentDescription = "Add provider"
+                contentDescription = "Add subscription"
             )
         }
 
@@ -149,7 +151,7 @@ fun HomeScreen(
             ProviderBottomSheet(
                 sheetState = sheetState,
                 onDismiss = { showBottomSheet = false },
-                providers = providerRegistry.providers,
+                providers = subscriptionRegistry.providers,
                 onProviderClick = { provider ->
                     viewModel.showCredentialDialog(provider)
                     showBottomSheet = false
@@ -160,8 +162,10 @@ fun HomeScreen(
         if (uiState.showCredentialDialog) {
             ProviderApiKeyDialog(
                 provider = uiState.selectedProvider ?: QuotaProvider.MiniMax,
+                customTitleInput = uiState.customTitleInput,
                 credentialInput = uiState.credentialInput,
                 isSaving = uiState.isSaving,
+                onCustomTitleChange = viewModel::updateCustomTitleInput,
                 onCredentialChange = viewModel::updateCredentialInput,
                 onDismiss = viewModel::hideCredentialDialog,
                 onConfirm = viewModel::saveSelectedProviderCredential
@@ -174,14 +178,14 @@ fun HomeScreen(
 private fun ProviderHubGreetingSection() {
     Column {
         Text(
-            text = "Providers",
+            text = "QuotaHub",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "Manage your connected quota sources",
+            text = "Monitor your API quotas",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -199,20 +203,23 @@ private fun ProviderSectionTitle(title: String) {
 }
 
 @Composable
-private fun ProviderCard(
-    provider: QuotaProvider,
+private fun SubscriptionCard(
+    displayTitle: String,
+    subtitle: String,
+    providerIconRes: Int,
     modelCount: Int,
     remainingCalls: Int,
     remainingTime: Long?,
     onClick: () -> Unit
 ) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         shape = MaterialTheme.shapes.extraLarge,
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 2.dp,
-        shadowElevation = 4.dp,
-        onClick = onClick
+        shadowElevation = 4.dp
     ) {
         Column(
             modifier = Modifier.padding(20.dp)
@@ -226,7 +233,7 @@ private fun ProviderCard(
                     color = MaterialTheme.colorScheme.secondaryContainer
                 ) {
                     Icon(
-                        painter = painterResource(provider.iconRes),
+                        painter = painterResource(providerIconRes),
                         contentDescription = null,
                         modifier = Modifier
                             .size(52.dp)
@@ -239,20 +246,20 @@ private fun ProviderCard(
                     modifier = Modifier.weight(1f)
                 ) {
                     Text(
-                        text = provider.title,
+                        text = displayTitle,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = provider.subtitle,
+                        text = subtitle,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 Icon(
                     imageVector = Icons.Default.ChevronRight,
-                    contentDescription = null,
+                    contentDescription = "Navigate",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -340,13 +347,13 @@ private fun ProviderEmptyState() {
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "No providers connected",
+                text = "No subscriptions yet",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Tap + to connect a quota provider. MiniMax is available now.",
+                text = "Tap + to add your first subscription. MiniMax is available now.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -377,7 +384,7 @@ private fun ProviderBottomSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Add Provider",
+                    text = "Add Subscription",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface
@@ -395,10 +402,10 @@ private fun ProviderBottomSheet(
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
+                        .padding(horizontal = 16.dp)
+                        .clickable { onProviderClick(provider) },
                     shape = MaterialTheme.shapes.large,
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    onClick = { onProviderClick(provider) }
+                    color = MaterialTheme.colorScheme.secondaryContainer
                 ) {
                     Row(
                         modifier = Modifier
@@ -471,23 +478,34 @@ private fun ProviderBottomSheet(
 @Composable
 private fun ProviderApiKeyDialog(
     provider: QuotaProvider,
+    customTitleInput: String,
     credentialInput: String,
     isSaving: Boolean,
+    onCustomTitleChange: (String) -> Unit,
     onCredentialChange: (String) -> Unit,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Connect ${provider.title}") },
+        title = { Text("Add ${provider.title} Subscription") },
         text = {
             Column {
                 Text(
-                    text = "Enter your ${provider.title} ${provider.credentialLabel.lowercase()} to connect this provider and sync quota data.",
+                    text = "Enter a custom name for this subscription (optional) and your ${provider.credentialLabel.lowercase()} to connect.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = customTitleInput,
+                    onValueChange = onCustomTitleChange,
+                    label = { Text("Custom Name (optional)") },
+                    singleLine = true,
+                    placeholder = { Text("e.g., My MiniMax Account") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(12.dp))
                 OutlinedTextField(
                     value = credentialInput,
                     onValueChange = onCredentialChange,
@@ -505,7 +523,7 @@ private fun ProviderApiKeyDialog(
                 onClick = onConfirm,
                 enabled = credentialInput.isNotBlank() && !isSaving
             ) {
-                Text(if (isSaving) "Syncing..." else "Connect")
+                Text(if (isSaving) "Connecting..." else "Connect")
             }
         },
         dismissButton = {

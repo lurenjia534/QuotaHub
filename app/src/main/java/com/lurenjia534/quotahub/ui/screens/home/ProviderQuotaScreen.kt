@@ -13,15 +13,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DataUsage
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -34,7 +32,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -42,39 +39,71 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.pullToRefresh
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.lurenjia534.quotahub.data.provider.QuotaProviderGateway
 import com.lurenjia534.quotahub.data.model.ModelRemain
+import com.lurenjia534.quotahub.data.provider.SubscriptionGateway
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProviderQuotaScreen(
     modifier: Modifier = Modifier,
-    providerGateway: QuotaProviderGateway,
+    subscriptionGateway: SubscriptionGateway,
     onBackClick: () -> Unit
 ) {
     val viewModel: ProviderQuotaViewModel = viewModel(
-        key = "provider-quota-${providerGateway.provider.id}",
-        factory = ProviderQuotaViewModel.Factory(providerGateway)
+        key = "provider-quota-${subscriptionGateway.subscription.id}",
+        factory = ProviderQuotaViewModel.Factory(subscriptionGateway)
     )
     val uiState by viewModel.uiState.collectAsState()
     val pullToRefreshState = rememberPullToRefreshState()
+    val scope = rememberCoroutineScope()
     val isRefreshing = uiState.isLoading && uiState.modelRemains.isNotEmpty()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    var showDisconnectDialog by remember { mutableStateOf(false) }
+
+    if (showDisconnectDialog) {
+        AlertDialog(
+            onDismissRequest = { showDisconnectDialog = false },
+            title = { Text("Disconnect Subscription") },
+            text = { Text("Are you sure you want to disconnect this subscription? All cached quota data will be cleared.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            viewModel.disconnect()
+                            showDisconnectDialog = false
+                            onBackClick()
+                        }
+                    }
+                ) {
+                    Text("Disconnect", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDisconnectDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -83,17 +112,27 @@ fun ProviderQuotaScreen(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            painter = painterResource(uiState.provider.iconRes),
+                            painter = painterResource(uiState.subscription.provider.iconRes),
                             contentDescription = null,
                             modifier = Modifier.size(24.dp),
                             tint = Color.Unspecified
                         )
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = uiState.provider.title,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Column {
+                            Text(
+                                text = uiState.subscription.displayTitle,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                style = MaterialTheme.typography.titleLarge
+                            )
+                            Text(
+                                text = uiState.subscription.provider.subtitle,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 },
                 navigationIcon = {
@@ -101,6 +140,15 @@ fun ProviderQuotaScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back"
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { showDisconnectDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Disconnect",
+                            tint = MaterialTheme.colorScheme.error
                         )
                     }
                 },
@@ -130,7 +178,7 @@ fun ProviderQuotaScreen(
                     .padding(16.dp)
             ) {
                 Text(
-                    text = uiState.provider.detailDescription,
+                    text = "Monitor your ${uiState.subscription.provider.title} quota usage",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -159,7 +207,7 @@ fun ProviderQuotaScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Warning,
-                                contentDescription = null,
+                                contentDescription = "Warning",
                                 tint = MaterialTheme.colorScheme.onErrorContainer
                             )
                             Spacer(modifier = Modifier.width(12.dp))
@@ -177,7 +225,7 @@ fun ProviderQuotaScreen(
                     Spacer(modifier = Modifier.height(24.dp))
                     QuotaDetailCards(uiState.modelRemains)
                 } else if (!uiState.isBootstrapping && !uiState.isLoading) {
-                    ProviderEmptyStateSection(provider = uiState.provider)
+                    ProviderEmptyStateSection(provider = uiState.subscription.provider)
                 }
             }
 
@@ -186,96 +234,7 @@ fun ProviderQuotaScreen(
                 isRefreshing = isRefreshing,
                 state = pullToRefreshState
             )
-
-            if (uiState.showCredentialDialog) {
-                ProviderCredentialDialog(
-                    provider = uiState.provider,
-                    credentialInput = uiState.credentialInput,
-                    isSaving = uiState.isLoading,
-                    onCredentialChange = viewModel::updateCredentialInput,
-                    onDismiss = viewModel::hideCredentialDialog,
-                    onConfirm = viewModel::saveCredentialAndRefresh
-                )
-            }
         }
-    }
-}
-
-@Composable
-private fun ProviderCredentialDialog(
-    provider: QuotaProvider,
-    credentialInput: String,
-    isSaving: Boolean,
-    onCredentialChange: (String) -> Unit,
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Connect ${provider.title}") },
-        text = {
-            Column {
-                Text(
-                    text = "Enter your ${provider.title} ${provider.credentialLabel.lowercase()} to sync quota information.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                OutlinedTextField(
-                    value = credentialInput,
-                    onValueChange = onCredentialChange,
-                    label = { Text(provider.credentialLabel) },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { onConfirm() }),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = onConfirm,
-                enabled = credentialInput.isNotBlank() && !isSaving
-            ) {
-                Text(if (isSaving) "Syncing..." else "Connect")
-            }
-        },
-        dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                enabled = !isSaving
-            ) {
-                Text("Cancel")
-            }
-        }
-    )
-}
-
-@Composable
-private fun ProviderGreetingSection(provider: QuotaProvider) {
-    Column {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                painter = painterResource(provider.iconRes),
-                contentDescription = null,
-                modifier = Modifier.size(28.dp),
-                tint = Color.Unspecified
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = provider.title,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = provider.detailDescription,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }
 
@@ -307,7 +266,7 @@ private fun ProviderEmptyStateSection(provider: QuotaProvider) {
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Connect ${provider.title} from the Home page to start syncing quota data.",
+                text = "Pull down to refresh and load quota data.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -511,7 +470,7 @@ private fun QuotaDetailItem(modelRemain: ModelRemain) {
                 ) {
                     Icon(
                         imageVector = if (progress >= 1f) Icons.Default.Warning else Icons.Default.CheckCircle,
-                        contentDescription = null,
+                        contentDescription = if (progress >= 1f) "Quota depleted" else "Quota available",
                         tint = progressColor,
                         modifier = Modifier.size(24.dp)
                     )

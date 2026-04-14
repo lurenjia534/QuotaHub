@@ -3,81 +3,72 @@ package com.lurenjia534.quotahub.ui.screens.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.lurenjia534.quotahub.data.provider.QuotaProviderRegistry
-import com.lurenjia534.quotahub.data.provider.QuotaProviderSnapshot
+import com.lurenjia534.quotahub.data.provider.SubscriptionCard
+import com.lurenjia534.quotahub.data.provider.SubscriptionRegistry
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
-data class ProviderCardUiModel(
-    val provider: QuotaProvider,
-    val isConnected: Boolean,
-    val credential: String,
+data class SubscriptionCardUiModel(
+    val subscriptionId: Long,
+    val displayTitle: String,
+    val subtitle: String,
+    val providerIconRes: Int,
     val modelCount: Int,
     val remainingCalls: Int,
-    val remainingTime: Long?
+    val remainingTime: Long?,
+    val isConnected: Boolean
 )
 
 data class HomeHubUiState(
     val isBootstrapping: Boolean = true,
     val isSaving: Boolean = false,
-    val providerCards: List<ProviderCardUiModel> = emptyList(),
+    val subscriptionCards: List<SubscriptionCardUiModel> = emptyList(),
     val selectedProvider: QuotaProvider? = null,
+    val customTitleInput: String = "",
     val credentialInput: String = "",
     val showCredentialDialog: Boolean = false,
     val error: String? = null
 )
 
 class HomeHubViewModel(
-    private val providerRegistry: QuotaProviderRegistry
+    private val subscriptionRegistry: SubscriptionRegistry
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(HomeHubUiState())
     val uiState: StateFlow<HomeHubUiState> = _uiState.asStateFlow()
 
     init {
         bootstrap()
-        observeProviderSnapshots()
+        observeSubscriptionSnapshots()
     }
 
     private fun bootstrap() {
         viewModelScope.launch {
-            val snapshots = providerRegistry.snapshots.first()
+            val snapshots = subscriptionRegistry.snapshots.first()
             _uiState.value = _uiState.value.copy(
                 isBootstrapping = false,
-                providerCards = snapshots.map { it.toCardUiModel() }
+                subscriptionCards = snapshots.map { it.toCardUiModel() }
             )
         }
     }
 
-    private fun observeProviderSnapshots() {
+    private fun observeSubscriptionSnapshots() {
         viewModelScope.launch {
-            providerRegistry.snapshots.collect { snapshots ->
-                val currentSelectedProvider = _uiState.value.selectedProvider
-                val selectedSnapshot = snapshots.firstOrNull { it.provider == currentSelectedProvider }
-
+            subscriptionRegistry.snapshots.collect { snapshots ->
                 _uiState.value = _uiState.value.copy(
-                    providerCards = snapshots.map { it.toCardUiModel() },
-                    credentialInput = if (_uiState.value.showCredentialDialog) {
-                        _uiState.value.credentialInput
-                    } else {
-                        selectedSnapshot?.credential.orEmpty()
-                    }
+                    subscriptionCards = snapshots.map { it.toCardUiModel() }
                 )
             }
         }
     }
 
     fun showCredentialDialog(provider: QuotaProvider) {
-        val currentCredential = _uiState.value.providerCards
-            .firstOrNull { it.provider == provider }
-            ?.credential
-            .orEmpty()
-
         _uiState.value = _uiState.value.copy(
             selectedProvider = provider,
-            credentialInput = currentCredential,
+            customTitleInput = "",
+            credentialInput = "",
             showCredentialDialog = true,
             error = null
         )
@@ -91,6 +82,10 @@ class HomeHubViewModel(
         _uiState.value = _uiState.value.copy(credentialInput = credential)
     }
 
+    fun updateCustomTitleInput(title: String) {
+        _uiState.value = _uiState.value.copy(customTitleInput = title)
+    }
+
     fun saveSelectedProviderCredential() {
         val provider = _uiState.value.selectedProvider ?: return
         val credential = _uiState.value.credentialInput.trim()
@@ -99,11 +94,13 @@ class HomeHubViewModel(
             return
         }
 
-        val gateway = providerRegistry.get(provider) ?: return
-
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSaving = true, error = null)
-            gateway.connect(credential).fold(
+            subscriptionRegistry.validateAndCreateSubscription(
+                provider = provider,
+                customTitle = _uiState.value.customTitleInput.takeIf { it.isNotBlank() },
+                apiKey = credential
+            ).fold(
                 onSuccess = {
                     _uiState.value = _uiState.value.copy(
                         isSaving = false,
@@ -113,7 +110,7 @@ class HomeHubViewModel(
                 onFailure = { error ->
                     _uiState.value = _uiState.value.copy(
                         isSaving = false,
-                        error = error.message ?: "Unknown error"
+                        error = error.message ?: "Invalid API key"
                     )
                 }
             )
@@ -124,24 +121,26 @@ class HomeHubViewModel(
         _uiState.value = _uiState.value.copy(error = null)
     }
 
-    private fun QuotaProviderSnapshot.toCardUiModel(): ProviderCardUiModel {
-        return ProviderCardUiModel(
-            provider = provider,
-            isConnected = isConnected,
-            credential = credential.orEmpty(),
-            modelCount = modelRemains.size,
-            remainingCalls = modelRemains.sumOf { it.currentIntervalUsageCount },
-            remainingTime = modelRemains.maxOfOrNull { it.remainsTime }
+    private fun SubscriptionCard.toCardUiModel(): SubscriptionCardUiModel {
+        return SubscriptionCardUiModel(
+            subscriptionId = subscription.id,
+            displayTitle = subscription.displayTitle,
+            subtitle = subscription.subtitle,
+            providerIconRes = subscription.provider.iconRes,
+            modelCount = modelCount,
+            remainingCalls = remainingCalls,
+            remainingTime = remainingTime,
+            isConnected = isConnected
         )
     }
 
     class Factory(
-        private val providerRegistry: QuotaProviderRegistry
+        private val subscriptionRegistry: SubscriptionRegistry
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(HomeHubViewModel::class.java)) {
-                return HomeHubViewModel(providerRegistry) as T
+                return HomeHubViewModel(subscriptionRegistry) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class")
         }

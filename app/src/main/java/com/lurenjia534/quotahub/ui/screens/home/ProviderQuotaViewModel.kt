@@ -4,7 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.lurenjia534.quotahub.data.model.ModelRemain
-import com.lurenjia534.quotahub.data.provider.QuotaProviderGateway
+import com.lurenjia534.quotahub.data.model.Subscription
+import com.lurenjia534.quotahub.data.provider.SubscriptionGateway
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -12,21 +13,19 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 data class ProviderQuotaUiState(
-    val provider: QuotaProvider,
+    val subscription: Subscription,
     val isBootstrapping: Boolean = true,
     val isLoading: Boolean = false,
     val modelRemains: List<ModelRemain> = emptyList(),
     val error: String? = null,
-    val showCredentialDialog: Boolean = false,
-    val credentialInput: String = "",
-    val isConnected: Boolean = false
+    val isConnected: Boolean = true
 )
 
 class ProviderQuotaViewModel(
-    private val providerGateway: QuotaProviderGateway
+    private val subscriptionGateway: SubscriptionGateway
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(
-        ProviderQuotaUiState(provider = providerGateway.provider)
+        ProviderQuotaUiState(subscription = subscriptionGateway.subscription)
     )
     val uiState: StateFlow<ProviderQuotaUiState> = _uiState.asStateFlow()
 
@@ -37,60 +36,33 @@ class ProviderQuotaViewModel(
 
     private fun bootstrap() {
         viewModelScope.launch {
-            val snapshot = providerGateway.snapshot.first()
+            val snapshot = subscriptionGateway.snapshot.first()
 
             _uiState.value = _uiState.value.copy(
                 isBootstrapping = false,
-                credentialInput = snapshot.credential.orEmpty(),
-                isConnected = snapshot.isConnected,
+                isConnected = true,
                 modelRemains = snapshot.modelRemains
             )
 
-            if (snapshot.isConnected) {
-                refresh()
-            }
+            refresh()
         }
     }
 
     private fun observeSnapshot() {
         viewModelScope.launch {
-            providerGateway.snapshot.collect { snapshot ->
+            subscriptionGateway.snapshot.collect { snapshot ->
                 _uiState.value = _uiState.value.copy(
-                    modelRemains = snapshot.modelRemains,
-                    isConnected = snapshot.isConnected,
-                    credentialInput = if (_uiState.value.showCredentialDialog) {
-                        _uiState.value.credentialInput
-                    } else {
-                        snapshot.credential.orEmpty()
-                    }
+                    subscription = snapshot.subscription,
+                    modelRemains = snapshot.modelRemains
                 )
             }
         }
     }
 
-    fun showCredentialDialog() {
-        _uiState.value = _uiState.value.copy(showCredentialDialog = true, error = null)
-    }
-
-    fun hideCredentialDialog() {
-        _uiState.value = _uiState.value.copy(showCredentialDialog = false)
-    }
-
-    fun updateCredentialInput(credential: String) {
-        _uiState.value = _uiState.value.copy(credentialInput = credential)
-    }
-
     fun refresh() {
-        if (!_uiState.value.isConnected) {
-            _uiState.value = _uiState.value.copy(
-                error = "${_uiState.value.provider.credentialLabel} is required"
-            )
-            return
-        }
-
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-            providerGateway.refresh().fold(
+            subscriptionGateway.refresh().fold(
                 onSuccess = {
                     _uiState.value = _uiState.value.copy(isLoading = false)
                 },
@@ -104,42 +76,17 @@ class ProviderQuotaViewModel(
         }
     }
 
-    fun saveCredentialAndRefresh() {
-        val credential = _uiState.value.credentialInput.trim()
-        if (credential.isBlank()) {
-            _uiState.value = _uiState.value.copy(
-                error = "${_uiState.value.provider.credentialLabel} is required"
-            )
-            return
-        }
-
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-            providerGateway.connect(credential).fold(
-                onSuccess = {
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        showCredentialDialog = false,
-                        isConnected = true
-                    )
-                },
-                onFailure = { error ->
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        error = error.message ?: "Unknown error"
-                    )
-                }
-            )
-        }
+    suspend fun disconnect() {
+        subscriptionGateway.disconnect()
     }
 
     class Factory(
-        private val providerGateway: QuotaProviderGateway
+        private val subscriptionGateway: SubscriptionGateway
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(ProviderQuotaViewModel::class.java)) {
-                return ProviderQuotaViewModel(providerGateway) as T
+                return ProviderQuotaViewModel(subscriptionGateway) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class")
         }

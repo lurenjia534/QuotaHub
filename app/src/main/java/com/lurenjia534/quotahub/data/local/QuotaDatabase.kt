@@ -6,12 +6,12 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [ApiKeyEntity::class, ModelRemainEntity::class],
-    version = 3,
+    entities = [SubscriptionEntity::class, ModelRemainEntity::class],
+    version = 4,
     exportSchema = false
 )
 abstract class QuotaDatabase : RoomDatabase() {
-    abstract fun apiKeyDao(): ApiKeyDao
+    abstract fun subscriptionDao(): SubscriptionDao
     abstract fun modelRemainDao(): ModelRemainDao
 
     companion object {

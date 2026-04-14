@@ -22,17 +22,17 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val application = application as QuotaApplication
-        val providerRegistry = application.providerRegistry
+        val subscriptionRegistry = application.subscriptionRegistry
         setContent {
             QuotaHubTheme {
-                QuotaApp(providerRegistry = providerRegistry)
+                QuotaApp(subscriptionRegistry = subscriptionRegistry)
             }
         }
     }
 }
 
 @Composable
-fun QuotaApp(providerRegistry: com.lurenjia534.quotahub.data.provider.QuotaProviderRegistry) {
+fun QuotaApp(subscriptionRegistry: com.lurenjia534.quotahub.data.provider.SubscriptionRegistry) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -47,7 +47,7 @@ fun QuotaApp(providerRegistry: com.lurenjia534.quotahub.data.provider.QuotaProvi
     ) { innerPadding ->
         QuotaNavHost(
             navController = navController,
-            providerRegistry = providerRegistry,
+            subscriptionRegistry = subscriptionRegistry,
             modifier = Modifier.padding(innerPadding)
         )
     }

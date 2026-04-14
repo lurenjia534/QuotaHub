@@ -4,9 +4,12 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.lurenjia534.quotahub.data.model.ModelRemain
 
-@Entity(tableName = "model_remain")
+@Entity(
+    tableName = "model_remain",
+    primaryKeys = ["subscriptionId", "modelName"]
+)
 data class ModelRemainEntity(
-    @PrimaryKey
+    val subscriptionId: Long,
     val modelName: String,
     val displayOrder: Int,
     val startTime: Long,
@@ -39,10 +42,12 @@ fun ModelRemainEntity.toModelRemain(): ModelRemain {
 }
 
 fun ModelRemain.toEntity(
+    subscriptionId: Long,
     displayOrder: Int,
     cachedAt: Long = System.currentTimeMillis()
 ): ModelRemainEntity {
     return ModelRemainEntity(
+        subscriptionId = subscriptionId,
         modelName = modelName,
         displayOrder = displayOrder,
         startTime = startTime,

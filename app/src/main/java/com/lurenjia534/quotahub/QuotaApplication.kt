@@ -2,26 +2,21 @@ package com.lurenjia534.quotahub
 
 import android.app.Application
 import com.lurenjia534.quotahub.data.local.QuotaDatabase
-import com.lurenjia534.quotahub.data.provider.MiniMaxQuotaProviderGateway
-import com.lurenjia534.quotahub.data.provider.QuotaProviderRegistry
-import com.lurenjia534.quotahub.data.repository.QuotaRepository
+import com.lurenjia534.quotahub.data.provider.SubscriptionRegistry
+import com.lurenjia534.quotahub.data.repository.SubscriptionRepository
 
 class QuotaApplication : Application() {
     val database: QuotaDatabase by lazy {
         QuotaDatabase.getDatabase(this)
     }
-    val repository: QuotaRepository by lazy {
-        QuotaRepository(
-            apiKeyDao = database.apiKeyDao(),
+    val subscriptionRepository: SubscriptionRepository by lazy {
+        SubscriptionRepository(
+            subscriptionDao = database.subscriptionDao(),
             modelRemainDao = database.modelRemainDao()
         )
     }
 
-    val providerRegistry: QuotaProviderRegistry by lazy {
-        QuotaProviderRegistry(
-            gateways = listOf(
-                MiniMaxQuotaProviderGateway(repository)
-            )
-        )
+    val subscriptionRegistry: SubscriptionRegistry by lazy {
+        SubscriptionRegistry(subscriptionRepository)
     }
 }
