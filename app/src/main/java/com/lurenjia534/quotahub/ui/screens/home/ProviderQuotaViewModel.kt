@@ -16,9 +16,12 @@ data class ProviderQuotaUiState(
     val subscription: Subscription,
     val isBootstrapping: Boolean = true,
     val isLoading: Boolean = false,
+    val isSavingTitle: Boolean = false,
     val modelRemains: List<ModelRemain> = emptyList(),
     val error: String? = null,
-    val isConnected: Boolean = true
+    val isConnected: Boolean = true,
+    val showRenameDialog: Boolean = false,
+    val titleInput: String = ""
 )
 
 class ProviderQuotaViewModel(
@@ -53,9 +56,53 @@ class ProviderQuotaViewModel(
             subscriptionGateway.snapshot.collect { snapshot ->
                 _uiState.value = _uiState.value.copy(
                     subscription = snapshot.subscription,
-                    modelRemains = snapshot.modelRemains
+                    modelRemains = snapshot.modelRemains,
+                    titleInput = if (_uiState.value.showRenameDialog) {
+                        _uiState.value.titleInput
+                    } else {
+                        snapshot.subscription.customTitle.orEmpty()
+                    }
                 )
             }
+        }
+    }
+
+    fun showRenameDialog() {
+        _uiState.value = _uiState.value.copy(
+            showRenameDialog = true,
+            titleInput = _uiState.value.subscription.customTitle.orEmpty(),
+            error = null
+        )
+    }
+
+    fun hideRenameDialog() {
+        _uiState.value = _uiState.value.copy(
+            showRenameDialog = false,
+            titleInput = _uiState.value.subscription.customTitle.orEmpty()
+        )
+    }
+
+    fun updateTitleInput(title: String) {
+        _uiState.value = _uiState.value.copy(titleInput = title)
+    }
+
+    fun renameSubscription() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isSavingTitle = true, error = null)
+            subscriptionGateway.rename(_uiState.value.titleInput).fold(
+                onSuccess = {
+                    _uiState.value = _uiState.value.copy(
+                        isSavingTitle = false,
+                        showRenameDialog = false
+                    )
+                },
+                onFailure = { error ->
+                    _uiState.value = _uiState.value.copy(
+                        isSavingTitle = false,
+                        error = error.message ?: "Unable to update subscription name"
+                    )
+                }
+            )
         }
     }
 

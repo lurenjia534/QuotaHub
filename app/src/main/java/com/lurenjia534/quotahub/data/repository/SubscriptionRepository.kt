@@ -117,6 +117,18 @@ class SubscriptionRepository(
         subscriptionDao.updateSubscription(entity)
     }
 
+    suspend fun updateSubscriptionTitle(subscriptionId: Long, customTitle: String?): Result<Unit> {
+        return runCatching {
+            val currentSubscription = subscriptionDao.getSubscriptionOnce(subscriptionId)
+                ?: throw IllegalStateException("Subscription no longer exists")
+            subscriptionDao.updateSubscription(
+                currentSubscription.copy(
+                    customTitle = customTitle?.trim()?.takeIf { it.isNotBlank() }
+                )
+            )
+        }
+    }
+
     /**
      * 删除订阅及其关联数据
      *

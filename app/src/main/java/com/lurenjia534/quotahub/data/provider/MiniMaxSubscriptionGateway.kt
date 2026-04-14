@@ -58,6 +58,19 @@ class MiniMaxSubscriptionGateway(
     }
 
     /**
+     * 重命名订阅
+     *
+     * 更新订阅的自定义显示名称。
+     * 如果传入null，则移除自定义名称。
+     *
+     * @param customTitle 新的自定义名称，null表示使用默认名称
+     * @return 操作结果，成功时Unit，失败时返回包含异常的Result
+     */
+    override suspend fun rename(customTitle: String?): Result<Unit> {
+        return repository.updateSubscriptionTitle(subscriptionData.id, customTitle)
+    }
+
+    /**
      * 断开连接
      *
      * 删除该订阅及其关联的所有数据。

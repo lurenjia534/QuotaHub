@@ -20,6 +20,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DataUsage
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -32,6 +33,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -46,7 +48,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -105,6 +106,51 @@ fun ProviderQuotaScreen(
         )
     }
 
+    if (uiState.showRenameDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!uiState.isSavingTitle) {
+                    viewModel.hideRenameDialog()
+                }
+            },
+            title = { Text("Edit Subscription Name") },
+            text = {
+                Column {
+                    Text(
+                        text = "Update how this subscription appears in the app. Leave it blank to use the default name.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    OutlinedTextField(
+                        value = uiState.titleInput,
+                        onValueChange = viewModel::updateTitleInput,
+                        label = { Text("Subscription Name") },
+                        singleLine = true,
+                        placeholder = { Text("e.g., My China Minimax Plan") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = viewModel::renameSubscription,
+                    enabled = !uiState.isSavingTitle
+                ) {
+                    Text(if (uiState.isSavingTitle) "Saving..." else "Save")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = viewModel::hideRenameDialog,
+                    enabled = !uiState.isSavingTitle
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
@@ -144,6 +190,12 @@ fun ProviderQuotaScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = viewModel::showRenameDialog) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Edit name"
+                        )
+                    }
                     IconButton(onClick = { showDisconnectDialog = true }) {
                         Icon(
                             imageVector = Icons.Default.Delete,

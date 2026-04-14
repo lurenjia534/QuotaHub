@@ -54,6 +54,13 @@ interface SubscriptionGateway {
     suspend fun refresh(): Result<Unit>
 
     /**
+     * 更新订阅名称
+     *
+     * 传入null或空白字符串时，会恢复为默认名称。
+     */
+    suspend fun rename(customTitle: String?): Result<Unit>
+
+    /**
      * 断开连接
      *
      * 删除该订阅及其相关数据。
