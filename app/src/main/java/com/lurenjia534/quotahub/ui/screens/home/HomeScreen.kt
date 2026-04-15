@@ -27,6 +27,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -117,10 +119,7 @@ fun HomeScreen(
                 ProviderSectionTitle(title = "My Subscriptions")
                 Spacer(modifier = Modifier.height(12.dp))
                 connectedSubscriptions.forEachIndexed { index, subscriptionCard ->
-                    if (index > 0) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                    }
-                    SubscriptionCard(
+                    SubscriptionListItem(
                         displayTitle = subscriptionCard.displayTitle,
                         subtitle = subscriptionCard.subtitle,
                         providerIconRes = subscriptionCard.providerIconRes,
@@ -129,6 +128,12 @@ fun HomeScreen(
                         remainingTime = subscriptionCard.remainingTime,
                         onClick = { onSubscriptionClick(subscriptionCard.subscriptionId) }
                     )
+                    if (index < connectedSubscriptions.lastIndex) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 88.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+                    }
                 }
             } else if (!uiState.isBootstrapping) {
                 ProviderEmptyState()
@@ -203,7 +208,7 @@ private fun ProviderSectionTitle(title: String) {
 }
 
 @Composable
-private fun SubscriptionCard(
+private fun SubscriptionListItem(
     displayTitle: String,
     subtitle: String,
     providerIconRes: Int,
@@ -212,116 +217,101 @@ private fun SubscriptionCard(
     remainingTime: Long?,
     onClick: () -> Unit
 ) {
-    Surface(
+    ListItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 2.dp,
-        shadowElevation = 4.dp
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    shape = MaterialTheme.shapes.large,
-                    color = MaterialTheme.colorScheme.secondaryContainer
-                ) {
-                    Icon(
-                        painter = painterResource(providerIconRes),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(52.dp)
-                            .padding(10.dp),
-                        tint = Color.Unspecified
-                    )
-                }
-                Spacer(modifier = Modifier.width(16.dp))
-                Column(
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(
-                        text = displayTitle,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Icon(
-                    imageVector = Icons.Default.ChevronRight,
-                    contentDescription = "Navigate",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                ProviderMetricCard(
-                    modifier = Modifier.weight(1f),
-                    label = "Calls Remaining",
-                    value = remainingCalls.toString()
-                )
-                ProviderMetricCard(
-                    modifier = Modifier.weight(1f),
-                    label = "Models",
-                    value = modelCount.toString()
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
+        overlineContent = {
             Text(
-                text = remainingTime?.let { "Refresh available • ${formatTimeRemaining(it)} left" }
-                    ?: "Connected • Tap to view and refresh quota details",
-                style = MaterialTheme.typography.bodySmall,
+                text = subtitle,
+                style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-        }
-    }
+        },
+        headlineContent = {
+            Text(
+                text = displayTitle,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+        },
+        supportingContent = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(24.dp)
+                ) {
+                    SubscriptionMetric(
+                        modifier = Modifier.weight(1f),
+                        label = "Calls Remaining",
+                        value = remainingCalls.toString()
+                    )
+                    SubscriptionMetric(
+                        modifier = Modifier.weight(1f),
+                        label = "Models",
+                        value = modelCount.toString()
+                    )
+                }
+                Text(
+                    text = remainingTime?.let { "Refresh available • ${formatTimeRemaining(it)} left" }
+                        ?: "Connected • Tap to view and refresh quota details",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        leadingContent = {
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.secondaryContainer
+            ) {
+                Icon(
+                    painter = painterResource(providerIconRes),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(52.dp)
+                        .padding(10.dp),
+                    tint = Color.Unspecified
+                )
+            }
+        },
+        trailingContent = {
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = "Navigate"
+            )
+        },
+        colors = ListItemDefaults.colors(
+            containerColor = Color.Transparent,
+            overlineColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            trailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    )
 }
 
 @Composable
-private fun ProviderMetricCard(
+private fun SubscriptionMetric(
     modifier: Modifier = Modifier,
     label: String,
     value: String
 ) {
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
+    Column(
+        modifier = modifier
     ) {
-        Column(
-            modifier = Modifier.padding(14.dp)
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = value,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 
