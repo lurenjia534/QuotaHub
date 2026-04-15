@@ -1,5 +1,7 @@
 package com.lurenjia534.quotahub.ui.screens.home
 
+import java.text.NumberFormat
+
 internal fun formatTimeRemaining(millis: Long): String {
     val seconds = millis / 1000
     val minutes = seconds / 60
@@ -13,3 +15,5 @@ internal fun formatTimeRemaining(millis: Long): String {
         else -> "${seconds}s"
     }
 }
+
+internal fun formatCount(value: Int): String = NumberFormat.getIntegerInstance().format(value)

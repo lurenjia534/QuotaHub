@@ -2,9 +2,8 @@ package com.lurenjia534.quotahub.ui.screens.home
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,17 +22,22 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.LargeFlexibleTopAppBar
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
@@ -52,7 +56,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -62,7 +65,7 @@ import com.lurenjia534.quotahub.data.model.ModelRemain
 import com.lurenjia534.quotahub.data.provider.SubscriptionGateway
 import com.lurenjia534.quotahub.ui.components.QuotaLoadingIndicator
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ProviderQuotaScreen(
     modifier: Modifier = Modifier,
@@ -154,31 +157,28 @@ fun ProviderQuotaScreen(
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            LargeTopAppBar(
+            LargeFlexibleTopAppBar(
                 title = {
+                    Text(
+                        text = uiState.subscription.displayTitle,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
+                subtitle = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             painter = painterResource(uiState.subscription.provider.iconRes),
                             contentDescription = null,
-                            modifier = Modifier.size(24.dp),
+                            modifier = Modifier.size(18.dp),
                             tint = Color.Unspecified
                         )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = uiState.subscription.displayTitle,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                style = MaterialTheme.typography.titleLarge
-                            )
-                            Text(
-                                text = uiState.subscription.provider.subtitle,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = uiState.subscription.provider.subtitle,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 },
                 navigationIcon = {
@@ -229,13 +229,6 @@ fun ProviderQuotaScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(16.dp)
             ) {
-                Text(
-                    text = "Monitor your ${uiState.subscription.provider.title} quota usage",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-
                 if (uiState.isBootstrapping || (uiState.isLoading && uiState.modelRemains.isEmpty())) {
                     Box(
                         modifier = Modifier.fillMaxWidth(),
@@ -275,7 +268,7 @@ fun ProviderQuotaScreen(
                 if (uiState.modelRemains.isNotEmpty()) {
                     QuotaOverviewSection(uiState.modelRemains)
                     Spacer(modifier = Modifier.height(24.dp))
-                    QuotaDetailCards(uiState.modelRemains)
+                    QuotaDetailSection(uiState.modelRemains)
                 } else if (!uiState.isBootstrapping && !uiState.isLoading) {
                     ProviderEmptyStateSection(provider = uiState.subscription.provider)
                 }
@@ -330,152 +323,97 @@ private fun ProviderEmptyStateSection(provider: QuotaProvider) {
 private fun QuotaOverviewSection(modelRemains: List<ModelRemain>) {
     val totalRemainingTime = modelRemains.sumOf { it.remainsTime }
     val totalAllowance = modelRemains.sumOf { it.currentIntervalTotalCount }
-    val totalRemaining = modelRemains.sumOf { it.currentIntervalUsageCount }
+    val totalRemainingCalls = modelRemains.sumOf { it.currentIntervalUsageCount }
+    val totalUsedCalls = (totalAllowance - totalRemainingCalls).coerceAtLeast(0)
 
     val progress = if (totalAllowance > 0) {
-        (totalAllowance - totalRemaining).toFloat() / totalAllowance.toFloat()
+        totalUsedCalls.toFloat() / totalAllowance.toFloat()
     } else 0f
 
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        val isWideScreen = maxWidth >= 360.dp
-
-        if (isWideScreen) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                OverviewCard(
-                    title = "Calls Remaining",
-                    used = totalRemaining.toString(),
-                    total = totalAllowance.toString(),
-                    progress = progress,
-                    icon = Icons.Default.DataUsage,
-                    iconTint = getProgressColor(progress),
-                    modifier = Modifier.weight(1f)
-                )
-                OverviewCard(
-                    title = "Time Left",
-                    used = formatTimeRemaining(totalRemainingTime),
-                    total = "",
-                    progress = 0f,
-                    icon = Icons.Default.Schedule,
-                    iconTint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        } else {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                OverviewCard(
-                    title = "Calls Remaining",
-                    used = totalRemaining.toString(),
-                    total = totalAllowance.toString(),
-                    progress = progress,
-                    icon = Icons.Default.DataUsage,
-                    iconTint = getProgressColor(progress),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OverviewCard(
-                    title = "Time Left",
-                    used = formatTimeRemaining(totalRemainingTime),
-                    total = "",
-                    progress = 0f,
-                    icon = Icons.Default.Schedule,
-                    iconTint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun OverviewCard(
-    title: String,
-    used: String,
-    total: String,
-    progress: Float,
-    icon: ImageVector,
-    iconTint: Color,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.height(IntrinsicSize.Min),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = iconTint,
-                    modifier = Modifier.size(28.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
+    SectionSurface {
+        ListItem(
+            overlineContent = {
                 Text(
-                    text = title,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
+                    text = "Calls Remaining",
+                    style = MaterialTheme.typography.labelMedium
                 )
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(
-                verticalAlignment = Alignment.Bottom,
-                modifier = Modifier.fillMaxWidth()
-            ) {
+            },
+            headlineContent = {
                 Text(
-                    text = used,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = iconTint,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    text = formatCount(totalRemainingCalls),
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.SemiBold
                 )
-                if (total.isNotEmpty()) {
-                    Spacer(modifier = Modifier.width(4.dp))
+            },
+            supportingContent = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     Text(
-                        text = "/ $total",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 4.dp),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        text = "of ${formatCount(totalAllowance)} across ${modelRemains.size} models",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp),
+                        color = getProgressColor(progress),
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
                     )
                 }
-            }
-            if (progress > 0) {
-                Spacer(modifier = Modifier.height(12.dp))
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(8.dp),
-                    color = getProgressColor(progress),
-                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
+            },
+            leadingContent = {
+                Icon(
+                    imageVector = Icons.Default.DataUsage,
+                    contentDescription = null,
+                    tint = getProgressColor(progress)
                 )
-                Spacer(modifier = Modifier.height(12.dp))
-            } else {
-                Spacer(modifier = Modifier.height(32.dp))
-            }
-        }
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+        )
+
+        HorizontalDivider(
+            modifier = Modifier.padding(start = 72.dp),
+            color = MaterialTheme.colorScheme.outlineVariant
+        )
+
+        ListItem(
+            overlineContent = {
+                Text(
+                    text = "Time Left",
+                    style = MaterialTheme.typography.labelMedium
+                )
+            },
+            headlineContent = {
+                Text(
+                    text = formatTimeRemaining(totalRemainingTime),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+            },
+            supportingContent = {
+                Text(
+                    text = "Aggregate remaining availability across ${modelRemains.size} models",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
+            leadingContent = {
+                Icon(
+                    imageVector = Icons.Default.Schedule,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+        )
     }
 }
 
 @Composable
-private fun QuotaDetailCards(modelRemains: List<ModelRemain>) {
+private fun QuotaDetailSection(modelRemains: List<ModelRemain>) {
     Text(
         text = "Model Details",
         style = MaterialTheme.typography.titleLarge,
@@ -485,103 +423,109 @@ private fun QuotaDetailCards(modelRemains: List<ModelRemain>) {
     Spacer(modifier = Modifier.height(12.dp))
 
     modelRemains.forEachIndexed { index, modelRemain ->
-        if (index > 0) {
-            Spacer(modifier = Modifier.height(12.dp))
+        QuotaDetailListItem(modelRemain)
+        if (index < modelRemains.lastIndex) {
+            HorizontalDivider(
+                modifier = Modifier.padding(start = 72.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
         }
-        QuotaDetailItem(modelRemain)
     }
 }
 
 @Composable
-private fun QuotaDetailItem(modelRemain: ModelRemain) {
+private fun QuotaDetailListItem(modelRemain: ModelRemain) {
     val remaining = modelRemain.currentIntervalUsageCount
     val total = modelRemain.currentIntervalTotalCount
     val used = total - remaining
     val progress = if (total > 0) {
         used.toFloat() / total.toFloat()
     } else 0f
+    val remainingLabel = "${formatCount(remaining)} left"
 
     val progressColor = getProgressColor(progress)
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(
-                        imageVector = if (progress >= 1f) Icons.Default.Warning else Icons.Default.CheckCircle,
-                        contentDescription = if (progress >= 1f) "Quota depleted" else "Quota available",
-                        tint = progressColor,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = modelRemain.modelName,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = formatTimeRemaining(modelRemain.remainsTime),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = remaining.toString(),
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = progressColor
-                    )
-                    Text(
-                        text = "left",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(10.dp),
-                color = progressColor,
-                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+    ListItem(
+        overlineContent = {
+            Text(
+                text = formatTimeRemaining(modelRemain.remainsTime),
+                style = MaterialTheme.typography.labelMedium
             )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+        },
+        headlineContent = {
+            Text(
+                text = modelRemain.modelName,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        },
+        supportingContent = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp),
+                    color = progressColor,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+                Text(
+                    text = "${formatCount(used)} / ${formatCount(total)} used",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        leadingContent = {
+            Icon(
+                imageVector = if (progress >= 1f) Icons.Default.Warning else Icons.Default.CheckCircle,
+                contentDescription = if (progress >= 1f) "Quota depleted" else "Quota available",
+                tint = progressColor
+            )
+        },
+        trailingContent = {
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = remainingLabel,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = progressColor
+                )
                 Text(
                     text = "${(progress * 100).toInt()}% used",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "$used / $total",
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+        },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+    )
+}
+
+@Composable
+private fun SectionSurface(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            content()
         }
     }
 }
