@@ -2,7 +2,6 @@ package com.lurenjia534.quotahub.ui.navigation
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -18,6 +17,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.lurenjia534.quotahub.data.provider.SubscriptionGateway
 import com.lurenjia534.quotahub.data.provider.SubscriptionRegistry
+import com.lurenjia534.quotahub.ui.components.QuotaLoadingIndicator
 import com.lurenjia534.quotahub.ui.screens.home.HomeScreen
 import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaScreen
 import com.lurenjia534.quotahub.ui.screens.settings.SettingsScreen
@@ -67,7 +67,7 @@ fun QuotaNavHost(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator()
+                        QuotaLoadingIndicator()
                     }
                 }
                 subscriptionGateway != null -> {
@@ -90,7 +90,7 @@ fun QuotaNavHost(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator()
+                        QuotaLoadingIndicator()
                     }
                 }
             }
