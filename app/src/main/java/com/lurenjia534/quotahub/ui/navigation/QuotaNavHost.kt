@@ -27,7 +27,9 @@ fun QuotaNavHost(
     navController: NavHostController,
     subscriptionRegistry: SubscriptionRegistry,
     highEmphasisMetrics: Boolean,
+    hapticConfirmation: Boolean,
     onHighEmphasisMetricsChange: (Boolean) -> Unit,
+    onHapticConfirmationChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     NavHost(
@@ -77,6 +79,7 @@ fun QuotaNavHost(
                     ProviderQuotaScreen(
                         subscriptionGateway = subscriptionGateway!!,
                         highEmphasisMetrics = highEmphasisMetrics,
+                        hapticConfirmation = hapticConfirmation,
                         onBackClick = { navController.popBackStack() }
                     )
                 }
@@ -103,7 +106,9 @@ fun QuotaNavHost(
         composable(route = Screen.Settings.route) {
             SettingsScreen(
                 highEmphasisMetrics = highEmphasisMetrics,
-                onHighEmphasisMetricsChange = onHighEmphasisMetricsChange
+                hapticConfirmation = hapticConfirmation,
+                onHighEmphasisMetricsChange = onHighEmphasisMetricsChange,
+                onHapticConfirmationChange = onHapticConfirmationChange
             )
         }
     }

@@ -59,7 +59,9 @@ fun QuotaApp(
             navController = navController,
             subscriptionRegistry = subscriptionRegistry,
             highEmphasisMetrics = uiPreferences.highEmphasisMetrics,
+            hapticConfirmation = uiPreferences.hapticConfirmation,
             onHighEmphasisMetricsChange = uiPreferencesRepository::setHighEmphasisMetrics,
+            onHapticConfirmationChange = uiPreferencesRepository::setHapticConfirmation,
             modifier = Modifier.padding(innerPadding)
         )
     }

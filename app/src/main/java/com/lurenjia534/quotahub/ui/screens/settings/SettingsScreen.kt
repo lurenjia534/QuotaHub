@@ -62,6 +62,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lurenjia534.quotahub.ui.components.rememberQuotaHaptics
 import com.lurenjia534.quotahub.ui.theme.QuotaHubTheme
 import kotlinx.coroutines.delay
 
@@ -94,15 +95,17 @@ private enum class RefreshProfile(
 @Composable
 fun SettingsScreen(
     highEmphasisMetrics: Boolean,
+    hapticConfirmation: Boolean,
     onHighEmphasisMetricsChange: (Boolean) -> Unit,
+    onHapticConfirmationChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var dynamicPaletteEnabled by rememberSaveable { mutableStateOf(true) }
-    var hapticConfirmation by rememberSaveable { mutableStateOf(true) }
     var usageAlerts by rememberSaveable { mutableStateOf(true) }
     var lowBalanceBanner by rememberSaveable { mutableStateOf(true) }
     var privacyShield by rememberSaveable { mutableStateOf(true) }
     var refreshProfile by rememberSaveable { mutableStateOf(RefreshProfile.Balanced) }
+    val quotaHaptics = rememberQuotaHaptics(hapticConfirmation)
 
     var headerVisible by remember { mutableStateOf(false) }
     var displayVisible by remember { mutableStateOf(false) }
@@ -148,7 +151,10 @@ fun SettingsScreen(
                         title = "Wallpaper palette",
                         description = "Borrow system-derived tones so provider accents feel native to the device.",
                         checked = dynamicPaletteEnabled,
-                        onCheckedChange = { dynamicPaletteEnabled = it }
+                        onCheckedChange = { dynamicPaletteEnabled = it },
+                        onAfterCheckedChange = { checked ->
+                            quotaHaptics.toggle(checked)
+                        }
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
                     TogglePreferenceRow(
@@ -156,7 +162,10 @@ fun SettingsScreen(
                         title = "High-emphasis metrics",
                         description = "Use stronger type contrast for remaining quota, reset dates, and low balances.",
                         checked = highEmphasisMetrics,
-                        onCheckedChange = onHighEmphasisMetricsChange
+                        onCheckedChange = onHighEmphasisMetricsChange,
+                        onAfterCheckedChange = { checked ->
+                            quotaHaptics.toggle(checked)
+                        }
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
                     TogglePreferenceRow(
@@ -164,7 +173,10 @@ fun SettingsScreen(
                         title = "Haptic confirmation",
                         description = "Add tactile feedback when toggles or refresh controls change state.",
                         checked = hapticConfirmation,
-                        onCheckedChange = { hapticConfirmation = it }
+                        onCheckedChange = onHapticConfirmationChange,
+                        onAfterCheckedChange = { checked ->
+                            quotaHaptics.toggle(checked, force = true)
+                        }
                     )
                 }
             }
@@ -214,7 +226,10 @@ fun SettingsScreen(
                         title = "Usage alerts",
                         description = "Notify when a provider crosses your preferred quota threshold.",
                         checked = usageAlerts,
-                        onCheckedChange = { usageAlerts = it }
+                        onCheckedChange = { usageAlerts = it },
+                        onAfterCheckedChange = { checked ->
+                            quotaHaptics.toggle(checked)
+                        }
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
                     TogglePreferenceRow(
@@ -222,7 +237,10 @@ fun SettingsScreen(
                         title = "Low-balance banner",
                         description = "Pin a stronger warning at the top of Home when a limit is close.",
                         checked = lowBalanceBanner,
-                        onCheckedChange = { lowBalanceBanner = it }
+                        onCheckedChange = { lowBalanceBanner = it },
+                        onAfterCheckedChange = { checked ->
+                            quotaHaptics.toggle(checked)
+                        }
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
                     TogglePreferenceRow(
@@ -230,7 +248,10 @@ fun SettingsScreen(
                         title = "Private summaries",
                         description = "Hide provider names in notifications while still showing urgency and reset times.",
                         checked = privacyShield,
-                        onCheckedChange = { privacyShield = it }
+                        onCheckedChange = { privacyShield = it },
+                        onAfterCheckedChange = { checked ->
+                            quotaHaptics.toggle(checked)
+                        }
                     )
                 }
             }
@@ -271,11 +292,12 @@ fun SettingsScreen(
                 onClick = {
                     dynamicPaletteEnabled = true
                     onHighEmphasisMetricsChange(true)
-                    hapticConfirmation = true
+                    onHapticConfirmationChange(true)
                     usageAlerts = true
                     lowBalanceBanner = true
                     privacyShield = true
                     refreshProfile = RefreshProfile.Balanced
+                    quotaHaptics.refreshResult(success = true)
                 },
                 shape = RoundedCornerShape(24.dp),
                 modifier = Modifier
@@ -473,7 +495,8 @@ private fun TogglePreferenceRow(
     title: String,
     description: String,
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
+    onCheckedChange: (Boolean) -> Unit,
+    onAfterCheckedChange: (Boolean) -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -501,7 +524,10 @@ private fun TogglePreferenceRow(
         Spacer(modifier = Modifier.width(12.dp))
         Switch(
             checked = checked,
-            onCheckedChange = onCheckedChange
+            onCheckedChange = { updated ->
+                onCheckedChange(updated)
+                onAfterCheckedChange(updated)
+            }
         )
     }
 }
@@ -650,7 +676,9 @@ private fun SettingsScreenPreview() {
     QuotaHubTheme {
         SettingsScreen(
             highEmphasisMetrics = true,
-            onHighEmphasisMetricsChange = {}
+            hapticConfirmation = true,
+            onHighEmphasisMetricsChange = {},
+            onHapticConfirmationChange = {}
         )
     }
 }

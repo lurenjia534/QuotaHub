@@ -83,6 +83,7 @@ import com.lurenjia534.quotahub.data.model.weeklyRemainingCount
 import com.lurenjia534.quotahub.data.model.weeklyUsedCount
 import com.lurenjia534.quotahub.data.provider.SubscriptionGateway
 import com.lurenjia534.quotahub.ui.components.MetricEmphasisLevel
+import com.lurenjia534.quotahub.ui.components.rememberQuotaHaptics
 import com.lurenjia534.quotahub.ui.components.QuotaMetricText
 import com.lurenjia534.quotahub.ui.components.QuotaLoadingIndicator
 import kotlinx.coroutines.delay
@@ -95,6 +96,7 @@ fun ProviderQuotaScreen(
     modifier: Modifier = Modifier,
     subscriptionGateway: SubscriptionGateway,
     highEmphasisMetrics: Boolean,
+    hapticConfirmation: Boolean,
     onBackClick: () -> Unit
 ) {
     val viewModel: ProviderQuotaViewModel = viewModel(
@@ -106,7 +108,11 @@ fun ProviderQuotaScreen(
     val scope = rememberCoroutineScope()
     val isRefreshing = uiState.isLoading && uiState.modelRemains.isNotEmpty()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val quotaHaptics = rememberQuotaHaptics(hapticConfirmation)
     var showDisconnectDialog by remember { mutableStateOf(false) }
+    var refreshTriggeredByUser by remember { mutableStateOf(false) }
+    var thresholdActivated by remember { mutableStateOf(false) }
+    var wasRefreshing by remember { mutableStateOf(false) }
 
     var summaryVisible by remember { mutableStateOf(false) }
     var statusVisible by remember { mutableStateOf(false) }
@@ -118,6 +124,31 @@ fun ProviderQuotaScreen(
         statusVisible = true
         delay(70)
         modelsVisible = true
+    }
+
+    LaunchedEffect(pullToRefreshState.distanceFraction, isRefreshing) {
+        val pastThreshold = pullToRefreshState.distanceFraction >= 1f
+        when {
+            isRefreshing -> thresholdActivated = true
+            pastThreshold && !thresholdActivated -> {
+                thresholdActivated = true
+                quotaHaptics.refreshThreshold()
+            }
+            !pastThreshold -> thresholdActivated = false
+        }
+    }
+
+    LaunchedEffect(isRefreshing, uiState.error, refreshTriggeredByUser) {
+        if (wasRefreshing && !isRefreshing && refreshTriggeredByUser) {
+            quotaHaptics.refreshResult(success = uiState.error == null)
+            refreshTriggeredByUser = false
+        }
+        wasRefreshing = isRefreshing
+    }
+
+    val requestRefresh = {
+        refreshTriggeredByUser = true
+        viewModel.refresh()
     }
 
     if (showDisconnectDialog) {
@@ -271,7 +302,7 @@ fun ProviderQuotaScreen(
     ) { innerPadding ->
         PullToRefreshBox(
             isRefreshing = isRefreshing,
-            onRefresh = viewModel::refresh,
+            onRefresh = requestRefresh,
             state = pullToRefreshState,
             enabled = uiState.isConnected && !uiState.isBootstrapping,
             modifier = Modifier
@@ -307,7 +338,7 @@ fun ProviderQuotaScreen(
                         AnimatedSection(visible = statusVisible) {
                             DetailErrorStrip(
                                 message = uiState.error!!,
-                                onDismiss = viewModel::refresh
+                                onDismiss = requestRefresh
                             )
                         }
                     }
