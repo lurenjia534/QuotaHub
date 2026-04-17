@@ -67,6 +67,20 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lurenjia534.quotahub.data.model.ModelRemain
+import com.lurenjia534.quotahub.data.model.QuotaRisk
+import com.lurenjia534.quotahub.data.model.atRiskModelCount
+import com.lurenjia534.quotahub.data.model.dominantQuotaRisk
+import com.lurenjia534.quotahub.data.model.effectiveUsageProgress
+import com.lurenjia534.quotahub.data.model.effectiveRemainingCount
+import com.lurenjia534.quotahub.data.model.hasVisibleWeeklyQuota
+import com.lurenjia534.quotahub.data.model.hasPlanLevelWeeklyQuota
+import com.lurenjia534.quotahub.data.model.intervalRemainingCount
+import com.lurenjia534.quotahub.data.model.intervalUsageProgress
+import com.lurenjia534.quotahub.data.model.intervalUsedCount
+import com.lurenjia534.quotahub.data.model.quotaRisk
+import com.lurenjia534.quotahub.data.model.relevantResetTime
+import com.lurenjia534.quotahub.data.model.weeklyRemainingCount
+import com.lurenjia534.quotahub.data.model.weeklyUsedCount
 import com.lurenjia534.quotahub.data.provider.SubscriptionGateway
 import com.lurenjia534.quotahub.ui.components.MetricEmphasisLevel
 import com.lurenjia534.quotahub.ui.components.QuotaMetricText
@@ -74,15 +88,6 @@ import com.lurenjia534.quotahub.ui.components.QuotaLoadingIndicator
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
-
-private const val CriticalResetThresholdMillis = 60 * 60 * 1000L
-private const val WatchResetThresholdMillis = 6 * 60 * 60 * 1000L
-
-private enum class QuotaRisk {
-    Healthy,
-    Watch,
-    Critical
-}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -376,32 +381,49 @@ private fun QuotaSummaryBoard(
     isRefreshing: Boolean
 ) {
     val colorScheme = MaterialTheme.colorScheme
-    val totalAllowance = modelRemains.sumOf { it.currentIntervalTotalCount }
-    val totalRemainingCalls = modelRemains.sumOf { it.currentIntervalUsageCount }
-    val totalUsedCalls = (totalAllowance - totalRemainingCalls).coerceAtLeast(0)
-    val overallProgress = if (totalAllowance > 0) {
-        totalUsedCalls.toFloat() / totalAllowance.toFloat()
+    val planHasWeeklyQuota = modelRemains.hasPlanLevelWeeklyQuota
+    val totalIntervalAllowance = modelRemains.sumOf { it.currentIntervalTotalCount }
+    val totalIntervalUsed = modelRemains.sumOf { it.intervalUsedCount }
+    val totalIntervalRemaining = modelRemains.sumOf { it.intervalRemainingCount }
+    val modelsWithVisibleWeeklyQuota = modelRemains.filter { it.hasVisibleWeeklyQuota(planHasWeeklyQuota) }
+    val totalWeeklyAllowance = modelsWithVisibleWeeklyQuota.sumOf { it.currentWeeklyTotalCount }
+    val totalWeeklyUsed = modelsWithVisibleWeeklyQuota.sumOf { it.weeklyUsedCount }
+    val totalWeeklyRemaining = modelsWithVisibleWeeklyQuota.sumOf { it.weeklyRemainingCount }
+    val totalEffectiveRemaining = modelRemains.sumOf {
+        it.effectiveRemainingCount(planHasWeeklyQuota)
+    }
+    val intervalProgress = if (totalIntervalAllowance > 0) {
+        totalIntervalUsed.toFloat() / totalIntervalAllowance.toFloat()
     } else {
         0f
     }
-    val soonestReset = modelRemains.map { it.remainsTime }.minOrNull()
-    val watchCount = modelRemains.count { quotaRiskOf(it) != QuotaRisk.Healthy }
-    val dominantRisk = when {
-        modelRemains.any { quotaRiskOf(it) == QuotaRisk.Critical } -> QuotaRisk.Critical
-        watchCount > 0 -> QuotaRisk.Watch
-        else -> QuotaRisk.Healthy
+    val weeklyProgress = if (totalWeeklyAllowance > 0) {
+        totalWeeklyUsed.toFloat() / totalWeeklyAllowance.toFloat()
+    } else {
+        0f
     }
+    val soonestReset = modelRemains.mapNotNull {
+        it.relevantResetTime(planHasWeeklyQuota)
+    }.minOrNull()
+    val soonestIntervalReset = modelRemains.map { it.remainsTime }.minOrNull()
+    val soonestWeeklyReset = modelsWithVisibleWeeklyQuota
+        .map { it.weeklyRemainsTime }
+        .minOrNull()
+    val watchCount = modelRemains.atRiskModelCount(planHasWeeklyQuota)
+    val dominantRisk = modelRemains.dominantQuotaRisk(planHasWeeklyQuota)
     val accentColor = riskColor(dominantRisk)
     val stateLabel = when {
         modelRemains.isEmpty() -> "Waiting for first snapshot"
         dominantRisk == QuotaRisk.Critical -> "Critical attention"
         dominantRisk == QuotaRisk.Watch -> "Watch list active"
+        planHasWeeklyQuota -> "Interval and weekly caps active"
         else -> "Healthy coverage"
     }
     val stateDescription = when {
         modelRemains.isEmpty() -> "Pull to refresh once data is available from the provider."
-        dominantRisk == QuotaRisk.Critical -> "At least one model is near depletion or its reset window is very close."
-        dominantRisk == QuotaRisk.Watch -> "Some models need monitoring, but the subscription is still usable."
+        dominantRisk == QuotaRisk.Critical -> "At least one model is close to exhausting its available quota."
+        dominantRisk == QuotaRisk.Watch -> "Some models are trending low and should be monitored."
+        planHasWeeklyQuota -> "This plan combines interval and weekly caps. The headline value reflects the tighter limit for each model."
         else -> "Quota levels are stable and no model is near its critical threshold."
     }
 
@@ -450,7 +472,7 @@ private fun QuotaSummaryBoard(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(
-                                text = "Current interval",
+                                text = if (planHasWeeklyQuota) "Current limits" else "Current interval",
                                 style = MaterialTheme.typography.labelLarge.copy(
                                     color = colorScheme.onSurfaceVariant
                                 )
@@ -466,12 +488,16 @@ private fun QuotaSummaryBoard(
 
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     QuotaMetricText(
-                        text = formatCount(totalRemainingCalls),
+                        text = formatCount(totalEffectiveRemaining),
                         emphasized = highEmphasisMetrics,
                         level = MetricEmphasisLevel.Hero
                     )
                     Text(
-                        text = "calls left across ${modelRemains.size} tracked models",
+                        text = if (planHasWeeklyQuota) {
+                            "usable calls left across ${modelRemains.size} tracked models"
+                        } else {
+                            "calls left across ${modelRemains.size} tracked models"
+                        },
                         style = MaterialTheme.typography.bodyMedium.copy(
                             color = colorScheme.onSurfaceVariant
                         )
@@ -488,33 +514,47 @@ private fun QuotaSummaryBoard(
                     color = colorScheme.surface.copy(alpha = 0.82f),
                     shape = RoundedCornerShape(24.dp)
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        SummaryMetric(
-                            modifier = Modifier.weight(1f),
-                            label = "Used",
-                            value = "${(overallProgress * 100).roundToInt()}%",
-                            highEmphasisMetrics = highEmphasisMetrics
+                    Column {
+                        SummaryMetricRow(
+                            highEmphasisMetrics = highEmphasisMetrics,
+                            firstLabel = if (planHasWeeklyQuota) "Interval left" else "Calls left",
+                            firstValue = formatCount(totalIntervalRemaining),
+                            secondLabel = if (planHasWeeklyQuota) "Interval reset" else "Soonest reset",
+                            secondValue = (if (planHasWeeklyQuota) soonestIntervalReset else soonestReset)
+                                ?.let { formatTimeRemaining(it) }
+                                ?: "Waiting",
+                            thirdLabel = "Models to watch",
+                            thirdValue = watchCount.toString()
                         )
-                        VerticalDivider()
-                        SummaryMetric(
-                            modifier = Modifier.weight(1f),
-                            label = "Soonest reset",
-                            value = soonestReset?.let { formatTimeRemaining(it) } ?: "Waiting",
-                            highEmphasisMetrics = highEmphasisMetrics
-                        )
-                        VerticalDivider()
-                        SummaryMetric(
-                            modifier = Modifier.weight(1f),
-                            label = "Models to watch",
-                            value = watchCount.toString(),
-                            highEmphasisMetrics = highEmphasisMetrics
-                        )
+                        if (planHasWeeklyQuota) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                                color = colorScheme.outlineVariant.copy(alpha = 0.6f)
+                            )
+                            SummaryMetricRow(
+                                highEmphasisMetrics = highEmphasisMetrics,
+                                firstLabel = "Weekly left",
+                                firstValue = formatCount(totalWeeklyRemaining),
+                                secondLabel = "Weekly reset",
+                                secondValue = soonestWeeklyReset?.let { formatTimeRemaining(it) } ?: "Waiting",
+                                thirdLabel = "Weekly used",
+                                thirdValue = "${(weeklyProgress * 100).roundToInt()}%"
+                            )
+                        } else {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                                color = colorScheme.outlineVariant.copy(alpha = 0.6f)
+                            )
+                            SummaryMetricRow(
+                                highEmphasisMetrics = highEmphasisMetrics,
+                                firstLabel = "Used",
+                                firstValue = "${(intervalProgress * 100).roundToInt()}%",
+                                secondLabel = "Interval total",
+                                secondValue = formatCount(totalIntervalAllowance),
+                                thirdLabel = "Used calls",
+                                thirdValue = formatCount(totalIntervalUsed)
+                            )
+                        }
                     }
                 }
 
@@ -536,6 +576,46 @@ private fun QuotaSummaryBoard(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SummaryMetricRow(
+    highEmphasisMetrics: Boolean,
+    firstLabel: String,
+    firstValue: String,
+    secondLabel: String,
+    secondValue: String,
+    thirdLabel: String,
+    thirdValue: String
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        SummaryMetric(
+            modifier = Modifier.weight(1f),
+            label = firstLabel,
+            value = firstValue,
+            highEmphasisMetrics = highEmphasisMetrics
+        )
+        VerticalDivider()
+        SummaryMetric(
+            modifier = Modifier.weight(1f),
+            label = secondLabel,
+            value = secondValue,
+            highEmphasisMetrics = highEmphasisMetrics
+        )
+        VerticalDivider()
+        SummaryMetric(
+            modifier = Modifier.weight(1f),
+            label = thirdLabel,
+            value = thirdValue,
+            highEmphasisMetrics = highEmphasisMetrics
+        )
     }
 }
 
@@ -678,10 +758,13 @@ private fun ModelQuotaSection(
     modelRemains: List<ModelRemain>,
     highEmphasisMetrics: Boolean
 ) {
+    val planHasWeeklyQuota = modelRemains.hasPlanLevelWeeklyQuota
+
     SectionSurface {
         modelRemains.forEachIndexed { index, modelRemain ->
             ModelQuotaRow(
                 modelRemain = modelRemain,
+                planHasWeeklyQuota = planHasWeeklyQuota,
                 highEmphasisMetrics = highEmphasisMetrics
             )
             if (index < modelRemains.lastIndex) {
@@ -697,13 +780,18 @@ private fun ModelQuotaSection(
 @Composable
 private fun ModelQuotaRow(
     modelRemain: ModelRemain,
+    planHasWeeklyQuota: Boolean,
     highEmphasisMetrics: Boolean
 ) {
-    val remaining = modelRemain.currentIntervalUsageCount
-    val total = modelRemain.currentIntervalTotalCount
-    val used = (total - remaining).coerceAtLeast(0)
-    val progress = quotaProgress(remaining = remaining, total = total)
-    val risk = quotaRiskOf(modelRemain)
+    val intervalRemaining = modelRemain.intervalRemainingCount
+    val intervalUsed = modelRemain.intervalUsedCount
+    val intervalTotal = modelRemain.currentIntervalTotalCount
+    val weeklyRemaining = modelRemain.weeklyRemainingCount
+    val weeklyUsed = modelRemain.weeklyUsedCount
+    val weeklyTotal = modelRemain.currentWeeklyTotalCount
+    val showWeeklyQuota = modelRemain.hasVisibleWeeklyQuota(planHasWeeklyQuota)
+    val progress = modelRemain.effectiveUsageProgress(planHasWeeklyQuota)
+    val risk = modelRemain.quotaRisk(planHasWeeklyQuota)
     val progressColor = riskColor(risk)
 
     Row(
@@ -719,7 +807,7 @@ private fun ModelQuotaRow(
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
-                    imageVector = if (risk == QuotaRisk.Critical) Icons.Default.Warning else Icons.Default.CheckCircle,
+                    imageVector = if (risk == QuotaRisk.Healthy) Icons.Default.CheckCircle else Icons.Default.Warning,
                     contentDescription = null,
                     tint = progressColor
                 )
@@ -748,7 +836,11 @@ private fun ModelQuotaRow(
                         overflow = TextOverflow.Ellipsis
                     )
                     QuotaMetricText(
-                        text = "Reset in ${formatTimeRemaining(modelRemain.remainsTime)}",
+                        text = if (showWeeklyQuota) {
+                            "Interval reset in ${formatTimeRemaining(modelRemain.remainsTime)}"
+                        } else {
+                            "Reset in ${formatTimeRemaining(modelRemain.remainsTime)}"
+                        },
                         emphasized = highEmphasisMetrics,
                         level = MetricEmphasisLevel.Compact,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -766,23 +858,51 @@ private fun ModelQuotaRow(
             ) {
                 DetailMetric(
                     modifier = Modifier.weight(1f),
-                    label = "Remaining",
-                    value = formatCount(remaining),
+                    label = if (showWeeklyQuota) "Interval left" else "Remaining",
+                    value = formatCount(intervalRemaining),
                     highEmphasisMetrics = highEmphasisMetrics,
                     valueColor = progressColor
                 )
                 DetailMetric(
                     modifier = Modifier.weight(1f),
                     label = "Used",
-                    value = "${formatCount(used)} / ${formatCount(total)}",
+                    value = "${formatCount(intervalUsed)} / ${formatCount(intervalTotal)}",
                     highEmphasisMetrics = highEmphasisMetrics
                 )
                 DetailMetric(
                     modifier = Modifier.weight(1f),
-                    label = "Usage",
-                    value = "${(progress * 100).roundToInt()}%",
+                    label = if (showWeeklyQuota) "Interval usage" else "Usage",
+                    value = "${(modelRemain.intervalUsageProgress * 100).roundToInt()}%",
                     highEmphasisMetrics = highEmphasisMetrics
                 )
+            }
+
+            if (showWeeklyQuota) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    DetailMetric(
+                        modifier = Modifier.weight(1f),
+                        label = "Weekly left",
+                        value = formatCount(weeklyRemaining),
+                        highEmphasisMetrics = highEmphasisMetrics,
+                        valueColor = progressColor
+                    )
+                    DetailMetric(
+                        modifier = Modifier.weight(1f),
+                        label = "Weekly used",
+                        value = "${formatCount(weeklyUsed)} / ${formatCount(weeklyTotal)}",
+                        highEmphasisMetrics = highEmphasisMetrics
+                    )
+                    DetailMetric(
+                        modifier = Modifier.weight(1f),
+                        label = "Weekly reset",
+                        value = formatTimeRemaining(modelRemain.weeklyRemainsTime),
+                        highEmphasisMetrics = highEmphasisMetrics
+                    )
+                }
             }
         }
     }
@@ -940,24 +1060,6 @@ private fun RiskPill(risk: QuotaRisk) {
             ),
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
         )
-    }
-}
-
-private fun quotaProgress(remaining: Int, total: Int): Float {
-    val used = (total - remaining).coerceAtLeast(0)
-    return if (total > 0) used.toFloat() / total.toFloat() else 0f
-}
-
-private fun quotaRiskOf(modelRemain: ModelRemain): QuotaRisk {
-    val progress = quotaProgress(
-        remaining = modelRemain.currentIntervalUsageCount,
-        total = modelRemain.currentIntervalTotalCount
-    )
-
-    return when {
-        progress >= 0.95f || modelRemain.remainsTime <= CriticalResetThresholdMillis -> QuotaRisk.Critical
-        progress >= 0.80f || modelRemain.remainsTime <= WatchResetThresholdMillis -> QuotaRisk.Watch
-        else -> QuotaRisk.Healthy
     }
 }
 

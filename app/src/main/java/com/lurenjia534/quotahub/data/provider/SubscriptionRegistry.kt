@@ -1,5 +1,10 @@
 package com.lurenjia534.quotahub.data.provider
 
+import com.lurenjia534.quotahub.data.model.QuotaRisk
+import com.lurenjia534.quotahub.data.model.dominantQuotaRisk
+import com.lurenjia534.quotahub.data.model.effectiveRemainingCount
+import com.lurenjia534.quotahub.data.model.hasPlanLevelWeeklyQuota
+import com.lurenjia534.quotahub.data.model.relevantResetTime
 import com.lurenjia534.quotahub.data.repository.SubscriptionRepository
 import com.lurenjia534.quotahub.ui.screens.home.QuotaProvider
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -17,8 +22,9 @@ import kotlinx.coroutines.flow.map
  *
  * @param subscription 订阅信息
  * @param modelCount 该订阅包含的模型数量
- * @param remainingCalls 当前周期的剩余调用次数
- * @param remainingTime 最长的剩余时间
+ * @param remainingCalls 当前可用调用次数
+ * @param remainingTime 最近一次额度重置时间，仅用于信息展示
+ * @param risk 当前订阅的配额风险级别
  * @param isConnected 是否已连接
  */
 data class SubscriptionCard(
@@ -26,6 +32,7 @@ data class SubscriptionCard(
     val modelCount: Int,
     val remainingCalls: Int,
     val remainingTime: Long?,
+    val risk: QuotaRisk,
     val isConnected: Boolean
 )
 
@@ -65,7 +72,7 @@ class SubscriptionRegistry(
      * 实现细节：
      * - 使用flatMapLatest响应订阅列表的变化
      * - 使用combine聚合所有订阅的配额数据
-     * - 每个订阅的卡片信息包含：模型数量、总剩余调用数、最大剩余时间
+     * - 每个订阅的卡片信息包含：模型数量、总可用调用数、展示用的最近重置时间、额度风险级别
      */
     val snapshots: Flow<List<SubscriptionCard>> = repository.subscriptions.flatMapLatest { subs ->
         if (subs.isEmpty()) {
@@ -75,11 +82,17 @@ class SubscriptionRegistry(
             // 为每个订阅创建配额监听流，然后合并
             combine(subs.map { sub ->
                 repository.getModelRemains(sub.id).map { modelRemains ->
+                    val planHasWeeklyQuota = modelRemains.hasPlanLevelWeeklyQuota
                     SubscriptionCard(
                         subscription = sub,
                         modelCount = modelRemains.size,
-                        remainingCalls = modelRemains.sumOf { it.currentIntervalUsageCount },
-                        remainingTime = modelRemains.map { it.remainsTime }.maxOrNull(),
+                        remainingCalls = modelRemains.sumOf {
+                            it.effectiveRemainingCount(planHasWeeklyQuota)
+                        },
+                        remainingTime = modelRemains.mapNotNull {
+                            it.relevantResetTime(planHasWeeklyQuota)
+                        }.minOrNull(),
+                        risk = modelRemains.dominantQuotaRisk(planHasWeeklyQuota),
                         isConnected = true
                     )
                 }

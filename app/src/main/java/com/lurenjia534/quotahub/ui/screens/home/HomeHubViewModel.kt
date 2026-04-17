@@ -3,6 +3,7 @@ package com.lurenjia534.quotahub.ui.screens.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.lurenjia534.quotahub.data.model.QuotaRisk
 import com.lurenjia534.quotahub.data.provider.SubscriptionCard
 import com.lurenjia534.quotahub.data.provider.SubscriptionRegistry
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,6 +20,7 @@ data class SubscriptionCardUiModel(
     val modelCount: Int,
     val remainingCalls: Int,
     val remainingTime: Long?,
+    val risk: QuotaRisk,
     val isConnected: Boolean
 )
 
@@ -130,6 +132,7 @@ class HomeHubViewModel(
             modelCount = modelCount,
             remainingCalls = remainingCalls,
             remainingTime = remainingTime,
+            risk = risk,
             isConnected = isConnected
         )
     }

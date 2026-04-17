@@ -61,13 +61,12 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.lurenjia534.quotahub.data.model.QuotaRisk
 import com.lurenjia534.quotahub.data.provider.SubscriptionRegistry
 import com.lurenjia534.quotahub.ui.components.MetricEmphasisLevel
 import com.lurenjia534.quotahub.ui.components.QuotaMetricText
 import com.lurenjia534.quotahub.ui.components.QuotaLoadingIndicator
 import kotlinx.coroutines.delay
-
-private const val UrgentRefreshThresholdMillis = 6 * 60 * 60 * 1000L
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -90,7 +89,7 @@ fun HomeScreen(
     val trackedCalls = connectedSubscriptions.sumOf { it.remainingCalls }
     val trackedModels = connectedSubscriptions.sumOf { it.modelCount }
     val nextRefreshWindow = connectedSubscriptions.mapNotNull { it.remainingTime }.minOrNull()
-    val needsAttention = nextRefreshWindow?.let { it < UrgentRefreshThresholdMillis } == true
+    val dominantRisk = connectedSubscriptions.dominantRisk()
     val hasSubscriptions = connectedSubscriptions.isNotEmpty()
     val connectedProviderKeys = connectedSubscriptions
         .map { it.subtitle.substringAfterLast("•").trim() }
@@ -126,7 +125,7 @@ fun HomeScreen(
                         trackedModels = trackedModels,
                         nextRefreshWindow = nextRefreshWindow,
                         highEmphasisMetrics = highEmphasisMetrics,
-                        needsAttention = needsAttention,
+                        dominantRisk = dominantRisk,
                         isBootstrapping = uiState.isBootstrapping,
                         onAddClick = { showBottomSheet = true }
                     )
@@ -251,7 +250,7 @@ private fun HomeOperationsBoard(
     trackedModels: Int,
     nextRefreshWindow: Long?,
     highEmphasisMetrics: Boolean,
-    needsAttention: Boolean,
+    dominantRisk: QuotaRisk,
     isBootstrapping: Boolean,
     onAddClick: () -> Unit
 ) {
@@ -259,7 +258,8 @@ private fun HomeOperationsBoard(
     val accentColor by animateColorAsState(
         targetValue = when {
             connectedCount == 0 -> colorScheme.secondaryContainer
-            needsAttention -> colorScheme.tertiaryContainer
+            dominantRisk == QuotaRisk.Critical -> colorScheme.errorContainer
+            dominantRisk == QuotaRisk.Watch -> colorScheme.tertiaryContainer
             else -> colorScheme.primaryContainer
         },
         animationSpec = spring(stiffness = 420f, dampingRatio = 0.9f),
@@ -268,12 +268,14 @@ private fun HomeOperationsBoard(
 
     val stateLabel = when {
         connectedCount == 0 -> "No sources connected"
-        needsAttention -> "Reset window soon"
+        dominantRisk == QuotaRisk.Critical -> "Critical attention"
+        dominantRisk == QuotaRisk.Watch -> "Watch list active"
         else -> "Coverage healthy"
     }
     val stateDescription = when {
         connectedCount == 0 -> "Connect a provider to begin tracking quotas and refresh windows."
-        needsAttention -> "At least one source is approaching its next refresh window."
+        dominantRisk == QuotaRisk.Critical -> "At least one source is close to exhausting its available quota."
+        dominantRisk == QuotaRisk.Watch -> "Some sources are trending low and should be monitored."
         else -> "Tracked sources are connected and current quota data is readable at a glance."
     }
 
@@ -411,7 +413,7 @@ private fun HomeOperationsBoard(
                             label = "Next reset",
                             value = nextRefreshWindow?.let { formatTimeRemaining(it) } ?: "Waiting",
                             highEmphasisMetrics = highEmphasisMetrics,
-                            valueColor = if (needsAttention) colorScheme.tertiary else colorScheme.onSurface
+                            valueColor = colorScheme.onSurface
                         )
                         StripDivider()
                         OverviewStripMetric(
@@ -605,9 +607,13 @@ private fun SubscriptionQueueRow(
     onClick: () -> Unit
 ) {
     val colorScheme = MaterialTheme.colorScheme
-    val refreshSoon = subscriptionCard.remainingTime?.let { it < UrgentRefreshThresholdMillis } == true
+    val risk = subscriptionCard.risk
     val stateColor by animateColorAsState(
-        targetValue = if (refreshSoon) colorScheme.tertiaryContainer else colorScheme.secondaryContainer,
+        targetValue = when (risk) {
+            QuotaRisk.Critical -> colorScheme.errorContainer
+            QuotaRisk.Watch -> colorScheme.tertiaryContainer
+            QuotaRisk.Healthy -> colorScheme.secondaryContainer
+        },
         animationSpec = spring(stiffness = 420f, dampingRatio = 0.9f),
         label = "subscriptionStateColor"
     )
@@ -671,7 +677,7 @@ private fun SubscriptionQueueRow(
                         text = subscriptionCard.remainingTime?.let { formatTimeRemaining(it) } ?: "Manual",
                         emphasized = highEmphasisMetrics,
                         level = MetricEmphasisLevel.Standard,
-                        color = if (refreshSoon) colorScheme.tertiary else colorScheme.onSurface
+                        color = colorScheme.onSurface
                     )
                 }
             }
@@ -699,9 +705,17 @@ private fun SubscriptionQueueRow(
                 QueueMetric(
                     modifier = Modifier.weight(1f),
                     label = "State",
-                    value = if (refreshSoon) "Watch" else "Stable",
+                    value = when (risk) {
+                        QuotaRisk.Critical -> "Critical"
+                        QuotaRisk.Watch -> "Watch"
+                        QuotaRisk.Healthy -> "Healthy"
+                    },
                     highEmphasisMetrics = highEmphasisMetrics,
-                    valueColor = if (refreshSoon) colorScheme.tertiary else colorScheme.onSurface
+                    valueColor = when (risk) {
+                        QuotaRisk.Critical -> colorScheme.error
+                        QuotaRisk.Watch -> colorScheme.tertiary
+                        QuotaRisk.Healthy -> colorScheme.onSurface
+                    }
                 )
             }
 
@@ -756,6 +770,14 @@ private fun QueueMetric(
             level = MetricEmphasisLevel.Standard,
             color = resolvedValueColor
         )
+    }
+}
+
+private fun List<SubscriptionCardUiModel>.dominantRisk(): QuotaRisk {
+    return when {
+        any { it.risk == QuotaRisk.Critical } -> QuotaRisk.Critical
+        any { it.risk == QuotaRisk.Watch } -> QuotaRisk.Watch
+        else -> QuotaRisk.Healthy
     }
 }
 

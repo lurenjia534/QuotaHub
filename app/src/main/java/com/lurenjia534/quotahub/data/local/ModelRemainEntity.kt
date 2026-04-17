@@ -17,9 +17,9 @@ import com.lurenjia534.quotahub.data.model.ModelRemain
  * - startTime/endTime: 当前配额周期的开始和结束时间
  * - remainsTime: 剩余时间（毫秒）
  * - currentIntervalTotalCount: 当前周期总调用次数
- * - currentIntervalUsageCount: 当前周期剩余调用次数（沿用接口字段名）
+ * - currentIntervalUsageCount: 当前周期剩余调用次数（接口字段名虽然叫usage，实际返回的是remaining）
  * - currentWeeklyTotalCount: 本周总调用次数
- * - currentWeeklyUsageCount: 本周剩余调用次数（沿用接口字段名）
+ * - currentWeeklyUsageCount: 本周剩余调用次数（接口字段名虽然叫usage，实际返回的是remaining）
  * - weeklyStartTime/weeklyEndTime: 本周的开始和结束时间
  * - weeklyRemainsTime: 本周剩余时间
  * - cachedAt: 数据缓存时间，用于判断数据新鲜度
@@ -43,11 +43,11 @@ data class ModelRemainEntity(
     val remainsTime: Long,
     /** 当前周期总调用次数上限 */
     val currentIntervalTotalCount: Int,
-    /** 当前周期剩余的调用次数（沿用接口字段名） */
+    /** 当前周期剩余的调用次数（接口字段名虽然叫usage，实际返回的是remaining） */
     val currentIntervalUsageCount: Int,
     /** 本周总调用次数上限 */
     val currentWeeklyTotalCount: Int,
-    /** 本周剩余的调用次数（沿用接口字段名） */
+    /** 本周剩余的调用次数（接口字段名虽然叫usage，实际返回的是remaining） */
     val currentWeeklyUsageCount: Int,
     /** 本周开始时间戳 */
     val weeklyStartTime: Long,
