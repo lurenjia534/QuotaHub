@@ -67,7 +67,6 @@ fun QuotaNavigationBar(
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
-    val colorScheme = MaterialTheme.colorScheme
 
     Box(
         modifier = modifier
@@ -91,16 +90,16 @@ fun QuotaNavigationBar(
                         shape = NavigationShadowShape
                     )
                     .background(
-                        color = colorScheme.surfaceContainerHighest.copy(alpha = 0.68f),
+                        color = Color.Transparent,
                         shape = NavigationShadowShape
                     )
             )
 
             Surface(
                 shape = NavigationTrayShape,
-                color = colorScheme.surface.copy(alpha = 0.98f),
-                tonalElevation = 4.dp,
-                shadowElevation = 10.dp
+                color = Color.Transparent,
+                tonalElevation = 0.dp,
+                shadowElevation = 0.dp
             ) {
                 Row(
                     modifier = Modifier

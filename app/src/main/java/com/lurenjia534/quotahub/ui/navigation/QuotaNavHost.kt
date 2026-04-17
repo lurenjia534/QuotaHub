@@ -10,6 +10,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -30,6 +32,7 @@ fun QuotaNavHost(
     hapticConfirmation: Boolean,
     onHighEmphasisMetricsChange: (Boolean) -> Unit,
     onHapticConfirmationChange: (Boolean) -> Unit,
+    bottomContentPadding: Dp = 0.dp,
     modifier: Modifier = Modifier
 ) {
     NavHost(
@@ -41,6 +44,7 @@ fun QuotaNavHost(
             HomeScreen(
                 subscriptionRegistry = subscriptionRegistry,
                 highEmphasisMetrics = highEmphasisMetrics,
+                bottomContentPadding = bottomContentPadding,
                 onSubscriptionClick = { subscriptionId ->
                     navController.navigate(Screen.SubscriptionDetail.createRoute(subscriptionId))
                 }
@@ -107,6 +111,7 @@ fun QuotaNavHost(
             SettingsScreen(
                 highEmphasisMetrics = highEmphasisMetrics,
                 hapticConfirmation = hapticConfirmation,
+                bottomContentPadding = bottomContentPadding,
                 onHighEmphasisMetricsChange = onHighEmphasisMetricsChange,
                 onHapticConfirmationChange = onHapticConfirmationChange
             )

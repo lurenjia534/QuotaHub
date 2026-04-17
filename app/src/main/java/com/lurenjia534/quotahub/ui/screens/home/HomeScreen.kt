@@ -59,6 +59,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lurenjia534.quotahub.data.model.QuotaRisk
@@ -74,6 +75,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     subscriptionRegistry: SubscriptionRegistry,
     highEmphasisMetrics: Boolean,
+    bottomContentPadding: Dp = 0.dp,
     onSubscriptionClick: (Long) -> Unit
 ) {
     val viewModel: HomeHubViewModel = viewModel(
@@ -113,7 +115,12 @@ fun HomeScreen(
     Box(modifier = modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 32.dp),
+            contentPadding = PaddingValues(
+                start = 20.dp,
+                top = 20.dp,
+                end = 20.dp,
+                bottom = 32.dp + bottomContentPadding
+            ),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             item {

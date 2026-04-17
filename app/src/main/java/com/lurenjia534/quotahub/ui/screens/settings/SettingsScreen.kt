@@ -60,6 +60,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lurenjia534.quotahub.ui.components.rememberQuotaHaptics
@@ -98,6 +99,7 @@ fun SettingsScreen(
     hapticConfirmation: Boolean,
     onHighEmphasisMetricsChange: (Boolean) -> Unit,
     onHapticConfirmationChange: (Boolean) -> Unit,
+    bottomContentPadding: Dp = 0.dp,
     modifier: Modifier = Modifier
 ) {
     var dynamicPaletteEnabled by rememberSaveable { mutableStateOf(true) }
@@ -127,7 +129,12 @@ fun SettingsScreen(
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 20.dp, top = 24.dp, end = 20.dp, bottom = 32.dp),
+        contentPadding = PaddingValues(
+            start = 20.dp,
+            top = 24.dp,
+            end = 20.dp,
+            bottom = 32.dp + bottomContentPadding
+        ),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         item {
