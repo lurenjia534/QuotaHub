@@ -1,9 +1,16 @@
 package com.lurenjia534.quotahub.ui.screens.home
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,31 +19,33 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.DataUsage
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,6 +53,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -53,6 +63,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lurenjia534.quotahub.data.provider.SubscriptionRegistry
 import com.lurenjia534.quotahub.ui.components.QuotaLoadingIndicator
+import kotlinx.coroutines.delay
+
+private const val UrgentRefreshThresholdMillis = 6 * 60 * 60 * 1000L
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,88 +81,111 @@ fun HomeScreen(
     var showBottomSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
 
+    val connectedSubscriptions = uiState.subscriptionCards.filter { it.isConnected }
+    val connectedCount = connectedSubscriptions.size
+    val providerCount = subscriptionRegistry.providers.size
+    val trackedCalls = connectedSubscriptions.sumOf { it.remainingCalls }
+    val trackedModels = connectedSubscriptions.sumOf { it.modelCount }
+    val nextRefreshWindow = connectedSubscriptions.mapNotNull { it.remainingTime }.minOrNull()
+    val needsAttention = nextRefreshWindow?.let { it < UrgentRefreshThresholdMillis } == true
+    val hasSubscriptions = connectedSubscriptions.isNotEmpty()
+    val connectedProviderKeys = connectedSubscriptions
+        .map { it.subtitle.substringAfterLast("•").trim() }
+        .toSet()
+
+    var boardVisible by remember { mutableStateOf(false) }
+    var statusVisible by remember { mutableStateOf(false) }
+    var queueVisible by remember { mutableStateOf(false) }
+    var providerVisible by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        boardVisible = true
+        delay(70)
+        statusVisible = true
+        delay(70)
+        queueVisible = true
+        delay(70)
+        providerVisible = true
+    }
+
     Box(modifier = modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp)
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            ProviderHubGreetingSection()
-            Spacer(modifier = Modifier.height(24.dp))
+            item {
+                AnimatedSection(visible = boardVisible) {
+                    HomeOperationsBoard(
+                        connectedCount = connectedCount,
+                        providerCount = providerCount,
+                        trackedCalls = trackedCalls,
+                        trackedModels = trackedModels,
+                        nextRefreshWindow = nextRefreshWindow,
+                        needsAttention = needsAttention,
+                        isBootstrapping = uiState.isBootstrapping,
+                        onAddClick = { showBottomSheet = true }
+                    )
+                }
+            }
+
+            if (uiState.error != null && !uiState.showCredentialDialog) {
+                item {
+                    AnimatedSection(visible = statusVisible) {
+                        HomeErrorStrip(
+                            message = uiState.error!!,
+                            onDismiss = viewModel::clearError
+                        )
+                    }
+                }
+            }
+
+            item {
+                AnimatedSection(visible = statusVisible) {
+                    HomeSectionHeader(
+                        title = if (hasSubscriptions) "Subscription queue" else "Subscriptions",
+                        subtitle = if (hasSubscriptions) {
+                            "Active sources ordered for fast scanning. Open any row for model-level quota detail."
+                        } else {
+                            "No sources connected yet. Add a provider to start caching quota snapshots."
+                        }
+                    )
+                }
+            }
 
             if (uiState.isBootstrapping) {
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    QuotaLoadingIndicator()
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-
-            if (uiState.error != null) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Warning,
-                            contentDescription = "Warning",
-                            tint = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = uiState.error!!,
-                            color = MaterialTheme.colorScheme.onErrorContainer
-                        )
+                item {
+                    AnimatedSection(visible = queueVisible) {
+                        HomeLoadingRow()
                     }
                 }
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-
-            val connectedSubscriptions = uiState.subscriptionCards.filter { it.isConnected }
-            if (connectedSubscriptions.isNotEmpty()) {
-                ProviderSectionTitle(title = "My Subscriptions")
-                Spacer(modifier = Modifier.height(12.dp))
-                connectedSubscriptions.forEachIndexed { index, subscriptionCard ->
-                    SubscriptionListItem(
-                        displayTitle = subscriptionCard.displayTitle,
-                        subtitle = subscriptionCard.subtitle,
-                        providerIconRes = subscriptionCard.providerIconRes,
-                        modelCount = subscriptionCard.modelCount,
-                        remainingCalls = subscriptionCard.remainingCalls,
-                        remainingTime = subscriptionCard.remainingTime,
+            } else if (hasSubscriptions) {
+                items(
+                    items = connectedSubscriptions,
+                    key = { it.subscriptionId }
+                ) { subscriptionCard ->
+                    SubscriptionQueueRow(
+                        subscriptionCard = subscriptionCard,
                         onClick = { onSubscriptionClick(subscriptionCard.subscriptionId) }
                     )
-                    if (index < connectedSubscriptions.lastIndex) {
-                        HorizontalDivider(
-                            modifier = Modifier.padding(start = 88.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant
-                        )
+                }
+            } else {
+                item {
+                    AnimatedSection(visible = queueVisible) {
+                        HomeEmptyState(onAddClick = { showBottomSheet = true })
                     }
                 }
-            } else if (!uiState.isBootstrapping) {
-                ProviderEmptyState()
             }
-        }
 
-        FloatingActionButton(
-            onClick = { showBottomSheet = true },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Add,
-                contentDescription = "Add subscription"
-            )
+            item {
+                AnimatedSection(visible = providerVisible) {
+                    ProviderAccessSection(
+                        providers = subscriptionRegistry.providers,
+                        connectedProviderKeys = connectedProviderKeys,
+                        onAddClick = { showBottomSheet = true }
+                    )
+                }
+            }
         }
 
         if (showBottomSheet) {
@@ -158,6 +194,7 @@ fun HomeScreen(
                 onDismiss = { showBottomSheet = false },
                 providers = subscriptionRegistry.providers,
                 onProviderClick = { provider ->
+                    viewModel.clearError()
                     viewModel.showCredentialDialog(provider)
                     showBottomSheet = false
                 }
@@ -170,9 +207,13 @@ fun HomeScreen(
                 customTitleInput = uiState.customTitleInput,
                 credentialInput = uiState.credentialInput,
                 isSaving = uiState.isSaving,
+                errorMessage = uiState.error,
                 onCustomTitleChange = viewModel::updateCustomTitleInput,
                 onCredentialChange = viewModel::updateCredentialInput,
-                onDismiss = viewModel::hideCredentialDialog,
+                onDismiss = {
+                    viewModel.clearError()
+                    viewModel.hideCredentialDialog()
+                },
                 onConfirm = viewModel::saveSelectedProviderCredential
             )
         }
@@ -180,172 +221,673 @@ fun HomeScreen(
 }
 
 @Composable
-private fun ProviderHubGreetingSection() {
-    Column {
-        Text(
-            text = "QuotaHub",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
+private fun AnimatedSection(
+    visible: Boolean,
+    content: @Composable () -> Unit
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(
+            animationSpec = spring(stiffness = 420f, dampingRatio = 0.92f)
+        ) + slideInVertically(
+            animationSpec = spring(stiffness = 420f, dampingRatio = 0.92f),
+            initialOffsetY = { it / 7 }
         )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = "Monitor your API quotas",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+    ) {
+        content()
     }
 }
 
 @Composable
-private fun ProviderSectionTitle(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleLarge,
-        fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.onSurface
-    )
-}
-
-@Composable
-private fun SubscriptionListItem(
-    displayTitle: String,
-    subtitle: String,
-    providerIconRes: Int,
-    modelCount: Int,
-    remainingCalls: Int,
-    remainingTime: Long?,
-    onClick: () -> Unit
+private fun HomeOperationsBoard(
+    connectedCount: Int,
+    providerCount: Int,
+    trackedCalls: Int,
+    trackedModels: Int,
+    nextRefreshWindow: Long?,
+    needsAttention: Boolean,
+    isBootstrapping: Boolean,
+    onAddClick: () -> Unit
 ) {
-    ListItem(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        overlineContent = {
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+    val colorScheme = MaterialTheme.colorScheme
+    val accentColor by animateColorAsState(
+        targetValue = when {
+            connectedCount == 0 -> colorScheme.secondaryContainer
+            needsAttention -> colorScheme.tertiaryContainer
+            else -> colorScheme.primaryContainer
         },
-        headlineContent = {
-            Text(
-                text = displayTitle,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-        },
-        supportingContent = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
+        animationSpec = spring(stiffness = 420f, dampingRatio = 0.9f),
+        label = "boardAccent"
+    )
+
+    val stateLabel = when {
+        connectedCount == 0 -> "No sources connected"
+        needsAttention -> "Reset window soon"
+        else -> "Coverage healthy"
+    }
+    val stateDescription = when {
+        connectedCount == 0 -> "Connect a provider to begin tracking quotas and refresh windows."
+        needsAttention -> "At least one source is approaching its next refresh window."
+        else -> "Tracked sources are connected and current quota data is readable at a glance."
+    }
+
+    Surface(
+        color = colorScheme.surfaceContainerHigh,
+        shape = RoundedCornerShape(34.dp),
+        tonalElevation = 2.dp
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            accentColor.copy(alpha = 0.34f),
+                            colorScheme.surfaceContainerHigh
+                        )
+                    )
+                )
+                .padding(22.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(24.dp)
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
                 ) {
-                    SubscriptionMetric(
+                    Column(
                         modifier = Modifier.weight(1f),
-                        label = "Calls Remaining",
-                        value = remainingCalls.toString()
-                    )
-                    SubscriptionMetric(
-                        modifier = Modifier.weight(1f),
-                        label = "Models",
-                        value = modelCount.toString()
-                    )
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "QuotaHub",
+                            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                        Text(
+                            text = "Operational overview",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                color = colorScheme.onSurfaceVariant
+                            )
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    FilledTonalButton(
+                        onClick = onAddClick,
+                        shape = RoundedCornerShape(18.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Add,
+                            contentDescription = null
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Add",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+                        )
+                    }
                 }
-                Text(
-                    text = remainingTime?.let { "Refresh available • ${formatTimeRemaining(it)} left" }
-                        ?: "Connected • Tap to view and refresh quota details",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1.3f),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "Tracked calls",
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                color = colorScheme.onSurfaceVariant
+                            )
+                        )
+                        Text(
+                            text = formatCount(trackedCalls),
+                            style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Black)
+                        )
+                        Text(
+                            text = stateDescription,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                color = colorScheme.onSurfaceVariant
+                            )
+                        )
+                    }
+
+                    Surface(
+                        modifier = Modifier.weight(1f),
+                        color = colorScheme.surface.copy(alpha = 0.84f),
+                        shape = RoundedCornerShape(24.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            MiniBoardMetric(
+                                label = "Connected",
+                                value = "$connectedCount / $providerCount"
+                            )
+                            HorizontalDivider(
+                                color = colorScheme.outlineVariant.copy(alpha = 0.6f)
+                            )
+                            MiniBoardMetric(
+                                label = "Models visible",
+                                value = formatCount(trackedModels)
+                            )
+                        }
+                    }
+                }
+
+                Surface(
+                    color = colorScheme.surface.copy(alpha = 0.8f),
+                    shape = RoundedCornerShape(24.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OverviewStripMetric(
+                            modifier = Modifier.weight(1f),
+                            label = "Status",
+                            value = stateLabel,
+                            valueColor = colorScheme.onSurface
+                        )
+                        StripDivider()
+                        OverviewStripMetric(
+                            modifier = Modifier.weight(1f),
+                            label = "Next reset",
+                            value = nextRefreshWindow?.let { formatTimeRemaining(it) } ?: "Waiting",
+                            valueColor = if (needsAttention) colorScheme.tertiary else colorScheme.onSurface
+                        )
+                        StripDivider()
+                        OverviewStripMetric(
+                            modifier = Modifier.weight(1f),
+                            label = "Sources",
+                            value = if (connectedCount == 0) "Pending" else "Live",
+                            valueColor = colorScheme.onSurface
+                        )
+                    }
+                }
+
+                if (isBootstrapping) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        QuotaLoadingIndicator(modifier = Modifier.size(28.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = "Loading cached snapshots and provider state",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                color = colorScheme.onSurfaceVariant
+                            )
+                        )
+                    }
+                }
             }
-        },
-        leadingContent = {
-            Surface(
-                shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.secondaryContainer
-            ) {
-                Icon(
-                    painter = painterResource(providerIconRes),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .size(52.dp)
-                        .padding(10.dp),
-                    tint = Color.Unspecified
-                )
-            }
-        },
-        trailingContent = {
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = "Navigate"
-            )
-        },
-        colors = ListItemDefaults.colors(
-            containerColor = Color.Transparent,
-            overlineColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            trailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    )
+        }
+    }
 }
 
 @Composable
-private fun SubscriptionMetric(
-    modifier: Modifier = Modifier,
+private fun MiniBoardMetric(
     label: String,
     value: String
 ) {
-    Column(
-        modifier = modifier
-    ) {
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Text(
             text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            style = MaterialTheme.typography.labelMedium.copy(
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         )
-        Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = value,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
+            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
         )
     }
 }
 
 @Composable
-private fun ProviderEmptyState() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
+private fun OverviewStripMetric(
+    label: String,
+    value: String,
+    valueColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Column(
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium.copy(
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontWeight = FontWeight.SemiBold,
+                color = valueColor
+            )
+        )
+    }
+}
+
+@Composable
+private fun StripDivider() {
+    Box(
+        modifier = Modifier
+            .width(1.dp)
+            .height(34.dp)
+            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+    )
+}
+
+@Composable
+private fun HomeSectionHeader(
+    title: String,
+    subtitle: String
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold)
+        )
+        Text(
+            text = subtitle,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        )
+    }
+}
+
+@Composable
+private fun HomeLoadingRow() {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = RoundedCornerShape(28.dp)
+    ) {
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(horizontal = 18.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            QuotaLoadingIndicator(modifier = Modifier.size(30.dp))
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = "Preparing subscription queue",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+                )
+                Text(
+                    text = "Reading local data and provider refresh windows before rendering the queue.",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeErrorStrip(
+    message: String,
+    onDismiss: () -> Unit
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    Surface(
+        color = colorScheme.errorContainer,
+        shape = RoundedCornerShape(26.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                painter = painterResource(QuotaProvider.MiniMax.iconRes),
+                imageVector = Icons.Filled.Warning,
                 contentDescription = null,
-                modifier = Modifier.size(48.dp),
+                tint = colorScheme.onErrorContainer
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = "Attention needed",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        color = colorScheme.onErrorContainer
+                    )
+                )
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = colorScheme.onErrorContainer
+                    )
+                )
+            }
+            TextButton(onClick = onDismiss) {
+                Text(
+                    text = "Dismiss",
+                    color = colorScheme.onErrorContainer
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SubscriptionQueueRow(
+    subscriptionCard: SubscriptionCardUiModel,
+    onClick: () -> Unit
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    val refreshSoon = subscriptionCard.remainingTime?.let { it < UrgentRefreshThresholdMillis } == true
+    val stateColor by animateColorAsState(
+        targetValue = if (refreshSoon) colorScheme.tertiaryContainer else colorScheme.secondaryContainer,
+        animationSpec = spring(stiffness = 420f, dampingRatio = 0.9f),
+        label = "subscriptionStateColor"
+    )
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        color = colorScheme.surfaceContainerLow,
+        shape = RoundedCornerShape(30.dp),
+        tonalElevation = 1.dp
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    color = stateColor,
+                    shape = RoundedCornerShape(18.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(subscriptionCard.providerIconRes),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .padding(10.dp),
+                        tint = Color.Unspecified
+                    )
+                }
+                Spacer(modifier = Modifier.width(14.dp))
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = subscriptionCard.displayTitle,
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold)
+                    )
+                    Text(
+                        text = subscriptionCard.subtitle,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = colorScheme.onSurfaceVariant
+                        )
+                    )
+                }
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "Next reset",
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            color = colorScheme.onSurfaceVariant
+                        )
+                    )
+                    Text(
+                        text = subscriptionCard.remainingTime?.let { formatTimeRemaining(it) } ?: "Manual",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (refreshSoon) colorScheme.tertiary else colorScheme.onSurface
+                        )
+                    )
+                }
+            }
+
+            HorizontalDivider(
+                color = colorScheme.outlineVariant.copy(alpha = 0.6f)
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                QueueMetric(
+                    modifier = Modifier.weight(1f),
+                    label = "Calls",
+                    value = formatCount(subscriptionCard.remainingCalls)
+                )
+                QueueMetric(
+                    modifier = Modifier.weight(1f),
+                    label = "Models",
+                    value = formatCount(subscriptionCard.modelCount)
+                )
+                QueueMetric(
+                    modifier = Modifier.weight(1f),
+                    label = "State",
+                    value = if (refreshSoon) "Watch" else "Stable",
+                    valueColor = if (refreshSoon) colorScheme.tertiary else colorScheme.onSurface
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Open model-level detail and refresh controls",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = colorScheme.onSurfaceVariant
+                    )
+                )
+                Icon(
+                    imageVector = Icons.Filled.ChevronRight,
+                    contentDescription = null,
+                    tint = colorScheme.primary
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun QueueMetric(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    valueColor: Color = Color.Unspecified
+) {
+    val resolvedValueColor = if (valueColor == Color.Unspecified) {
+        MaterialTheme.colorScheme.onSurface
+    } else {
+        valueColor
+    }
+
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium.copy(
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontWeight = FontWeight.SemiBold,
+                color = resolvedValueColor
+            )
+        )
+    }
+}
+
+@Composable
+private fun HomeEmptyState(
+    onAddClick: () -> Unit
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = RoundedCornerShape(30.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 18.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                shape = CircleShape,
+                modifier = Modifier.size(52.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Filled.DataUsage,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(14.dp))
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = "No quota sources yet",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+                )
+                Text(
+                    text = "Connect a provider to start building the subscription queue and quota overview.",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                )
+            }
+            FilledTonalButton(
+                onClick = onAddClick,
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Text(
+                    text = "Connect",
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProviderAccessSection(
+    providers: List<QuotaProvider>,
+    connectedProviderKeys: Set<String>,
+    onAddClick: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        HomeSectionHeader(
+            title = "Provider access",
+            subtitle = "Keep connection entry points visible on the home surface instead of hiding them behind menus."
+        )
+
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            shape = RoundedCornerShape(30.dp),
+            tonalElevation = 1.dp
+        ) {
+            Column {
+                providers.forEachIndexed { index, provider ->
+                    ProviderAccessRow(
+                        provider = provider,
+                        isConnected = connectedProviderKeys.contains(provider.subtitle),
+                        onAddClick = onAddClick
+                    )
+
+                    if (index < providers.lastIndex) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 80.dp, end = 18.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProviderAccessRow(
+    provider: QuotaProvider,
+    isConnected: Boolean,
+    onAddClick: () -> Unit
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    val statusColor by animateColorAsState(
+        targetValue = if (isConnected) colorScheme.secondaryContainer else colorScheme.surface,
+        animationSpec = spring(stiffness = 420f, dampingRatio = 0.9f),
+        label = "providerStatusColor"
+    )
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onAddClick)
+            .padding(horizontal = 18.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            color = statusColor,
+            shape = RoundedCornerShape(18.dp)
+        ) {
+            Icon(
+                painter = painterResource(provider.iconRes),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(46.dp)
+                    .padding(10.dp),
                 tint = Color.Unspecified
             )
-            Spacer(modifier = Modifier.height(16.dp))
+        }
+        Spacer(modifier = Modifier.width(14.dp))
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
             Text(
-                text = "No subscriptions yet",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = provider.title,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
             )
-            Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Tap + to add your first subscription. MiniMax is available now.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = provider.detailDescription,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    color = colorScheme.onSurfaceVariant
+                )
+            )
+        }
+        TextButton(onClick = onAddClick) {
+            Text(
+                text = if (isConnected) "Add another" else "Connect",
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
             )
         }
     }
@@ -354,7 +896,7 @@ private fun ProviderEmptyState() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ProviderBottomSheet(
-    sheetState: androidx.compose.material3.SheetState,
+    sheetState: SheetState,
     onDismiss: () -> Unit,
     providers: List<QuotaProvider>,
     onProviderClick: (QuotaProvider) -> Unit
@@ -362,105 +904,78 @@ private fun ProviderBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
     ) {
         Column(
-            modifier = Modifier.padding(bottom = 32.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 20.dp, end = 20.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    text = "Add Subscription",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    text = "Connect provider",
+                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
+                )
+                Text(
+                    text = "Choose a source to validate credentials and add it into the subscription queue.",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 )
             }
 
-            HorizontalDivider(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                color = MaterialTheme.colorScheme.outlineVariant
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            providers.forEachIndexed { index, provider ->
+            providers.forEach { provider ->
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
                         .clickable { onProviderClick(provider) },
-                    shape = MaterialTheme.shapes.large,
-                    color = MaterialTheme.colorScheme.secondaryContainer
+                    color = MaterialTheme.colorScheme.surface,
+                    shape = RoundedCornerShape(26.dp)
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(20.dp),
+                            .padding(horizontal = 18.dp, vertical = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Surface(
-                            shape = MaterialTheme.shapes.medium,
-                            color = MaterialTheme.colorScheme.tertiary
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            shape = RoundedCornerShape(18.dp)
                         ) {
                             Icon(
                                 painter = painterResource(provider.iconRes),
                                 contentDescription = null,
                                 modifier = Modifier
-                                    .size(48.dp)
-                                    .padding(8.dp),
+                                    .size(46.dp)
+                                    .padding(10.dp),
                                 tint = Color.Unspecified
                             )
                         }
-                        Spacer(modifier = Modifier.width(16.dp))
+                        Spacer(modifier = Modifier.width(14.dp))
                         Column(
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Text(
                                 text = provider.title,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
                             )
                             Text(
-                                text = provider.subtitle,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = provider.connectDescription,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             )
                         }
                         Icon(
-                            imageVector = Icons.Default.ChevronRight,
+                            imageVector = Icons.Filled.ChevronRight,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f)
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
-
-                if (index < providers.lastIndex) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
             }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = "More providers can be added later without changing this screen.",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
@@ -471,6 +986,7 @@ private fun ProviderApiKeyDialog(
     customTitleInput: String,
     credentialInput: String,
     isSaving: Boolean,
+    errorMessage: String?,
     onCustomTitleChange: (String) -> Unit,
     onCredentialChange: (String) -> Unit,
     onDismiss: () -> Unit,
@@ -478,24 +994,28 @@ private fun ProviderApiKeyDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add ${provider.title} Subscription") },
+        title = {
+            Text(
+                text = "Connect ${provider.title}",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold)
+            )
+        },
         text = {
-            Column {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    text = "Enter a custom name for this subscription (optional) and your ${provider.credentialLabel.lowercase()} to connect.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = "Name the subscription if needed, then provide your ${provider.credentialLabel.lowercase()} to validate and cache the first quota snapshot.",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 )
-                Spacer(modifier = Modifier.height(16.dp))
                 OutlinedTextField(
                     value = customTitleInput,
                     onValueChange = onCustomTitleChange,
-                    label = { Text("Custom Name (optional)") },
+                    label = { Text("Subscription name") },
                     singleLine = true,
-                    placeholder = { Text("e.g., My MiniMax Account") },
+                    placeholder = { Text("e.g., My MiniMax workspace") },
                     modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(modifier = Modifier.height(12.dp))
                 OutlinedTextField(
                     value = credentialInput,
                     onValueChange = onCredentialChange,
@@ -506,6 +1026,15 @@ private fun ProviderApiKeyDialog(
                     keyboardActions = KeyboardActions(onDone = { onConfirm() }),
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                if (errorMessage != null) {
+                    Text(
+                        text = errorMessage,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    )
+                }
             }
         },
         confirmButton = {
