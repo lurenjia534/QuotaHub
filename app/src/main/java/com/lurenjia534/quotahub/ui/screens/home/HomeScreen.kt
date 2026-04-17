@@ -62,6 +62,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lurenjia534.quotahub.data.provider.SubscriptionRegistry
+import com.lurenjia534.quotahub.ui.components.MetricEmphasisLevel
+import com.lurenjia534.quotahub.ui.components.QuotaMetricText
 import com.lurenjia534.quotahub.ui.components.QuotaLoadingIndicator
 import kotlinx.coroutines.delay
 
@@ -72,6 +74,7 @@ private const val UrgentRefreshThresholdMillis = 6 * 60 * 60 * 1000L
 fun HomeScreen(
     modifier: Modifier = Modifier,
     subscriptionRegistry: SubscriptionRegistry,
+    highEmphasisMetrics: Boolean,
     onSubscriptionClick: (Long) -> Unit
 ) {
     val viewModel: HomeHubViewModel = viewModel(
@@ -122,6 +125,7 @@ fun HomeScreen(
                         trackedCalls = trackedCalls,
                         trackedModels = trackedModels,
                         nextRefreshWindow = nextRefreshWindow,
+                        highEmphasisMetrics = highEmphasisMetrics,
                         needsAttention = needsAttention,
                         isBootstrapping = uiState.isBootstrapping,
                         onAddClick = { showBottomSheet = true }
@@ -166,6 +170,7 @@ fun HomeScreen(
                 ) { subscriptionCard ->
                     SubscriptionQueueRow(
                         subscriptionCard = subscriptionCard,
+                        highEmphasisMetrics = highEmphasisMetrics,
                         onClick = { onSubscriptionClick(subscriptionCard.subscriptionId) }
                     )
                 }
@@ -245,6 +250,7 @@ private fun HomeOperationsBoard(
     trackedCalls: Int,
     trackedModels: Int,
     nextRefreshWindow: Long?,
+    highEmphasisMetrics: Boolean,
     needsAttention: Boolean,
     isBootstrapping: Boolean,
     onAddClick: () -> Unit
@@ -342,9 +348,10 @@ private fun HomeOperationsBoard(
                                 color = colorScheme.onSurfaceVariant
                             )
                         )
-                        Text(
+                        QuotaMetricText(
                             text = formatCount(trackedCalls),
-                            style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Black)
+                            emphasized = highEmphasisMetrics,
+                            level = MetricEmphasisLevel.Hero
                         )
                         Text(
                             text = stateDescription,
@@ -365,14 +372,16 @@ private fun HomeOperationsBoard(
                         ) {
                             MiniBoardMetric(
                                 label = "Connected",
-                                value = "$connectedCount / $providerCount"
+                                value = "$connectedCount / $providerCount",
+                                highEmphasisMetrics = highEmphasisMetrics
                             )
                             HorizontalDivider(
                                 color = colorScheme.outlineVariant.copy(alpha = 0.6f)
                             )
                             MiniBoardMetric(
                                 label = "Models visible",
-                                value = formatCount(trackedModels)
+                                value = formatCount(trackedModels),
+                                highEmphasisMetrics = highEmphasisMetrics
                             )
                         }
                     }
@@ -393,6 +402,7 @@ private fun HomeOperationsBoard(
                             modifier = Modifier.weight(1f),
                             label = "Status",
                             value = stateLabel,
+                            highEmphasisMetrics = highEmphasisMetrics,
                             valueColor = colorScheme.onSurface
                         )
                         StripDivider()
@@ -400,6 +410,7 @@ private fun HomeOperationsBoard(
                             modifier = Modifier.weight(1f),
                             label = "Next reset",
                             value = nextRefreshWindow?.let { formatTimeRemaining(it) } ?: "Waiting",
+                            highEmphasisMetrics = highEmphasisMetrics,
                             valueColor = if (needsAttention) colorScheme.tertiary else colorScheme.onSurface
                         )
                         StripDivider()
@@ -407,6 +418,7 @@ private fun HomeOperationsBoard(
                             modifier = Modifier.weight(1f),
                             label = "Sources",
                             value = if (connectedCount == 0) "Pending" else "Live",
+                            highEmphasisMetrics = highEmphasisMetrics,
                             valueColor = colorScheme.onSurface
                         )
                     }
@@ -432,7 +444,8 @@ private fun HomeOperationsBoard(
 @Composable
 private fun MiniBoardMetric(
     label: String,
-    value: String
+    value: String,
+    highEmphasisMetrics: Boolean
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Text(
@@ -441,9 +454,10 @@ private fun MiniBoardMetric(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         )
-        Text(
+        QuotaMetricText(
             text = value,
-            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+            emphasized = highEmphasisMetrics,
+            level = MetricEmphasisLevel.Standard
         )
     }
 }
@@ -452,6 +466,7 @@ private fun MiniBoardMetric(
 private fun OverviewStripMetric(
     label: String,
     value: String,
+    highEmphasisMetrics: Boolean,
     valueColor: Color,
     modifier: Modifier = Modifier
 ) {
@@ -465,12 +480,11 @@ private fun OverviewStripMetric(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         )
-        Text(
+        QuotaMetricText(
             text = value,
-            style = MaterialTheme.typography.titleMedium.copy(
-                fontWeight = FontWeight.SemiBold,
-                color = valueColor
-            )
+            emphasized = highEmphasisMetrics,
+            level = MetricEmphasisLevel.Standard,
+            color = valueColor
         )
     }
 }
@@ -587,6 +601,7 @@ private fun HomeErrorStrip(
 @Composable
 private fun SubscriptionQueueRow(
     subscriptionCard: SubscriptionCardUiModel,
+    highEmphasisMetrics: Boolean,
     onClick: () -> Unit
 ) {
     val colorScheme = MaterialTheme.colorScheme
@@ -652,12 +667,11 @@ private fun SubscriptionQueueRow(
                             color = colorScheme.onSurfaceVariant
                         )
                     )
-                    Text(
+                    QuotaMetricText(
                         text = subscriptionCard.remainingTime?.let { formatTimeRemaining(it) } ?: "Manual",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (refreshSoon) colorScheme.tertiary else colorScheme.onSurface
-                        )
+                        emphasized = highEmphasisMetrics,
+                        level = MetricEmphasisLevel.Standard,
+                        color = if (refreshSoon) colorScheme.tertiary else colorScheme.onSurface
                     )
                 }
             }
@@ -673,17 +687,20 @@ private fun SubscriptionQueueRow(
                 QueueMetric(
                     modifier = Modifier.weight(1f),
                     label = "Calls",
-                    value = formatCount(subscriptionCard.remainingCalls)
+                    value = formatCount(subscriptionCard.remainingCalls),
+                    highEmphasisMetrics = highEmphasisMetrics
                 )
                 QueueMetric(
                     modifier = Modifier.weight(1f),
                     label = "Models",
-                    value = formatCount(subscriptionCard.modelCount)
+                    value = formatCount(subscriptionCard.modelCount),
+                    highEmphasisMetrics = highEmphasisMetrics
                 )
                 QueueMetric(
                     modifier = Modifier.weight(1f),
                     label = "State",
                     value = if (refreshSoon) "Watch" else "Stable",
+                    highEmphasisMetrics = highEmphasisMetrics,
                     valueColor = if (refreshSoon) colorScheme.tertiary else colorScheme.onSurface
                 )
             }
@@ -713,6 +730,7 @@ private fun SubscriptionQueueRow(
 private fun QueueMetric(
     label: String,
     value: String,
+    highEmphasisMetrics: Boolean,
     modifier: Modifier = Modifier,
     valueColor: Color = Color.Unspecified
 ) {
@@ -732,12 +750,11 @@ private fun QueueMetric(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         )
-        Text(
+        QuotaMetricText(
             text = value,
-            style = MaterialTheme.typography.titleMedium.copy(
-                fontWeight = FontWeight.SemiBold,
-                color = resolvedValueColor
-            )
+            emphasized = highEmphasisMetrics,
+            level = MetricEmphasisLevel.Standard,
+            color = resolvedValueColor
         )
     }
 }

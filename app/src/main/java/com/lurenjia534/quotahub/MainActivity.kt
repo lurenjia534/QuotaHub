@@ -8,8 +8,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import com.lurenjia534.quotahub.data.preferences.UiPreferencesRepository
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.lurenjia534.quotahub.ui.components.QuotaNavigationBar
@@ -23,19 +25,27 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val application = application as QuotaApplication
         val subscriptionRegistry = application.subscriptionRegistry
+        val uiPreferencesRepository = application.uiPreferencesRepository
         setContent {
             QuotaHubTheme {
-                QuotaApp(subscriptionRegistry = subscriptionRegistry)
+                QuotaApp(
+                    subscriptionRegistry = subscriptionRegistry,
+                    uiPreferencesRepository = uiPreferencesRepository
+                )
             }
         }
     }
 }
 
 @Composable
-fun QuotaApp(subscriptionRegistry: com.lurenjia534.quotahub.data.provider.SubscriptionRegistry) {
+fun QuotaApp(
+    subscriptionRegistry: com.lurenjia534.quotahub.data.provider.SubscriptionRegistry,
+    uiPreferencesRepository: UiPreferencesRepository
+) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+    val uiPreferences by uiPreferencesRepository.preferences.collectAsState()
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -48,6 +58,8 @@ fun QuotaApp(subscriptionRegistry: com.lurenjia534.quotahub.data.provider.Subscr
         QuotaNavHost(
             navController = navController,
             subscriptionRegistry = subscriptionRegistry,
+            highEmphasisMetrics = uiPreferences.highEmphasisMetrics,
+            onHighEmphasisMetricsChange = uiPreferencesRepository::setHighEmphasisMetrics,
             modifier = Modifier.padding(innerPadding)
         )
     }

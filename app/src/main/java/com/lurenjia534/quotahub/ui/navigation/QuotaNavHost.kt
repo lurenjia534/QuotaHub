@@ -26,6 +26,8 @@ import com.lurenjia534.quotahub.ui.screens.settings.SettingsScreen
 fun QuotaNavHost(
     navController: NavHostController,
     subscriptionRegistry: SubscriptionRegistry,
+    highEmphasisMetrics: Boolean,
+    onHighEmphasisMetricsChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     NavHost(
@@ -36,6 +38,7 @@ fun QuotaNavHost(
         composable(route = Screen.Home.route) {
             HomeScreen(
                 subscriptionRegistry = subscriptionRegistry,
+                highEmphasisMetrics = highEmphasisMetrics,
                 onSubscriptionClick = { subscriptionId ->
                     navController.navigate(Screen.SubscriptionDetail.createRoute(subscriptionId))
                 }
@@ -73,6 +76,7 @@ fun QuotaNavHost(
                 subscriptionGateway != null -> {
                     ProviderQuotaScreen(
                         subscriptionGateway = subscriptionGateway!!,
+                        highEmphasisMetrics = highEmphasisMetrics,
                         onBackClick = { navController.popBackStack() }
                     )
                 }
@@ -97,7 +101,10 @@ fun QuotaNavHost(
         }
 
         composable(route = Screen.Settings.route) {
-            SettingsScreen()
+            SettingsScreen(
+                highEmphasisMetrics = highEmphasisMetrics,
+                onHighEmphasisMetricsChange = onHighEmphasisMetricsChange
+            )
         }
     }
 }

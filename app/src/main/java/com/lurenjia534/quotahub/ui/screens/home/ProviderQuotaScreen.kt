@@ -68,6 +68,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lurenjia534.quotahub.data.model.ModelRemain
 import com.lurenjia534.quotahub.data.provider.SubscriptionGateway
+import com.lurenjia534.quotahub.ui.components.MetricEmphasisLevel
+import com.lurenjia534.quotahub.ui.components.QuotaMetricText
 import com.lurenjia534.quotahub.ui.components.QuotaLoadingIndicator
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -87,6 +89,7 @@ private enum class QuotaRisk {
 fun ProviderQuotaScreen(
     modifier: Modifier = Modifier,
     subscriptionGateway: SubscriptionGateway,
+    highEmphasisMetrics: Boolean,
     onBackClick: () -> Unit
 ) {
     val viewModel: ProviderQuotaViewModel = viewModel(
@@ -287,6 +290,7 @@ fun ProviderQuotaScreen(
                         QuotaSummaryBoard(
                             subscription = uiState.subscription,
                             modelRemains = uiState.modelRemains,
+                            highEmphasisMetrics = highEmphasisMetrics,
                             isBootstrapping = uiState.isBootstrapping,
                             isRefreshing = isRefreshing
                         )
@@ -324,7 +328,10 @@ fun ProviderQuotaScreen(
                         }
                         item {
                             AnimatedSection(visible = modelsVisible) {
-                                ModelQuotaSection(modelRemains = uiState.modelRemains)
+                                ModelQuotaSection(
+                                    modelRemains = uiState.modelRemains,
+                                    highEmphasisMetrics = highEmphasisMetrics
+                                )
                             }
                         }
                     }
@@ -364,6 +371,7 @@ private fun AnimatedSection(
 private fun QuotaSummaryBoard(
     subscription: com.lurenjia534.quotahub.data.model.Subscription,
     modelRemains: List<ModelRemain>,
+    highEmphasisMetrics: Boolean,
     isBootstrapping: Boolean,
     isRefreshing: Boolean
 ) {
@@ -457,9 +465,10 @@ private fun QuotaSummaryBoard(
                 }
 
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
+                    QuotaMetricText(
                         text = formatCount(totalRemainingCalls),
-                        style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Black)
+                        emphasized = highEmphasisMetrics,
+                        level = MetricEmphasisLevel.Hero
                     )
                     Text(
                         text = "calls left across ${modelRemains.size} tracked models",
@@ -489,19 +498,22 @@ private fun QuotaSummaryBoard(
                         SummaryMetric(
                             modifier = Modifier.weight(1f),
                             label = "Used",
-                            value = "${(overallProgress * 100).roundToInt()}%"
+                            value = "${(overallProgress * 100).roundToInt()}%",
+                            highEmphasisMetrics = highEmphasisMetrics
                         )
                         VerticalDivider()
                         SummaryMetric(
                             modifier = Modifier.weight(1f),
                             label = "Soonest reset",
-                            value = soonestReset?.let { formatTimeRemaining(it) } ?: "Waiting"
+                            value = soonestReset?.let { formatTimeRemaining(it) } ?: "Waiting",
+                            highEmphasisMetrics = highEmphasisMetrics
                         )
                         VerticalDivider()
                         SummaryMetric(
                             modifier = Modifier.weight(1f),
                             label = "Models to watch",
-                            value = watchCount.toString()
+                            value = watchCount.toString(),
+                            highEmphasisMetrics = highEmphasisMetrics
                         )
                     }
                 }
@@ -531,6 +543,7 @@ private fun QuotaSummaryBoard(
 private fun SummaryMetric(
     label: String,
     value: String,
+    highEmphasisMetrics: Boolean,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -543,9 +556,10 @@ private fun SummaryMetric(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         )
-        Text(
+        QuotaMetricText(
             text = value,
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+            emphasized = highEmphasisMetrics,
+            level = MetricEmphasisLevel.Standard
         )
     }
 }
@@ -660,10 +674,16 @@ private fun SectionHeader(
 }
 
 @Composable
-private fun ModelQuotaSection(modelRemains: List<ModelRemain>) {
+private fun ModelQuotaSection(
+    modelRemains: List<ModelRemain>,
+    highEmphasisMetrics: Boolean
+) {
     SectionSurface {
         modelRemains.forEachIndexed { index, modelRemain ->
-            ModelQuotaRow(modelRemain = modelRemain)
+            ModelQuotaRow(
+                modelRemain = modelRemain,
+                highEmphasisMetrics = highEmphasisMetrics
+            )
             if (index < modelRemains.lastIndex) {
                 HorizontalDivider(
                     modifier = Modifier.padding(start = 88.dp, end = 18.dp),
@@ -675,7 +695,10 @@ private fun ModelQuotaSection(modelRemains: List<ModelRemain>) {
 }
 
 @Composable
-private fun ModelQuotaRow(modelRemain: ModelRemain) {
+private fun ModelQuotaRow(
+    modelRemain: ModelRemain,
+    highEmphasisMetrics: Boolean
+) {
     val remaining = modelRemain.currentIntervalUsageCount
     val total = modelRemain.currentIntervalTotalCount
     val used = (total - remaining).coerceAtLeast(0)
@@ -724,11 +747,11 @@ private fun ModelQuotaRow(modelRemain: ModelRemain) {
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Text(
+                    QuotaMetricText(
                         text = "Reset in ${formatTimeRemaining(modelRemain.remainsTime)}",
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        emphasized = highEmphasisMetrics,
+                        level = MetricEmphasisLevel.Compact,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 Spacer(modifier = Modifier.width(12.dp))
@@ -745,17 +768,20 @@ private fun ModelQuotaRow(modelRemain: ModelRemain) {
                     modifier = Modifier.weight(1f),
                     label = "Remaining",
                     value = formatCount(remaining),
+                    highEmphasisMetrics = highEmphasisMetrics,
                     valueColor = progressColor
                 )
                 DetailMetric(
                     modifier = Modifier.weight(1f),
                     label = "Used",
-                    value = "${formatCount(used)} / ${formatCount(total)}"
+                    value = "${formatCount(used)} / ${formatCount(total)}",
+                    highEmphasisMetrics = highEmphasisMetrics
                 )
                 DetailMetric(
                     modifier = Modifier.weight(1f),
                     label = "Usage",
-                    value = "${(progress * 100).roundToInt()}%"
+                    value = "${(progress * 100).roundToInt()}%",
+                    highEmphasisMetrics = highEmphasisMetrics
                 )
             }
         }
@@ -793,6 +819,7 @@ private fun QuotaProgressBar(
 private fun DetailMetric(
     label: String,
     value: String,
+    highEmphasisMetrics: Boolean,
     modifier: Modifier = Modifier,
     valueColor: Color = Color.Unspecified
 ) {
@@ -812,12 +839,11 @@ private fun DetailMetric(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         )
-        Text(
+        QuotaMetricText(
             text = value,
-            style = MaterialTheme.typography.titleSmall.copy(
-                fontWeight = FontWeight.SemiBold,
-                color = resolvedValueColor
-            )
+            emphasized = highEmphasisMetrics,
+            level = MetricEmphasisLevel.Compact,
+            color = resolvedValueColor
         )
     }
 }

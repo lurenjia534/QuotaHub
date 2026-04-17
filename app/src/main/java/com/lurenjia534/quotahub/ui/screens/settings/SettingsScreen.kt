@@ -92,9 +92,12 @@ private enum class RefreshProfile(
 }
 
 @Composable
-fun SettingsScreen(modifier: Modifier = Modifier) {
+fun SettingsScreen(
+    highEmphasisMetrics: Boolean,
+    onHighEmphasisMetricsChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
     var dynamicPaletteEnabled by rememberSaveable { mutableStateOf(true) }
-    var emphasizedMetrics by rememberSaveable { mutableStateOf(true) }
     var hapticConfirmation by rememberSaveable { mutableStateOf(true) }
     var usageAlerts by rememberSaveable { mutableStateOf(true) }
     var lowBalanceBanner by rememberSaveable { mutableStateOf(true) }
@@ -152,8 +155,8 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                         icon = Icons.Outlined.Visibility,
                         title = "High-emphasis metrics",
                         description = "Use stronger type contrast for remaining quota, reset dates, and low balances.",
-                        checked = emphasizedMetrics,
-                        onCheckedChange = { emphasizedMetrics = it }
+                        checked = highEmphasisMetrics,
+                        onCheckedChange = onHighEmphasisMetricsChange
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
                     TogglePreferenceRow(
@@ -267,7 +270,7 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
             FilledTonalButton(
                 onClick = {
                     dynamicPaletteEnabled = true
-                    emphasizedMetrics = true
+                    onHighEmphasisMetricsChange(true)
                     hapticConfirmation = true
                     usageAlerts = true
                     lowBalanceBanner = true
@@ -645,6 +648,9 @@ private fun PreferenceIcon(
 @Composable
 private fun SettingsScreenPreview() {
     QuotaHubTheme {
-        SettingsScreen()
+        SettingsScreen(
+            highEmphasisMetrics = true,
+            onHighEmphasisMetricsChange = {}
+        )
     }
 }
