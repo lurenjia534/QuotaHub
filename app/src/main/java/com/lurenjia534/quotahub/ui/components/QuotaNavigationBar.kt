@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -50,7 +51,6 @@ import com.lurenjia534.quotahub.ui.navigation.BottomNavItem
 import com.lurenjia534.quotahub.ui.navigation.bottomNavItemsData
 
 private val NavigationTrayShape = RoundedCornerShape(32.dp)
-private val NavigationShadowShape = RoundedCornerShape(24.dp)
 private val NavigationActiveShape = RoundedCornerShape(26.dp)
 private val TrayMinWidth = 252.dp
 private val TrayMaxWidth = 332.dp
@@ -67,6 +67,7 @@ fun QuotaNavigationBar(
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
+    val colorScheme = MaterialTheme.colorScheme
 
     Box(
         modifier = modifier
@@ -80,26 +81,16 @@ fun QuotaNavigationBar(
             modifier = Modifier.widthIn(min = TrayMinWidth, max = TrayMaxWidth),
             contentAlignment = Alignment.BottomCenter
         ) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .padding(top = 18.dp, start = 14.dp, end = 14.dp)
-                    .height(26.dp)
-                    .shadow(
-                        elevation = 18.dp,
-                        shape = NavigationShadowShape
-                    )
-                    .background(
-                        color = Color.Transparent,
-                        shape = NavigationShadowShape
-                    )
-            )
-
             Surface(
                 shape = NavigationTrayShape,
-                color = Color.Transparent,
-                tonalElevation = 0.dp,
-                shadowElevation = 0.dp
+                color = colorScheme.surfaceContainerLow,
+                contentColor = colorScheme.onSurface,
+                tonalElevation = 1.dp,
+                shadowElevation = 10.dp,
+                border = BorderStroke(
+                    width = 1.dp,
+                    color = colorScheme.outlineVariant.copy(alpha = 0.12f)
+                )
             ) {
                 Row(
                     modifier = Modifier
@@ -172,7 +163,7 @@ private fun QuotaNavigationDestination(
         targetValue = if (selected) {
             Color.Transparent
         } else {
-            colorScheme.surfaceContainerHighest.copy(alpha = 0.16f)
+            colorScheme.surfaceContainerHighest.copy(alpha = 0.08f)
         },
         animationSpec = spring(stiffness = 420f, dampingRatio = 0.92f),
         label = "navigationInactiveWash"
@@ -203,13 +194,7 @@ private fun QuotaNavigationDestination(
     ) {
         if (selected) {
             Surface(
-                modifier = Modifier
-                    .matchParentSize()
-                    .shadow(
-                        elevation = 4.dp,
-                        shape = NavigationActiveShape,
-                        clip = false
-                    ),
+                modifier = Modifier.matchParentSize(),
                 shape = NavigationActiveShape,
                 color = colorScheme.inverseSurface
             ) {}
