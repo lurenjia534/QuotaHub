@@ -12,6 +12,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -20,8 +23,11 @@ import com.lurenjia534.quotahub.data.preferences.UiPreferencesRepository
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.lurenjia534.quotahub.ui.components.QuotaNavigationBar
+import com.lurenjia534.quotahub.ui.navigation.BottomNavAction
 import com.lurenjia534.quotahub.ui.navigation.QuotaNavHost
 import com.lurenjia534.quotahub.ui.navigation.bottomNavItems
+import com.lurenjia534.quotahub.ui.navigation.bottomNavItemsData
+import com.lurenjia534.quotahub.ui.navigation.Screen
 import com.lurenjia534.quotahub.ui.provider.ProviderUiRegistry
 import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaDetailProjectorRegistry
 import com.lurenjia534.quotahub.sync.SubscriptionRefreshPolicy
@@ -65,6 +71,11 @@ fun QuotaApp(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     val uiPreferences by uiPreferencesRepository.preferences.collectAsState()
+    val subscriptionCards by subscriptionRegistry.snapshots.collectAsState(initial = emptyList())
+    val navigationItems = remember(subscriptionCards) {
+        bottomNavItemsData(showAddSubscription = subscriptionCards.isNotEmpty())
+    }
+    var addSubscriptionRequestKey by remember { mutableIntStateOf(0) }
     val showBottomNavigation = currentRoute in bottomNavItems.map { it.route }
 
     Surface(
@@ -91,12 +102,30 @@ fun QuotaApp(
                     onHighEmphasisMetricsChange = uiPreferencesRepository::setHighEmphasisMetrics,
                     onHapticConfirmationChange = uiPreferencesRepository::setHapticConfirmation,
                     bottomContentPadding = if (showBottomNavigation) FloatingBottomNavClearance else 0.dp,
+                    addSubscriptionRequestKey = addSubscriptionRequestKey,
                     modifier = Modifier.fillMaxSize()
                 )
 
                 if (showBottomNavigation) {
                     QuotaNavigationBar(
                         navController = navController,
+                        items = navigationItems,
+                        onActionClick = { action ->
+                            when (action) {
+                                BottomNavAction.AddSubscription -> {
+                                    addSubscriptionRequestKey += 1
+                                    if (currentRoute != Screen.Home.route) {
+                                        navController.navigate(Screen.Home.route) {
+                                            popUpTo(navController.graph.startDestinationId) {
+                                                saveState = true
+                                            }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    }
+                                }
+                            }
+                        },
                         modifier = Modifier.align(Alignment.BottomCenter)
                     )
                 }

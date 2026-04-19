@@ -26,7 +26,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DataUsage
 import androidx.compose.material.icons.filled.Schedule
@@ -81,6 +80,7 @@ fun HomeScreen(
     providerUiRegistry: ProviderUiRegistry,
     highEmphasisMetrics: Boolean,
     bottomContentPadding: Dp = 0.dp,
+    addSubscriptionRequestKey: Int = 0,
     onSubscriptionClick: (Long) -> Unit
 ) {
     val viewModel: HomeHubViewModel = viewModel(
@@ -91,6 +91,7 @@ fun HomeScreen(
     )
     val uiState by viewModel.uiState.collectAsState()
     var showBottomSheet by remember { mutableStateOf(false) }
+    var lastHandledAddSubscriptionRequest by remember { mutableStateOf(0) }
     val sheetState = rememberModalBottomSheetState()
 
     val subscriptionCards = uiState.subscriptionCards
@@ -120,6 +121,15 @@ fun HomeScreen(
         providerVisible = true
     }
 
+    LaunchedEffect(addSubscriptionRequestKey) {
+        if (addSubscriptionRequestKey > 0 &&
+            addSubscriptionRequestKey != lastHandledAddSubscriptionRequest
+        ) {
+            showBottomSheet = true
+            lastHandledAddSubscriptionRequest = addSubscriptionRequestKey
+        }
+    }
+
     Box(modifier = modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -141,8 +151,7 @@ fun HomeScreen(
                         highEmphasisMetrics = highEmphasisMetrics,
                         dominantRisk = dominantRisk,
                         dominantSyncState = dominantSyncState,
-                        isBootstrapping = uiState.isBootstrapping,
-                        onAddClick = { showBottomSheet = true }
+                        isBootstrapping = uiState.isBootstrapping
                     )
                 }
             }
@@ -268,8 +277,7 @@ private fun HomeOperationsBoard(
     highEmphasisMetrics: Boolean,
     dominantRisk: QuotaRisk,
     dominantSyncState: SyncState,
-    isBootstrapping: Boolean,
-    onAddClick: () -> Unit
+    isBootstrapping: Boolean
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val accentColor by animateColorAsState(
@@ -332,7 +340,7 @@ private fun HomeOperationsBoard(
             Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.Top
                 ) {
                     Column(
@@ -348,21 +356,6 @@ private fun HomeOperationsBoard(
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 color = colorScheme.onSurfaceVariant
                             )
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    FilledTonalButton(
-                        onClick = onAddClick,
-                        shape = RoundedCornerShape(18.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Add,
-                            contentDescription = null
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Add",
-                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
                         )
                     }
                 }

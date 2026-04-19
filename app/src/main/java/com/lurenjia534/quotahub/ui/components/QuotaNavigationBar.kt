@@ -47,8 +47,8 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.lurenjia534.quotahub.ui.navigation.BottomNavAction
 import com.lurenjia534.quotahub.ui.navigation.BottomNavItem
-import com.lurenjia534.quotahub.ui.navigation.bottomNavItemsData
 
 private val NavigationTrayShape = RoundedCornerShape(32.dp)
 private val NavigationActiveShape = RoundedCornerShape(26.dp)
@@ -63,6 +63,8 @@ private val CompactItemWidth = 56.dp
 @Composable
 fun QuotaNavigationBar(
     navController: NavHostController,
+    items: List<BottomNavItem>,
+    onActionClick: (BottomNavAction) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -102,23 +104,28 @@ fun QuotaNavigationBar(
                     horizontalArrangement = Arrangement.spacedBy(TrayItemGap),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    bottomNavItemsData.forEach { item ->
-                        val selected = currentDestination
-                            ?.hierarchy
-                            ?.any { it.route == item.route } == true
+                    items.forEach { item ->
+                        val selected = item.route != null && (
+                            currentDestination
+                                ?.hierarchy
+                                ?.any { it.route == item.route } == true
+                        )
 
                         QuotaNavigationDestination(
                             item = item,
                             selected = selected,
                             onClick = {
-                                if (!selected) {
-                                    navController.navigate(item.route) {
-                                        popUpTo(navController.graph.startDestinationId) {
-                                            saveState = true
+                                when {
+                                    item.route != null && !selected -> {
+                                        navController.navigate(item.route) {
+                                            popUpTo(navController.graph.startDestinationId) {
+                                                saveState = true
+                                            }
+                                            launchSingleTop = true
+                                            restoreState = true
                                         }
-                                        launchSingleTop = true
-                                        restoreState = true
                                     }
+                                    item.action != null -> onActionClick(item.action)
                                 }
                             }
                         )

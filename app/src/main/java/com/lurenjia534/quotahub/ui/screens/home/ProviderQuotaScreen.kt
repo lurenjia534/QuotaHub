@@ -820,18 +820,93 @@ private fun SectionHeader(
     title: String,
     subtitle: String
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold)
-        )
-        Text(
-            text = subtitle,
-            style = MaterialTheme.typography.bodyMedium.copy(
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        )
+    val colorScheme = MaterialTheme.colorScheme
+    val headerContent = remember(title, subtitle) {
+        resolveSectionHeaderContent(title = title, subtitle = subtitle)
     }
+
+    Surface(
+        color = colorScheme.surfaceContainerLow,
+        shape = RoundedCornerShape(28.dp),
+        tonalElevation = 1.dp
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(
+                            colorScheme.primary.copy(alpha = 0.10f),
+                            colorScheme.surfaceContainerLow
+                        )
+                    )
+                )
+                .padding(horizontal = 18.dp, vertical = 16.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                headerContent.eyebrow?.let { eyebrow ->
+                    Surface(
+                        color = colorScheme.primaryContainer,
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text(
+                            text = eyebrow,
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                color = colorScheme.onPrimaryContainer,
+                                fontWeight = FontWeight.SemiBold
+                            ),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
+                )
+                Text(
+                    text = headerContent.body,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        color = colorScheme.onSurfaceVariant
+                    )
+                )
+            }
+        }
+    }
+}
+
+private data class SectionHeaderContent(
+    val eyebrow: String?,
+    val body: String
+)
+
+private fun resolveSectionHeaderContent(
+    title: String,
+    subtitle: String
+): SectionHeaderContent {
+    val trimmedSubtitle = subtitle.trim()
+    val planPrefix = "Plan:"
+    if (trimmedSubtitle.startsWith(planPrefix, ignoreCase = true)) {
+        val sentenceBreakIndex = trimmedSubtitle.indexOf(". ")
+        if (sentenceBreakIndex > 0) {
+            return SectionHeaderContent(
+                eyebrow = trimmedSubtitle
+                    .substring(0, sentenceBreakIndex)
+                    .trim()
+                    .removeSuffix("."),
+                body = trimmedSubtitle.substring(sentenceBreakIndex + 2).trim()
+            )
+        }
+    }
+
+    val fallbackEyebrow = when {
+        title.contains("quota", ignoreCase = true) -> "Provider detail"
+        else -> null
+    }
+
+    return SectionHeaderContent(
+        eyebrow = fallbackEyebrow,
+        body = trimmedSubtitle
+    )
 }
 
 @Composable

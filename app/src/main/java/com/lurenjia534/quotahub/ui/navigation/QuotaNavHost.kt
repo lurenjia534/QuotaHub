@@ -39,6 +39,7 @@ fun QuotaNavHost(
     onHighEmphasisMetricsChange: (Boolean) -> Unit,
     onHapticConfirmationChange: (Boolean) -> Unit,
     bottomContentPadding: Dp = 0.dp,
+    addSubscriptionRequestKey: Int = 0,
     modifier: Modifier = Modifier
 ) {
     NavHost(
@@ -52,6 +53,7 @@ fun QuotaNavHost(
                 providerUiRegistry = providerUiRegistry,
                 highEmphasisMetrics = highEmphasisMetrics,
                 bottomContentPadding = bottomContentPadding,
+                addSubscriptionRequestKey = addSubscriptionRequestKey,
                 onSubscriptionClick = { subscriptionId ->
                     navController.navigate(Screen.SubscriptionDetail.createRoute(subscriptionId))
                 }
