@@ -211,7 +211,10 @@ fun HomeScreen(
                         providers = subscriptionRegistry.providers,
                         providerUiRegistry = providerUiRegistry,
                         connectedProviderIds = connectedProviderIds,
-                        onAddClick = { showBottomSheet = true }
+                        onProviderClick = { provider ->
+                            viewModel.clearError()
+                            viewModel.showCredentialDialog(provider)
+                        }
                     )
                 }
             }
@@ -870,7 +873,7 @@ private fun ProviderAccessSection(
     providers: List<ProviderDescriptor>,
     providerUiRegistry: ProviderUiRegistry,
     connectedProviderIds: Set<String>,
-    onAddClick: () -> Unit
+    onProviderClick: (ProviderDescriptor) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         HomeSectionHeader(
@@ -889,7 +892,7 @@ private fun ProviderAccessSection(
                         provider = provider,
                         providerUiRegistry = providerUiRegistry,
                         isConnected = connectedProviderIds.contains(provider.id),
-                        onAddClick = onAddClick
+                        onProviderClick = onProviderClick
                     )
 
                     if (index < providers.lastIndex) {
@@ -909,7 +912,7 @@ private fun ProviderAccessRow(
     provider: ProviderDescriptor,
     providerUiRegistry: ProviderUiRegistry,
     isConnected: Boolean,
-    onAddClick: () -> Unit
+    onProviderClick: (ProviderDescriptor) -> Unit
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val providerUi = providerUiRegistry.require(provider)
@@ -922,7 +925,7 @@ private fun ProviderAccessRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onAddClick)
+            .clickable { onProviderClick(provider) }
             .padding(horizontal = 18.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -955,7 +958,7 @@ private fun ProviderAccessRow(
                 )
             )
         }
-        TextButton(onClick = onAddClick) {
+        TextButton(onClick = { onProviderClick(provider) }) {
             Text(
                 text = if (isConnected) "Add another" else "Connect",
                 style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
