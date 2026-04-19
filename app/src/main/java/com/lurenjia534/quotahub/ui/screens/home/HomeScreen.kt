@@ -1105,7 +1105,7 @@ private fun ProviderCredentialDialog(
                     onValueChange = onCustomTitleChange,
                     label = { Text("Subscription name") },
                     singleLine = true,
-                    placeholder = { Text("e.g., My MiniMax workspace") },
+                    placeholder = { Text("e.g., Personal workspace") },
                     modifier = Modifier.fillMaxWidth()
                 )
                 provider.credentialFields.forEachIndexed { index, field ->

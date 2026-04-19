@@ -2,6 +2,7 @@ package com.lurenjia534.quotahub.ui.provider
 
 import androidx.annotation.DrawableRes
 import com.lurenjia534.quotahub.bootstrap.provider.ProviderModule
+import com.lurenjia534.quotahub.bootstrap.provider.requireValidProviderModules
 import com.lurenjia534.quotahub.data.provider.ProviderDescriptor
 
 data class ProviderUiMetadata(
@@ -25,8 +26,9 @@ class ProviderUiRegistry(
 
     companion object {
         fun fromModules(modules: List<ProviderModule>): ProviderUiRegistry {
+            val validatedModules = requireValidProviderModules(modules)
             return ProviderUiRegistry(
-                metadataById = modules.associate { module ->
+                metadataById = validatedModules.associate { module ->
                     module.provider.descriptor.id to module.uiMetadata
                 }
             )

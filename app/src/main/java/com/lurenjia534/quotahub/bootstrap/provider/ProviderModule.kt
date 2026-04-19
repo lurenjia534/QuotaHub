@@ -16,18 +16,32 @@ data class ProviderModule(
     val detailProjector: ProviderQuotaDetailProjector
 )
 
+internal fun requireValidProviderModules(modules: List<ProviderModule>): List<ProviderModule> {
+    val duplicateProviderIds = modules
+        .groupBy { it.provider.descriptor.id }
+        .filterValues { it.size > 1 }
+        .keys
+        .sorted()
+    require(duplicateProviderIds.isEmpty()) {
+        "Duplicate provider module ids: ${duplicateProviderIds.joinToString()}"
+    }
+    return modules
+}
+
 object ProviderModules {
-    val all: List<ProviderModule> = listOf(
-        ProviderModule(
-            provider = MiniMaxCodingPlanProvider(),
-            uiMetadata = ProviderUiMetadata(
-                subtitle = "minimaxi.com",
-                iconRes = R.drawable.minimax_color,
-                connectDescription = "Connect to MiniMax API",
-                detailDescription = "Monitor your MiniMax quota usage"
-            ),
-            cardProjector = MiniMaxSubscriptionCardProjector(),
-            detailProjector = MiniMaxProviderQuotaDetailProjector()
+    val all: List<ProviderModule> = requireValidProviderModules(
+        listOf(
+            ProviderModule(
+                provider = MiniMaxCodingPlanProvider(),
+                uiMetadata = ProviderUiMetadata(
+                    subtitle = "minimaxi.com",
+                    iconRes = R.drawable.minimax_color,
+                    connectDescription = "Connect to MiniMax API",
+                    detailDescription = "Monitor your MiniMax quota usage"
+                ),
+                cardProjector = MiniMaxSubscriptionCardProjector(),
+                detailProjector = MiniMaxProviderQuotaDetailProjector()
+            )
         )
     )
 }

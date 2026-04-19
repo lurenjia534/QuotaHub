@@ -220,7 +220,7 @@ fun ProviderQuotaScreen(
                         onValueChange = viewModel::updateTitleInput,
                         label = { Text("Subscription name") },
                         singleLine = true,
-                        placeholder = { Text("e.g., My China MiniMax plan") },
+                        placeholder = { Text("e.g., Team subscription") },
                         modifier = Modifier.fillMaxWidth()
                     )
                 }

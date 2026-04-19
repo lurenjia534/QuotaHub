@@ -88,7 +88,7 @@ class HomeHubViewModel(
     }
 
     fun hideCredentialDialog() {
-        _uiState.value = _uiState.value.copy(showCredentialDialog = false)
+        _uiState.value = _uiState.value.resetCredentialDraft()
     }
 
     fun updateCredentialInput(fieldKey: String, credential: String) {
@@ -121,10 +121,9 @@ class HomeHubViewModel(
                 credentials = credentials
             ).fold(
                 onSuccess = {
-                    _uiState.value = _uiState.value.copy(
-                        isSaving = false,
-                        showCredentialDialog = false
-                    )
+                    _uiState.value = _uiState.value
+                        .copy(isSaving = false)
+                        .resetCredentialDraft()
                 },
                 onFailure = { error ->
                     _uiState.value = _uiState.value.copy(
@@ -175,4 +174,14 @@ class HomeHubViewModel(
             throw IllegalArgumentException("Unknown ViewModel class")
         }
     }
+}
+
+private fun HomeHubUiState.resetCredentialDraft(): HomeHubUiState {
+    return copy(
+        selectedProvider = null,
+        customTitleInput = "",
+        credentialInputs = emptyMap(),
+        showCredentialDialog = false,
+        error = null
+    )
 }
