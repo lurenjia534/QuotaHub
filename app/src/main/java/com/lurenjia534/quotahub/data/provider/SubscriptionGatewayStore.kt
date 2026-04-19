@@ -11,6 +11,8 @@ interface SubscriptionGatewayStore {
 
     suspend fun getSubscriptionForRefresh(subscriptionId: Long): Result<Subscription>
 
+    suspend fun readCredentials(subscriptionId: Long): Result<SecretBundle>
+
     suspend fun updateSubscriptionCredentials(
         subscriptionId: Long,
         credentials: SecretBundle

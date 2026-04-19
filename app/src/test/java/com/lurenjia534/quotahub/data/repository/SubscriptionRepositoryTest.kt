@@ -21,6 +21,7 @@ import com.lurenjia534.quotahub.data.provider.ProviderDescriptor
 import com.lurenjia534.quotahub.data.provider.ProviderReplayPayload
 import com.lurenjia534.quotahub.data.provider.SecretBundle
 import com.lurenjia534.quotahub.data.security.ApiKeyCipher
+import com.lurenjia534.quotahub.data.security.EncryptedCredentialVault
 import androidx.room.DatabaseConfiguration
 import androidx.room.InvalidationTracker
 import androidx.sqlite.db.SupportSQLiteOpenHelper
@@ -34,6 +35,30 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SubscriptionRepositoryTest {
+    @Test
+    fun readCredentials_loadsSecretFromVaultWithoutExposingItOnSubscription() = runBlocking {
+        val subscriptionDao = FakeSubscriptionDao(initialEntities = emptyList())
+        val repository = SubscriptionRepository(
+            database = FakeQuotaDatabase(subscriptionDao),
+            subscriptionDao = subscriptionDao,
+            quotaSnapshotDao = NoOpQuotaSnapshotDao(),
+            providerCatalog = providerCatalog(),
+            credentialVault = EncryptedCredentialVault(PassthroughCipher())
+        )
+
+        val subscriptionId = repository.createSubscription(
+            provider = providerCatalog().descriptors.single(),
+            customTitle = null,
+            credentials = SecretBundle.single("apiKey", "live-secret")
+        )
+
+        val subscription = repository.getSubscriptionOnce(subscriptionId)
+        val credentials = repository.readCredentials(subscriptionId).getOrThrow()
+
+        assertEquals(CredentialState.Available, subscription?.credentialState)
+        assertEquals("live-secret", credentials.requireValue("apiKey"))
+    }
+
     @Test
     fun subscriptions_keepBrokenCredentialEntriesVisible() = runBlocking {
         val subscriptionDao = FakeSubscriptionDao(
@@ -52,7 +77,7 @@ class SubscriptionRepositoryTest {
             subscriptionDao = subscriptionDao,
             quotaSnapshotDao = NoOpQuotaSnapshotDao(),
             providerCatalog = providerCatalog(),
-            apiKeyCipher = ThrowingCipher()
+            credentialVault = EncryptedCredentialVault(ThrowingCipher())
         )
 
         val subscription = repository.subscriptions.first().single()
@@ -81,7 +106,7 @@ class SubscriptionRepositoryTest {
             subscriptionDao = subscriptionDao,
             quotaSnapshotDao = NoOpQuotaSnapshotDao(),
             providerCatalog = providerCatalog(),
-            apiKeyCipher = ThrowingCipher()
+            credentialVault = EncryptedCredentialVault(ThrowingCipher())
         )
 
         val result = repository.getSubscriptionForRefresh(9L)
@@ -110,7 +135,7 @@ class SubscriptionRepositoryTest {
             subscriptionDao = subscriptionDao,
             quotaSnapshotDao = NoOpQuotaSnapshotDao(),
             providerCatalog = providerCatalog(),
-            apiKeyCipher = PassthroughCipher()
+            credentialVault = EncryptedCredentialVault(PassthroughCipher())
         )
 
         val subscription = repository.subscriptions.first().single()
@@ -141,7 +166,7 @@ class SubscriptionRepositoryTest {
             subscriptionDao = subscriptionDao,
             quotaSnapshotDao = NoOpQuotaSnapshotDao(),
             providerCatalog = providerCatalog(),
-            apiKeyCipher = PassthroughCipher()
+            credentialVault = EncryptedCredentialVault(PassthroughCipher())
         )
 
         val subscription = repository.subscriptions.first().single()
@@ -170,7 +195,10 @@ class SubscriptionRepositoryTest {
                         return Result.failure(NotImplementedError())
                     }
 
-                    override suspend fun fetchSnapshot(subscription: Subscription): Result<CapturedQuotaSnapshot> {
+                    override suspend fun fetchSnapshot(
+                        subscription: Subscription,
+                        credentials: SecretBundle
+                    ): Result<CapturedQuotaSnapshot> {
                         return Result.failure(NotImplementedError())
                     }
 

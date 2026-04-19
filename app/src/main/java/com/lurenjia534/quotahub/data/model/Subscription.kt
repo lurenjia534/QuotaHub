@@ -2,10 +2,9 @@ package com.lurenjia534.quotahub.data.model
 
 import com.lurenjia534.quotahub.data.local.SubscriptionEntity
 import com.lurenjia534.quotahub.data.provider.ProviderDescriptor
-import com.lurenjia534.quotahub.data.provider.SecretBundle
 
 sealed interface CredentialState {
-    data class Valid(val credentials: SecretBundle) : CredentialState
+    data object Available : CredentialState
 
     data class Broken(val reason: String? = null) : CredentialState
 
@@ -51,24 +50,14 @@ data class Subscription(
             ?: "${provider.displayName} #${id}"
 
     val hasUsableCredentials: Boolean
-        get() = credentialState is CredentialState.Valid
+        get() = credentialState is CredentialState.Available
 
     val credentialIssue: String?
         get() = when (val state = credentialState) {
-            is CredentialState.Valid -> null
+            is CredentialState.Available -> null
             is CredentialState.Broken -> state.reason
             is CredentialState.Missing -> state.reason
         }
-
-    fun requireCredentials(): SecretBundle {
-        val credentials = (credentialState as? CredentialState.Valid)?.credentials
-        if (credentials != null) {
-            return credentials
-        }
-        throw CredentialUnavailableException(
-            credentialIssue ?: "Credentials are unavailable and need to be entered again."
-        )
-    }
 }
 
 /**

@@ -177,7 +177,10 @@ class QuotaUpgradeCoordinatorTest {
             return Result.failure(NotImplementedError())
         }
 
-        override suspend fun fetchSnapshot(subscription: Subscription): Result<CapturedQuotaSnapshot> {
+        override suspend fun fetchSnapshot(
+            subscription: Subscription,
+            credentials: SecretBundle
+        ): Result<CapturedQuotaSnapshot> {
             return Result.failure(NotImplementedError())
         }
 

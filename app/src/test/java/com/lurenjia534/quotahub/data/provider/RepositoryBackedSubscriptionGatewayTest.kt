@@ -1,6 +1,7 @@
 package com.lurenjia534.quotahub.data.provider
 
 import com.lurenjia534.quotahub.data.model.CredentialState
+import com.lurenjia534.quotahub.data.model.CredentialUnavailableException
 import com.lurenjia534.quotahub.data.model.QuotaSnapshot
 import com.lurenjia534.quotahub.data.model.Subscription
 import com.lurenjia534.quotahub.data.model.SubscriptionSyncStatus
@@ -14,11 +15,12 @@ import org.junit.Test
 class RepositoryBackedSubscriptionGatewayTest {
     @Test
     fun refresh_usesLatestSubscriptionLoadedFromStore() = runBlocking {
-        val initialSubscription = subscription(apiKey = "stale-key")
-        val refreshedSubscription = subscription(apiKey = "fresh-key")
+        val initialSubscription = subscription()
+        val refreshedSubscription = subscription()
         val store = FakeSubscriptionGatewayStore(
             currentSubscription = initialSubscription,
-            refreshedSubscription = refreshedSubscription
+            refreshedSubscription = refreshedSubscription,
+            refreshedCredentials = SecretBundle.single(API_KEY_FIELD, "fresh-key")
         )
         val provider = RecordingProvider()
         val gateway = RepositoryBackedSubscriptionGateway(
@@ -37,7 +39,7 @@ class RepositoryBackedSubscriptionGatewayTest {
 
     @Test
     fun updateCredentials_validatesThenPersistsNewSecret() = runBlocking {
-        val initialSubscription = subscription(apiKey = "old-key")
+        val initialSubscription = subscription()
         val store = FakeSubscriptionGatewayStore(
             currentSubscription = initialSubscription,
             refreshedSubscription = initialSubscription
@@ -59,7 +61,30 @@ class RepositoryBackedSubscriptionGatewayTest {
         assertEquals(1, store.successCalls)
     }
 
-    private fun subscription(apiKey: String): Subscription {
+    @Test
+    fun refresh_failsWhenLatestCredentialsCannotBeRead() = runBlocking {
+        val initialSubscription = subscription()
+        val store = FakeSubscriptionGatewayStore(
+            currentSubscription = initialSubscription,
+            refreshedSubscription = initialSubscription,
+            credentialReadError = CredentialUnavailableException("keystore unavailable")
+        )
+        val provider = RecordingProvider()
+        val gateway = RepositoryBackedSubscriptionGateway(
+            subscriptionData = initialSubscription,
+            provider = provider,
+            repository = store
+        )
+
+        val result = gateway.refresh()
+
+        assertTrue(result.isFailure)
+        assertEquals("keystore unavailable", result.exceptionOrNull()?.message)
+        assertTrue(provider.fetchedApiKeys.isEmpty())
+        assertEquals("keystore unavailable", store.lastFailure?.message)
+    }
+
+    private fun subscription(): Subscription {
         return Subscription(
             id = 1L,
             provider = ProviderDescriptor(
@@ -73,9 +98,7 @@ class RepositoryBackedSubscriptionGatewayTest {
                 )
             ),
             customTitle = null,
-            credentialState = CredentialState.Valid(
-                SecretBundle.single(API_KEY_FIELD, apiKey)
-            ),
+            credentialState = CredentialState.Available,
             syncStatus = SubscriptionSyncStatus.neverSynced(),
             createdAt = 0L
         )
@@ -101,8 +124,11 @@ class RepositoryBackedSubscriptionGatewayTest {
             return Result.success(CapturedQuotaSnapshot(snapshot()))
         }
 
-        override suspend fun fetchSnapshot(subscription: Subscription): Result<CapturedQuotaSnapshot> {
-            fetchedApiKeys += subscription.requireCredentials().requireValue(API_KEY_FIELD)
+        override suspend fun fetchSnapshot(
+            subscription: Subscription,
+            credentials: SecretBundle
+        ): Result<CapturedQuotaSnapshot> {
+            fetchedApiKeys += credentials.requireValue(API_KEY_FIELD)
             return Result.success(CapturedQuotaSnapshot(snapshot()))
         }
 
@@ -120,7 +146,9 @@ class RepositoryBackedSubscriptionGatewayTest {
 
     private class FakeSubscriptionGatewayStore(
         currentSubscription: Subscription,
-        private val refreshedSubscription: Subscription
+        private val refreshedSubscription: Subscription,
+        private var refreshedCredentials: SecretBundle = SecretBundle.single(API_KEY_FIELD, "initial-key"),
+        private val credentialReadError: Throwable? = null
     ) : SubscriptionGatewayStore {
         private val subscriptionFlow = MutableStateFlow<Subscription?>(currentSubscription)
         private val quotaFlow = MutableStateFlow(QuotaSnapshot.empty())
@@ -132,6 +160,8 @@ class RepositoryBackedSubscriptionGatewayTest {
         var successCalls: Int = 0
             private set
         val cachedSnapshots = mutableListOf<CapturedQuotaSnapshot>()
+        var lastFailure: Throwable? = null
+            private set
 
         override fun getSubscription(subscriptionId: Long): Flow<Subscription?> = subscriptionFlow
 
@@ -141,14 +171,20 @@ class RepositoryBackedSubscriptionGatewayTest {
             return Result.success(refreshedSubscription)
         }
 
+        override suspend fun readCredentials(subscriptionId: Long): Result<SecretBundle> {
+            credentialReadError?.let { return Result.failure(it) }
+            return Result.success(refreshedCredentials)
+        }
+
         override suspend fun updateSubscriptionCredentials(
             subscriptionId: Long,
             credentials: SecretBundle
         ) {
             updatedCredentials = credentials
+            refreshedCredentials = credentials
             val current = subscriptionFlow.value ?: return
             subscriptionFlow.value = current.copy(
-                credentialState = CredentialState.Valid(credentials)
+                credentialState = CredentialState.Available
             )
         }
 
@@ -169,7 +205,7 @@ class RepositoryBackedSubscriptionGatewayTest {
         }
 
         override suspend fun markSubscriptionSyncFailure(subscriptionId: Long, error: Throwable) {
-            throw AssertionError("Did not expect sync failure", error)
+            lastFailure = error
         }
 
         override suspend fun updateSubscriptionTitle(subscriptionId: Long, customTitle: String?): Result<Unit> {

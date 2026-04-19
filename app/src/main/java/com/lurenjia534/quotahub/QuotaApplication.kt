@@ -10,6 +10,7 @@ import com.lurenjia534.quotahub.data.provider.SubscriptionCardProjectorRegistry
 import com.lurenjia534.quotahub.data.provider.SubscriptionRegistry
 import com.lurenjia534.quotahub.data.repository.SubscriptionRepository
 import com.lurenjia534.quotahub.data.security.AndroidKeystoreApiKeyCipher
+import com.lurenjia534.quotahub.data.security.EncryptedCredentialVault
 import com.lurenjia534.quotahub.data.upgrade.QuotaUpgradeCoordinator
 import com.lurenjia534.quotahub.sync.DefaultSubscriptionRefreshPolicy
 import com.lurenjia534.quotahub.sync.SubscriptionRefreshPolicy
@@ -47,7 +48,7 @@ class QuotaApplication : Application() {
             subscriptionDao = database.subscriptionDao(),
             quotaSnapshotDao = database.quotaSnapshotDao(),
             providerCatalog = providerCatalog,
-            apiKeyCipher = AndroidKeystoreApiKeyCipher()
+            credentialVault = EncryptedCredentialVault(AndroidKeystoreApiKeyCipher())
         )
     }
 

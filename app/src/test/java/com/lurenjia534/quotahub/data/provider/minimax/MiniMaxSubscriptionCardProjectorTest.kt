@@ -12,7 +12,6 @@ import com.lurenjia534.quotahub.data.model.SubscriptionSyncStatus
 import com.lurenjia534.quotahub.data.model.WindowScope
 import com.lurenjia534.quotahub.data.provider.CredentialFieldSpec
 import com.lurenjia534.quotahub.data.provider.ProviderDescriptor
-import com.lurenjia534.quotahub.data.provider.SecretBundle
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -100,9 +99,7 @@ class MiniMaxSubscriptionCardProjectorTest {
                 )
             ),
             customTitle = null,
-            credentialState = CredentialState.Valid(
-                SecretBundle.single(MiniMaxCodingPlanProvider.API_KEY_FIELD, "secret")
-            ),
+            credentialState = CredentialState.Available,
             syncStatus = SubscriptionSyncStatus.neverSynced(),
             createdAt = 0L
         )

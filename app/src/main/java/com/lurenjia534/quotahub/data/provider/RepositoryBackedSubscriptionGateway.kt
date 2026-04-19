@@ -26,7 +26,14 @@ class RepositoryBackedSubscriptionGateway(
             repository.markSubscriptionSyncFailure(subscriptionData.id, error)
             return Result.failure(error)
         }
-        return provider.fetchSnapshot(currentSubscription).fold(
+        val credentials = repository.readCredentials(subscriptionData.id).getOrElse { error ->
+            repository.markSubscriptionSyncFailure(subscriptionData.id, error)
+            return Result.failure(error)
+        }
+        return provider.fetchSnapshot(
+            subscription = currentSubscription,
+            credentials = credentials
+        ).fold(
             onSuccess = { capturedSnapshot ->
                 runCatching {
                     repository.cacheQuotaSnapshot(subscriptionData.id, capturedSnapshot)

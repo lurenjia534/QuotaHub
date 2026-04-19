@@ -10,7 +10,10 @@ interface CodingPlanProvider {
 
     suspend fun validate(credentials: SecretBundle): Result<CapturedQuotaSnapshot>
 
-    suspend fun fetchSnapshot(subscription: Subscription): Result<CapturedQuotaSnapshot>
+    suspend fun fetchSnapshot(
+        subscription: Subscription,
+        credentials: SecretBundle
+    ): Result<CapturedQuotaSnapshot>
 
     fun canReplay(payload: ProviderReplayPayload): Boolean {
         val support = replaySupport ?: return false

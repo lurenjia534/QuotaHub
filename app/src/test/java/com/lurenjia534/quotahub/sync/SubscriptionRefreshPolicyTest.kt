@@ -6,7 +6,6 @@ import com.lurenjia534.quotahub.data.model.SubscriptionSyncStatus
 import com.lurenjia534.quotahub.data.model.SyncState
 import com.lurenjia534.quotahub.data.provider.CredentialFieldSpec
 import com.lurenjia534.quotahub.data.provider.ProviderDescriptor
-import com.lurenjia534.quotahub.data.provider.SecretBundle
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -108,9 +107,7 @@ class SubscriptionRefreshPolicyTest {
     }
 
     private fun subscription(
-        credentialState: CredentialState = CredentialState.Valid(
-            SecretBundle.single("apiKey", "secret")
-        ),
+        credentialState: CredentialState = CredentialState.Available,
         syncStatus: SubscriptionSyncStatus
     ): Subscription {
         return Subscription(

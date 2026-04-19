@@ -22,11 +22,11 @@ import com.lurenjia534.quotahub.data.provider.ProviderDescriptor
 import com.lurenjia534.quotahub.data.provider.ProviderReplayPayload
 import com.lurenjia534.quotahub.data.provider.SecretBundle
 import com.lurenjia534.quotahub.data.provider.SubscriptionGatewayStore
-import com.lurenjia534.quotahub.data.security.ApiKeyCipher
+import com.lurenjia534.quotahub.data.security.CredentialVault
+import com.lurenjia534.quotahub.data.security.VaultCredentialState
 import com.lurenjia534.quotahub.data.upgrade.QuotaSnapshotReplayRunner
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import kotlinx.serialization.json.Json
 import retrofit2.HttpException
 
 data class QuotaSnapshotReplayFailure(
@@ -52,13 +52,8 @@ class SubscriptionRepository(
     private val subscriptionDao: SubscriptionDao,
     private val quotaSnapshotDao: QuotaSnapshotDao,
     private val providerCatalog: ProviderCatalog,
-    private val apiKeyCipher: ApiKeyCipher
+    private val credentialVault: CredentialVault
 ) : QuotaSnapshotReplayRunner, SubscriptionGatewayStore {
-    private val json = Json {
-        ignoreUnknownKeys = true
-        coerceInputValues = true
-    }
-
     val subscriptions: Flow<List<Subscription>> = subscriptionDao.getAllSubscriptions().map { entities ->
         entities.mapNotNull(::toSubscription)
     }
@@ -102,7 +97,7 @@ class SubscriptionRepository(
         val entity = SubscriptionEntity(
             providerId = provider.id,
             customTitle = customTitle?.trim()?.takeIf { it.isNotBlank() },
-            apiKey = apiKeyCipher.encrypt(serializeCredentials(credentials)),
+            apiKey = credentialVault.seal(credentials),
             syncState = syncStatus.state.toPersistedState().name,
             lastSuccessAt = syncStatus.lastSuccessAt,
             lastFailureAt = syncStatus.lastFailureAt,
@@ -110,22 +105,6 @@ class SubscriptionRepository(
             syncStartedAt = syncStatus.syncStartedAt
         )
         return subscriptionDao.insertSubscription(entity)
-    }
-
-    suspend fun updateSubscription(subscription: Subscription) {
-        val entity = SubscriptionEntity(
-            id = subscription.id,
-            providerId = subscription.provider.id,
-            customTitle = subscription.customTitle?.trim()?.takeIf { it.isNotBlank() },
-            apiKey = apiKeyCipher.encrypt(serializeCredentials(subscription.requireCredentials())),
-            syncState = subscription.syncStatus.state.toPersistedState().name,
-            lastSuccessAt = subscription.syncStatus.lastSuccessAt,
-            lastFailureAt = subscription.syncStatus.lastFailureAt,
-            lastError = subscription.syncStatus.lastError,
-            syncStartedAt = subscription.syncStatus.syncStartedAt,
-            createdAt = subscription.createdAt
-        )
-        subscriptionDao.updateSubscription(entity)
     }
 
     override suspend fun updateSubscriptionCredentials(
@@ -136,9 +115,26 @@ class SubscriptionRepository(
             ?: throw IllegalStateException("Subscription no longer exists")
         subscriptionDao.updateSubscription(
             currentSubscription.copy(
-                apiKey = apiKeyCipher.encrypt(serializeCredentials(credentials))
+                apiKey = credentialVault.seal(credentials)
             )
         )
+    }
+
+    override suspend fun readCredentials(subscriptionId: Long): Result<SecretBundle> {
+        val entity = subscriptionDao.getSubscriptionOnce(subscriptionId)
+            ?: return Result.failure(IllegalStateException("Subscription no longer exists"))
+        val provider = providerCatalog.descriptor(entity.providerId)
+            ?: return Result.failure(IllegalStateException("Unsupported provider: ${entity.providerId}"))
+
+        return when (val state = resolveVaultCredentialState(entity, provider)) {
+            is VaultCredentialState.Available -> Result.success(state.credentials)
+            is VaultCredentialState.Missing -> Result.failure(
+                CredentialUnavailableException(state.reason)
+            )
+            is VaultCredentialState.Broken -> Result.failure(
+                CredentialUnavailableException(state.reason)
+            )
+        }
     }
 
     override suspend fun updateSubscriptionTitle(subscriptionId: Long, customTitle: String?): Result<Unit> {
@@ -315,44 +311,37 @@ class SubscriptionRepository(
         )
     }
 
-    private fun serializeCredentials(credentials: SecretBundle): String {
-        return json.encodeToString(SecretBundle.serializer(), credentials)
-    }
-
-    private fun deserializeCredentials(
-        encryptedPayload: String,
-        provider: ProviderDescriptor
-    ): SecretBundle {
-        val decrypted = apiKeyCipher.decrypt(encryptedPayload)
-        return runCatching {
-            json.decodeFromString(SecretBundle.serializer(), decrypted)
-        }.getOrElse {
-            SecretBundle.single(provider.primaryCredentialField.key, decrypted)
-        }
-    }
-
     private fun resolveCredentialState(
         entity: SubscriptionEntity,
         provider: ProviderDescriptor
     ): CredentialState {
-        return runCatching {
-            val credentials = deserializeCredentials(entity.apiKey, provider)
-            val missingFields = provider.credentialFields
-                .filter { credentials.value(it.key) == null }
-            when {
-                missingFields.isEmpty() -> CredentialState.Valid(credentials)
-                else -> CredentialState.Missing(
-                    reason = "Stored credentials are incomplete. Enter ${missingFields.joinToString { it.label }} again."
+        return when (val state = resolveVaultCredentialState(entity, provider)) {
+            is VaultCredentialState.Available -> CredentialState.Available
+            is VaultCredentialState.Missing -> CredentialState.Missing(
+                reason = state.reason
+            )
+            is VaultCredentialState.Broken -> {
+                runCatching {
+                    Log.e(
+                        TAG,
+                        "Failed to load credentials for subscription ${entity.id}: ${state.reason}"
+                    )
+                }
+                CredentialState.Broken(
+                    reason = state.reason
                 )
             }
-        }.getOrElse { error ->
-            runCatching {
-                Log.e(TAG, "Failed to load credentials for subscription ${entity.id}", error)
-            }
-            CredentialState.Broken(
-                reason = error.message ?: "Stored credentials can no longer be read on this device."
-            )
         }
+    }
+
+    private fun resolveVaultCredentialState(
+        entity: SubscriptionEntity,
+        provider: ProviderDescriptor
+    ): VaultCredentialState {
+        return credentialVault.resolve(
+            storedPayload = entity.apiKey,
+            provider = provider
+        )
     }
 
     private suspend fun updateSyncStatus(
@@ -424,7 +413,7 @@ private fun SubscriptionSyncStatus.withCredentialState(
     credentialState: CredentialState
 ): SubscriptionSyncStatus {
     val issue = when (credentialState) {
-        is CredentialState.Valid -> return this
+        is CredentialState.Available -> return this
         is CredentialState.Broken -> credentialState.reason
         is CredentialState.Missing -> credentialState.reason
     }
