@@ -9,7 +9,8 @@ import androidx.room.RoomDatabase
  * QuotaHub应用的主数据库
  *
  * 使用Room框架管理本地数据持久化。
- * 数据库版本8，包含订阅、规范化配额快照，以及可重放的原始 provider payload 元数据。
+ * 数据库版本9，包含订阅、规范化配额快照、可重放的原始 provider payload，
+ * 以及升级协调状态表。
  *
  * 数据库表说明：
  * - subscription: 存储用户的AI服务订阅信息
@@ -20,17 +21,18 @@ import androidx.room.RoomDatabase
  * 设计说明：
  * - 采用单例模式确保数据库实例全局唯一
  * - 使用volatile关键字保证多线程安全
- * - fallbackToDestructiveMigration策略：当版本升级时自动删除旧表
- *   （生产环境建议使用更严谨的迁移策略）
+ * - 对版本5及以上使用显式Room migration保留用户数据
+ * - 仅对更早的历史开发schema保留有限的 destructive fallback
  */
 @Database(
     entities = [
         SubscriptionEntity::class,
         QuotaSnapshotEntity::class,
         QuotaResourceEntity::class,
-        QuotaWindowEntity::class
+        QuotaWindowEntity::class,
+        QuotaUpgradeStateEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 abstract class QuotaDatabase : RoomDatabase() {
@@ -44,7 +46,14 @@ abstract class QuotaDatabase : RoomDatabase() {
      */
     abstract fun quotaSnapshotDao(): QuotaSnapshotDao
 
+    /**
+     * 获取升级协调状态数据访问对象
+     */
+    abstract fun quotaUpgradeStateDao(): QuotaUpgradeStateDao
+
     companion object {
+        const val CURRENT_VERSION = 9
+
         /** 单例实例，使用volatile保证可见性 */
         @Volatile
         private var INSTANCE: QuotaDatabase? = null
@@ -65,7 +74,8 @@ abstract class QuotaDatabase : RoomDatabase() {
                     QuotaDatabase::class.java,
                     "quota_database"
                 )
-                    .fallbackToDestructiveMigration(dropAllTables = true)
+                    .addMigrations(*QuotaMigrations.ALL)
+                    .fallbackToDestructiveMigrationFrom(true, 1, 2, 3, 4)
                     .build()
                 INSTANCE = instance
                 instance

@@ -20,6 +20,7 @@ import com.lurenjia534.quotahub.data.provider.ProviderDescriptor
 import com.lurenjia534.quotahub.data.provider.ProviderReplayPayload
 import com.lurenjia534.quotahub.data.provider.SecretBundle
 import com.lurenjia534.quotahub.data.security.ApiKeyCipher
+import com.lurenjia534.quotahub.data.upgrade.QuotaSnapshotReplayRunner
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
@@ -49,7 +50,7 @@ class SubscriptionRepository(
     private val quotaSnapshotDao: QuotaSnapshotDao,
     private val providerCatalog: ProviderCatalog,
     private val apiKeyCipher: ApiKeyCipher
-) {
+) : QuotaSnapshotReplayRunner {
     private val json = Json {
         ignoreUnknownKeys = true
         coerceInputValues = true
@@ -203,7 +204,7 @@ class SubscriptionRepository(
         }
     }
 
-    suspend fun replayStoredQuotaSnapshotsNeedingUpgrade(): QuotaSnapshotReplayBatchResult {
+    override suspend fun replayStoredQuotaSnapshotsNeedingUpgrade(): QuotaSnapshotReplayBatchResult {
         val subscriptions = subscriptionDao.getAllSubscriptionsOnce()
         val metadataBySubscriptionId = quotaSnapshotDao.getAllQuotaSnapshotMetadata()
             .associateBy { it.subscriptionId }

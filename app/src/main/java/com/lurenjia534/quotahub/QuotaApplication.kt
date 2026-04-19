@@ -10,6 +10,7 @@ import com.lurenjia534.quotahub.data.provider.SubscriptionRegistry
 import com.lurenjia534.quotahub.data.provider.minimax.MiniMaxCodingPlanProvider
 import com.lurenjia534.quotahub.data.repository.SubscriptionRepository
 import com.lurenjia534.quotahub.data.security.AndroidKeystoreApiKeyCipher
+import com.lurenjia534.quotahub.data.upgrade.QuotaUpgradeCoordinator
 import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaDetailProjectorRegistry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -49,6 +50,14 @@ class QuotaApplication : Application() {
         )
     }
 
+    val quotaUpgradeCoordinator: QuotaUpgradeCoordinator by lazy {
+        QuotaUpgradeCoordinator(
+            replayRunner = subscriptionRepository,
+            upgradeStateDao = database.quotaUpgradeStateDao(),
+            providerCatalog = providerCatalog
+        )
+    }
+
     val providerQuotaDetailProjectorRegistry: ProviderQuotaDetailProjectorRegistry by lazy {
         ProviderQuotaDetailProjectorRegistry.default()
     }
@@ -60,14 +69,15 @@ class QuotaApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         applicationScope.launch {
-            val result = subscriptionRepository.replayStoredQuotaSnapshotsNeedingUpgrade()
-            if (result.replayed > 0 || result.failures.isNotEmpty()) {
+            val upgradeResult = quotaUpgradeCoordinator.runPendingUpgrades()
+            val replayResult = upgradeResult.replayBatchResult
+            if (upgradeResult.replayTriggered && replayResult != null) {
                 Log.i(
                     TAG,
-                    "Quota snapshot replay finished: checked=${result.checked}, replayed=${result.replayed}, skipped=${result.skipped}, failures=${result.failures.size}"
+                    "Quota upgrade replay finished: checked=${replayResult.checked}, replayed=${replayResult.replayed}, skipped=${replayResult.skipped}, failures=${replayResult.failures.size}"
                 )
             }
-            result.failures.forEach { failure ->
+            replayResult?.failures?.forEach { failure ->
                 Log.w(
                     TAG,
                     "Replay failed for subscription=${failure.subscriptionId}, provider=${failure.providerId}: ${failure.reason}"
