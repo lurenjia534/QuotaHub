@@ -53,7 +53,7 @@ data class Subscription(
  *
  * @return 转换后的Subscription，如果提供商不存在则返回null
  */
-fun SubscriptionEntity.toSubscription(): Subscription? {
+fun SubscriptionEntity.toSubscription(apiKey: String = this.apiKey): Subscription? {
     // 根据providerId查找提供商枚举
     val provider = QuotaProvider.fromId(providerId) ?: return null
     return Subscription(

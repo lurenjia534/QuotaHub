@@ -9,7 +9,7 @@ import androidx.room.RoomDatabase
  * QuotaHub应用的主数据库
  *
  * 使用Room框架管理本地数据持久化。
- * 数据库版本4，包含了订阅和模型配额两张核心表。
+ * 数据库版本5，包含了订阅和模型配额两张核心表。
  *
  * 数据库表说明：
  * - subscription: 存储用户的AI服务订阅信息
@@ -23,7 +23,7 @@ import androidx.room.RoomDatabase
  */
 @Database(
     entities = [SubscriptionEntity::class, ModelRemainEntity::class],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class QuotaDatabase : RoomDatabase() {
