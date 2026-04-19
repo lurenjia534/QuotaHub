@@ -60,6 +60,32 @@ class SubscriptionRepositoryTest {
     }
 
     @Test
+    fun readCredentials_allowsOptionalFieldsToRemainMissing() = runBlocking {
+        val subscriptionDao = FakeSubscriptionDao(initialEntities = emptyList())
+        val catalog = providerCatalogWithOptionalField()
+        val repository = SubscriptionRepository(
+            database = FakeQuotaDatabase(subscriptionDao),
+            subscriptionDao = subscriptionDao,
+            quotaSnapshotDao = NoOpQuotaSnapshotDao(),
+            providerCatalog = catalog,
+            credentialVault = EncryptedCredentialVault(PassthroughCipher())
+        )
+
+        val subscriptionId = repository.createSubscription(
+            provider = catalog.descriptors.single(),
+            customTitle = null,
+            credentials = SecretBundle.single("apiKey", "live-secret")
+        )
+
+        val subscription = repository.getSubscriptionOnce(subscriptionId)
+        val credentials = repository.readCredentials(subscriptionId).getOrThrow()
+
+        assertEquals(CredentialState.Available, subscription?.credentialState)
+        assertEquals("live-secret", credentials.requireValue("apiKey"))
+        assertEquals(null, credentials.value("accountId"))
+    }
+
+    @Test
     fun subscriptions_keepBrokenCredentialEntriesVisible() = runBlocking {
         val subscriptionDao = FakeSubscriptionDao(
             initialEntities = listOf(
@@ -187,6 +213,46 @@ class SubscriptionRepositoryTest {
                             CredentialFieldSpec(
                                 key = "apiKey",
                                 label = "API Key"
+                            )
+                        )
+                    )
+
+                    override suspend fun validate(credentials: SecretBundle): Result<CapturedQuotaSnapshot> {
+                        return Result.failure(NotImplementedError())
+                    }
+
+                    override suspend fun fetchSnapshot(
+                        subscription: Subscription,
+                        credentials: SecretBundle
+                    ): Result<CapturedQuotaSnapshot> {
+                        return Result.failure(NotImplementedError())
+                    }
+
+                    override fun replay(payload: ProviderReplayPayload): Result<CapturedQuotaSnapshot> {
+                        return Result.failure(NotImplementedError())
+                    }
+                }
+            )
+        )
+    }
+
+    private fun providerCatalogWithOptionalField(): ProviderCatalog {
+        return ProviderCatalog(
+            providers = listOf(
+                object : CodingPlanProvider {
+                    override val descriptor: ProviderDescriptor = ProviderDescriptor(
+                        id = TEST_PROVIDER_ID,
+                        displayName = "Test Provider",
+                        credentialFields = listOf(
+                            CredentialFieldSpec(
+                                key = "apiKey",
+                                label = "API Key"
+                            ),
+                            CredentialFieldSpec(
+                                key = "accountId",
+                                label = "Account ID",
+                                isSecret = false,
+                                isRequired = false
                             )
                         )
                     )

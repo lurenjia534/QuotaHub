@@ -47,7 +47,9 @@ class EncryptedCredentialVault(
             }
         }.fold(
             onSuccess = { credentials ->
-                val missingFields = provider.credentialFields.filter { credentials.value(it.key) == null }
+                val missingFields = provider.credentialFields.filter { field ->
+                    field.isRequired && credentials.value(field.key) == null
+                }
                 if (missingFields.isEmpty()) {
                     VaultCredentialState.Available(credentials)
                 } else {

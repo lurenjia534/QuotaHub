@@ -163,7 +163,7 @@ class ProviderQuotaViewModel(
     fun saveCredentials() {
         val provider = _uiState.value.subscription.provider
         val missingField = provider.credentialFields.firstOrNull { field ->
-            _uiState.value.credentialInputs[field.key].isNullOrBlank()
+            field.isRequired && _uiState.value.credentialInputs[field.key].isNullOrBlank()
         }
         if (missingField != null) {
             _uiState.value = _uiState.value.copy(

@@ -49,5 +49,6 @@ enum class QuotaUnit {
     Request,
     Token,
     Credit,
-    Minute
+    Minute,
+    Percent
 }

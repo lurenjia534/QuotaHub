@@ -104,7 +104,7 @@ class HomeHubViewModel(
     fun saveSelectedProviderCredential() {
         val provider = _uiState.value.selectedProvider ?: return
         val missingField = provider.credentialFields.firstOrNull { field ->
-            _uiState.value.credentialInputs[field.key].isNullOrBlank()
+            field.isRequired && _uiState.value.credentialInputs[field.key].isNullOrBlank()
         }
         if (missingField != null) {
             _uiState.value = _uiState.value.copy(error = "${missingField.label} is required")

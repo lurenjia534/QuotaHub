@@ -289,7 +289,7 @@ fun ProviderQuotaScreen(
                 TextButton(
                     onClick = viewModel::saveCredentials,
                     enabled = uiState.subscription.provider.credentialFields.all {
-                        !uiState.credentialInputs[it.key].isNullOrBlank()
+                        !it.isRequired || !uiState.credentialInputs[it.key].isNullOrBlank()
                     } && !uiState.isSavingCredentials
                 ) {
                     Text(if (uiState.isSavingCredentials) "Saving..." else "Update")

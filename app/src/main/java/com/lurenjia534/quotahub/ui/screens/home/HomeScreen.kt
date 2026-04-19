@@ -1131,7 +1131,9 @@ private fun ProviderCredentialDialog(
         confirmButton = {
             TextButton(
                 onClick = onConfirm,
-                enabled = provider.credentialFields.all { !credentialInputs[it.key].isNullOrBlank() } && !isSaving
+                enabled = provider.credentialFields.all { field ->
+                    !field.isRequired || !credentialInputs[field.key].isNullOrBlank()
+                } && !isSaving
             ) {
                 Text(if (isSaving) "Connecting..." else "Connect")
             }

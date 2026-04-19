@@ -5,7 +5,8 @@ import kotlinx.serialization.Serializable
 data class CredentialFieldSpec(
     val key: String,
     val label: String,
-    val isSecret: Boolean = true
+    val isSecret: Boolean = true,
+    val isRequired: Boolean = true
 )
 
 data class ProviderDescriptor(

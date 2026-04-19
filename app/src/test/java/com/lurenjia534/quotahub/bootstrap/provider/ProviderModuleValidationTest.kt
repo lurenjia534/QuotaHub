@@ -20,6 +20,7 @@ import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaDetailUiModel
 import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaSummaryUiModel
 import com.lurenjia534.quotahub.ui.screens.home.SummaryMetricRowUiModel
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 
@@ -52,6 +53,15 @@ class ProviderModuleValidationTest {
         } catch (error: IllegalArgumentException) {
             assertEquals("Duplicate provider ids: duplicate", error.message)
         }
+    }
+
+    @Test
+    fun providerModules_includeCodexProvider() {
+        assertTrue(
+            ProviderModules.all.any { module ->
+                module.provider.descriptor.id == "codex"
+            }
+        )
     }
 
     private fun module(providerId: String): ProviderModule {

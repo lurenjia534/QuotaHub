@@ -3,8 +3,11 @@ package com.lurenjia534.quotahub.bootstrap.provider
 import com.lurenjia534.quotahub.R
 import com.lurenjia534.quotahub.data.provider.CodingPlanProvider
 import com.lurenjia534.quotahub.data.provider.SubscriptionCardProjector
+import com.lurenjia534.quotahub.data.provider.codex.CodexCodingPlanProvider
+import com.lurenjia534.quotahub.data.provider.codex.CodexSubscriptionCardProjector
 import com.lurenjia534.quotahub.data.provider.minimax.MiniMaxCodingPlanProvider
 import com.lurenjia534.quotahub.data.provider.minimax.MiniMaxSubscriptionCardProjector
+import com.lurenjia534.quotahub.ui.screens.home.CodexProviderQuotaDetailProjector
 import com.lurenjia534.quotahub.ui.provider.ProviderUiMetadata
 import com.lurenjia534.quotahub.ui.screens.home.MiniMaxProviderQuotaDetailProjector
 import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaDetailProjector
@@ -31,6 +34,17 @@ internal fun requireValidProviderModules(modules: List<ProviderModule>): List<Pr
 object ProviderModules {
     val all: List<ProviderModule> = requireValidProviderModules(
         listOf(
+            ProviderModule(
+                provider = CodexCodingPlanProvider(),
+                uiMetadata = ProviderUiMetadata(
+                    subtitle = "chatgpt.com",
+                    iconRes = R.drawable.codex_color,
+                    connectDescription = "Connect to OpenAI Codex quota usage",
+                    detailDescription = "Monitor your Codex quota buckets and reset windows"
+                ),
+                cardProjector = CodexSubscriptionCardProjector(),
+                detailProjector = CodexProviderQuotaDetailProjector()
+            ),
             ProviderModule(
                 provider = MiniMaxCodingPlanProvider(),
                 uiMetadata = ProviderUiMetadata(
