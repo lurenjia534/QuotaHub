@@ -38,6 +38,12 @@ interface QuotaSnapshotDao {
     )
     fun observeQuotaSnapshotRows(subscriptionId: Long): Flow<List<QuotaSnapshotRow>>
 
+    @Query("SELECT * FROM quota_snapshot WHERE subscriptionId = :subscriptionId")
+    suspend fun getQuotaSnapshotMetadata(subscriptionId: Long): QuotaSnapshotEntity?
+
+    @Query("SELECT * FROM quota_snapshot")
+    suspend fun getAllQuotaSnapshotMetadata(): List<QuotaSnapshotEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertQuotaSnapshot(snapshot: QuotaSnapshotEntity)
 

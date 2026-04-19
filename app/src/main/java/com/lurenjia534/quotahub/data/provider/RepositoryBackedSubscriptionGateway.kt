@@ -24,12 +24,12 @@ class RepositoryBackedSubscriptionGateway(
     override suspend fun refresh(): Result<Unit> {
         repository.markSubscriptionSyncing(subscriptionData.id)
         return provider.fetchSnapshot(subscriptionData).fold(
-            onSuccess = { snapshot ->
+            onSuccess = { capturedSnapshot ->
                 runCatching {
-                    repository.cacheQuotaSnapshot(subscriptionData.id, snapshot)
+                    repository.cacheQuotaSnapshot(subscriptionData.id, capturedSnapshot)
                     repository.markSubscriptionSyncSuccess(
                         subscriptionId = subscriptionData.id,
-                        fetchedAt = snapshot.fetchedAt
+                        fetchedAt = capturedSnapshot.snapshot.fetchedAt
                     )
                 }.onFailure { error ->
                     repository.markSubscriptionSyncFailure(subscriptionData.id, error)

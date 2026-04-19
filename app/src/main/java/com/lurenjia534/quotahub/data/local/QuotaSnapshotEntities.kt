@@ -26,7 +26,10 @@ import com.lurenjia534.quotahub.data.model.WindowScope
 data class QuotaSnapshotEntity(
     @PrimaryKey
     val subscriptionId: Long,
-    val fetchedAt: Long
+    val fetchedAt: Long,
+    val rawPayloadJson: String? = null,
+    val rawPayloadFormat: String? = null,
+    val normalizerVersion: Int? = null
 )
 
 @Entity(
@@ -101,10 +104,18 @@ data class QuotaSnapshotEntities(
     val windows: List<QuotaWindowEntity>
 )
 
-fun QuotaSnapshot.toEntities(subscriptionId: Long): QuotaSnapshotEntities {
+fun QuotaSnapshot.toEntities(
+    subscriptionId: Long,
+    rawPayloadJson: String? = null,
+    rawPayloadFormat: String? = null,
+    normalizerVersion: Int? = null
+): QuotaSnapshotEntities {
     val snapshotEntity = QuotaSnapshotEntity(
         subscriptionId = subscriptionId,
-        fetchedAt = fetchedAt
+        fetchedAt = fetchedAt,
+        rawPayloadJson = rawPayloadJson,
+        rawPayloadFormat = rawPayloadFormat,
+        normalizerVersion = normalizerVersion
     )
     val resourceEntities = resources.mapIndexed { resourceIndex, resource ->
         QuotaResourceEntity(

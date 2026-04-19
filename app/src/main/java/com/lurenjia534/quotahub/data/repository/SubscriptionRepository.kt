@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.room.withTransaction
 import com.lurenjia534.quotahub.data.local.QuotaDatabase
 import com.lurenjia534.quotahub.data.local.QuotaSnapshotDao
+import com.lurenjia534.quotahub.data.local.QuotaSnapshotEntity
 import com.lurenjia534.quotahub.data.local.SubscriptionDao
 import com.lurenjia534.quotahub.data.local.SubscriptionEntity
 import com.lurenjia534.quotahub.data.local.toEntities
@@ -13,14 +14,29 @@ import com.lurenjia534.quotahub.data.model.Subscription
 import com.lurenjia534.quotahub.data.model.SubscriptionSyncStatus
 import com.lurenjia534.quotahub.data.model.SyncState
 import com.lurenjia534.quotahub.data.model.toSubscription
+import com.lurenjia534.quotahub.data.provider.CapturedQuotaSnapshot
 import com.lurenjia534.quotahub.data.provider.ProviderCatalog
 import com.lurenjia534.quotahub.data.provider.ProviderDescriptor
+import com.lurenjia534.quotahub.data.provider.ProviderReplayPayload
 import com.lurenjia534.quotahub.data.provider.SecretBundle
 import com.lurenjia534.quotahub.data.security.ApiKeyCipher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
 import retrofit2.HttpException
+
+data class QuotaSnapshotReplayFailure(
+    val subscriptionId: Long,
+    val providerId: String,
+    val reason: String
+)
+
+data class QuotaSnapshotReplayBatchResult(
+    val checked: Int,
+    val replayed: Int,
+    val skipped: Int,
+    val failures: List<QuotaSnapshotReplayFailure>
+)
 
 /**
  * 订阅仓库类
@@ -140,10 +156,17 @@ class SubscriptionRepository(
 
     suspend fun cacheQuotaSnapshot(
         subscriptionId: Long,
-        snapshot: QuotaSnapshot
+        capturedSnapshot: CapturedQuotaSnapshot
     ) {
         ensureSubscriptionExists(subscriptionId)
-        val entities = snapshot.toEntities(subscriptionId)
+        val snapshot = capturedSnapshot.snapshot
+        val replayPayload = capturedSnapshot.replayPayload
+        val entities = snapshot.toEntities(
+            subscriptionId = subscriptionId,
+            rawPayloadJson = replayPayload?.rawPayloadJson,
+            rawPayloadFormat = replayPayload?.payloadFormat,
+            normalizerVersion = replayPayload?.normalizerVersion
+        )
 
         database.withTransaction {
             quotaSnapshotDao.clearQuotaSnapshot(subscriptionId)
@@ -156,6 +179,89 @@ class SubscriptionRepository(
                 quotaSnapshotDao.upsertQuotaWindows(entities.windows)
             }
         }
+    }
+
+    suspend fun replayStoredQuotaSnapshot(subscriptionId: Long): Result<QuotaSnapshot> {
+        val subscription = getSubscriptionOnce(subscriptionId)
+            ?: return Result.failure(IllegalStateException("Subscription no longer exists"))
+        val provider = providerCatalog.provider(subscription.provider)
+            ?: return Result.failure(
+                IllegalStateException("Unsupported provider: ${subscription.provider.id}")
+            )
+        val replayPayload = quotaSnapshotDao.getQuotaSnapshotMetadata(subscriptionId)
+            ?.toReplayPayload()
+            ?: return Result.failure(
+                IllegalStateException("No replay payload stored for subscription $subscriptionId")
+            )
+
+        return provider.replay(replayPayload).mapCatching { capturedSnapshot ->
+            cacheQuotaSnapshot(
+                subscriptionId = subscriptionId,
+                capturedSnapshot = capturedSnapshot
+            )
+            capturedSnapshot.snapshot
+        }
+    }
+
+    suspend fun replayStoredQuotaSnapshotsNeedingUpgrade(): QuotaSnapshotReplayBatchResult {
+        val subscriptions = subscriptionDao.getAllSubscriptionsOnce()
+        val metadataBySubscriptionId = quotaSnapshotDao.getAllQuotaSnapshotMetadata()
+            .associateBy { it.subscriptionId }
+
+        var checked = 0
+        var replayed = 0
+        var skipped = 0
+        val failures = mutableListOf<QuotaSnapshotReplayFailure>()
+
+        for (subscriptionEntity in subscriptions) {
+            val provider = providerCatalog.provider(subscriptionEntity.providerId)
+            if (provider == null) {
+                skipped += 1
+                continue
+            }
+
+            val replayPayload = metadataBySubscriptionId[subscriptionEntity.id]?.toReplayPayload()
+            if (replayPayload == null) {
+                skipped += 1
+                continue
+            }
+
+            checked += 1
+            if (!provider.canReplay(replayPayload) || !provider.requiresReplay(replayPayload)) {
+                skipped += 1
+                continue
+            }
+
+            provider.replay(replayPayload).fold(
+                onSuccess = { capturedSnapshot ->
+                    runCatching {
+                        cacheQuotaSnapshot(subscriptionEntity.id, capturedSnapshot)
+                    }.onSuccess {
+                        replayed += 1
+                    }.onFailure { error ->
+                        failures += QuotaSnapshotReplayFailure(
+                            subscriptionId = subscriptionEntity.id,
+                            providerId = subscriptionEntity.providerId,
+                            reason = error.message ?: "Failed to persist replayed snapshot"
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    failures += QuotaSnapshotReplayFailure(
+                        subscriptionId = subscriptionEntity.id,
+                        providerId = subscriptionEntity.providerId,
+                        reason = error.message ?: "Failed to replay stored snapshot"
+                    )
+                }
+            )
+        }
+
+        return QuotaSnapshotReplayBatchResult(
+            checked = checked,
+            replayed = replayed,
+            skipped = skipped,
+            failures = failures
+        )
     }
 
     private suspend fun ensureSubscriptionExists(subscriptionId: Long) {
@@ -239,6 +345,17 @@ private fun SubscriptionEntity.toSyncStatus(now: Long = System.currentTimeMillis
 
 private fun SyncState.toPersistedState(): SyncState {
     return if (this == SyncState.Stale) SyncState.Active else this
+}
+
+private fun QuotaSnapshotEntity.toReplayPayload(): ProviderReplayPayload? {
+    val rawPayloadJsonValue = rawPayloadJson ?: return null
+    val rawPayloadFormatValue = rawPayloadFormat ?: return null
+    return ProviderReplayPayload(
+        fetchedAt = fetchedAt,
+        payloadFormat = rawPayloadFormatValue,
+        rawPayloadJson = rawPayloadJsonValue,
+        normalizerVersion = normalizerVersion ?: 1
+    )
 }
 
 private fun Throwable.toSyncFailureState(): SyncState {

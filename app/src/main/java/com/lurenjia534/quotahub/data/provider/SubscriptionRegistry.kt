@@ -83,15 +83,15 @@ class SubscriptionRegistry(
                 IllegalArgumentException("Unsupported provider: ${provider.id}")
             )
 
-        return adapter.validate(credentials).mapCatching { snapshot ->
+        return adapter.validate(credentials).mapCatching { capturedSnapshot ->
             val subscriptionId = repository.createSubscription(
                 provider = provider,
                 customTitle = customTitle,
                 credentials = credentials,
-                syncStatus = SubscriptionSyncStatus.active(snapshot.fetchedAt)
+                syncStatus = SubscriptionSyncStatus.active(capturedSnapshot.snapshot.fetchedAt)
             )
             try {
-                repository.cacheQuotaSnapshot(subscriptionId, snapshot)
+                repository.cacheQuotaSnapshot(subscriptionId, capturedSnapshot)
                 subscriptionId
             } catch (error: Exception) {
                 repository.deleteSubscription(subscriptionId)

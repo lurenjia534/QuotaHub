@@ -28,6 +28,9 @@ interface SubscriptionDao {
     @Query("SELECT * FROM subscription ORDER BY createdAt DESC")
     fun getAllSubscriptions(): Flow<List<SubscriptionEntity>>
 
+    @Query("SELECT * FROM subscription ORDER BY createdAt DESC")
+    suspend fun getAllSubscriptionsOnce(): List<SubscriptionEntity>
+
     /**
      * 监听指定订阅的变化
      * @param subscriptionId 订阅ID
