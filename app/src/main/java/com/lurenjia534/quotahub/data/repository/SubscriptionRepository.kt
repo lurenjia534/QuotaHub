@@ -106,7 +106,8 @@ class SubscriptionRepository(
             syncState = syncStatus.state.toPersistedState().name,
             lastSuccessAt = syncStatus.lastSuccessAt,
             lastFailureAt = syncStatus.lastFailureAt,
-            lastError = syncStatus.lastError
+            lastError = syncStatus.lastError,
+            syncStartedAt = syncStatus.syncStartedAt
         )
         return subscriptionDao.insertSubscription(entity)
     }
@@ -121,6 +122,7 @@ class SubscriptionRepository(
             lastSuccessAt = subscription.syncStatus.lastSuccessAt,
             lastFailureAt = subscription.syncStatus.lastFailureAt,
             lastError = subscription.syncStatus.lastError,
+            syncStartedAt = subscription.syncStatus.syncStartedAt,
             createdAt = subscription.createdAt
         )
         subscriptionDao.updateSubscription(entity)
@@ -365,7 +367,8 @@ class SubscriptionRepository(
                 syncState = updatedStatus.state.toPersistedState().name,
                 lastSuccessAt = updatedStatus.lastSuccessAt,
                 lastFailureAt = updatedStatus.lastFailureAt,
-                lastError = updatedStatus.lastError
+                lastError = updatedStatus.lastError,
+                syncStartedAt = updatedStatus.syncStartedAt
             )
         )
     }
@@ -378,7 +381,23 @@ class SubscriptionRepository(
 private fun SubscriptionEntity.toSyncStatus(now: Long = System.currentTimeMillis()): SubscriptionSyncStatus {
     val persistedState = runCatching { SyncState.valueOf(syncState) }
         .getOrDefault(SyncState.NeverSynced)
+    val syncingTimedOut = persistedState == SyncState.Syncing &&
+        (syncStartedAt == null || now - syncStartedAt > SyncTimeoutMillis)
+    val effectiveFailureAt = if (syncingTimedOut) {
+        syncStartedAt ?: now
+    } else {
+        lastFailureAt
+    }
+    val effectiveError = if (syncingTimedOut) {
+        lastError ?: InterruptedSyncMessage
+    } else {
+        lastError
+    }
     val effectiveState = when {
+        syncingTimedOut &&
+            lastSuccessAt != null &&
+            now - lastSuccessAt > StaleAfterMillis -> SyncState.Stale
+        syncingTimedOut -> SyncState.SyncError
         persistedState == SyncState.Active &&
             lastSuccessAt != null &&
             now - lastSuccessAt > StaleAfterMillis -> SyncState.Stale
@@ -391,8 +410,9 @@ private fun SubscriptionEntity.toSyncStatus(now: Long = System.currentTimeMillis
     return SubscriptionSyncStatus(
         state = effectiveState,
         lastSuccessAt = lastSuccessAt,
-        lastFailureAt = lastFailureAt,
-        lastError = lastError
+        lastFailureAt = effectiveFailureAt,
+        lastError = effectiveError,
+        syncStartedAt = if (effectiveState == SyncState.Syncing) syncStartedAt else null
     )
 }
 
@@ -437,3 +457,5 @@ private fun Throwable.toSyncFailureState(): SyncState {
 }
 
 private const val StaleAfterMillis = 24 * 60 * 60 * 1000L
+private const val SyncTimeoutMillis = 2 * 60 * 1000L
+private const val InterruptedSyncMessage = "Previous sync was interrupted before completion."

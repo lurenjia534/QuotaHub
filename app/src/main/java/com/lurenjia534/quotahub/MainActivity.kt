@@ -24,6 +24,7 @@ import com.lurenjia534.quotahub.ui.navigation.QuotaNavHost
 import com.lurenjia534.quotahub.ui.navigation.bottomNavItems
 import com.lurenjia534.quotahub.ui.provider.ProviderUiRegistry
 import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaDetailProjectorRegistry
+import com.lurenjia534.quotahub.sync.SubscriptionRefreshPolicy
 import com.lurenjia534.quotahub.ui.theme.QuotaHubTheme
 
 private val FloatingBottomNavClearance = 120.dp
@@ -37,13 +38,15 @@ class MainActivity : ComponentActivity() {
         val providerQuotaDetailProjectorRegistry = application.providerQuotaDetailProjectorRegistry
         val providerUiRegistry = application.providerUiRegistry
         val uiPreferencesRepository = application.uiPreferencesRepository
+        val subscriptionRefreshPolicy = application.subscriptionRefreshPolicy
         setContent {
             QuotaHubTheme {
                 QuotaApp(
                     subscriptionRegistry = subscriptionRegistry,
                     providerQuotaDetailProjectorRegistry = providerQuotaDetailProjectorRegistry,
                     providerUiRegistry = providerUiRegistry,
-                    uiPreferencesRepository = uiPreferencesRepository
+                    uiPreferencesRepository = uiPreferencesRepository,
+                    subscriptionRefreshPolicy = subscriptionRefreshPolicy
                 )
             }
         }
@@ -55,7 +58,8 @@ fun QuotaApp(
     subscriptionRegistry: com.lurenjia534.quotahub.data.provider.SubscriptionRegistry,
     providerQuotaDetailProjectorRegistry: ProviderQuotaDetailProjectorRegistry,
     providerUiRegistry: ProviderUiRegistry,
-    uiPreferencesRepository: UiPreferencesRepository
+    uiPreferencesRepository: UiPreferencesRepository,
+    subscriptionRefreshPolicy: SubscriptionRefreshPolicy
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -81,6 +85,7 @@ fun QuotaApp(
                     subscriptionRegistry = subscriptionRegistry,
                     providerQuotaDetailProjectorRegistry = providerQuotaDetailProjectorRegistry,
                     providerUiRegistry = providerUiRegistry,
+                    subscriptionRefreshPolicy = subscriptionRefreshPolicy,
                     highEmphasisMetrics = uiPreferences.highEmphasisMetrics,
                     hapticConfirmation = uiPreferences.hapticConfirmation,
                     onHighEmphasisMetricsChange = uiPreferencesRepository::setHighEmphasisMetrics,

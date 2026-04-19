@@ -19,6 +19,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.lurenjia534.quotahub.data.provider.SubscriptionGateway
 import com.lurenjia534.quotahub.data.provider.SubscriptionRegistry
+import com.lurenjia534.quotahub.sync.SubscriptionRefreshPolicy
 import com.lurenjia534.quotahub.ui.components.QuotaLoadingIndicator
 import com.lurenjia534.quotahub.ui.screens.home.HomeScreen
 import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaScreen
@@ -32,6 +33,7 @@ fun QuotaNavHost(
     subscriptionRegistry: SubscriptionRegistry,
     providerQuotaDetailProjectorRegistry: ProviderQuotaDetailProjectorRegistry,
     providerUiRegistry: ProviderUiRegistry,
+    subscriptionRefreshPolicy: SubscriptionRefreshPolicy,
     highEmphasisMetrics: Boolean,
     hapticConfirmation: Boolean,
     onHighEmphasisMetricsChange: (Boolean) -> Unit,
@@ -89,6 +91,7 @@ fun QuotaNavHost(
                         subscriptionGateway = subscriptionGateway!!,
                         detailProjectorRegistry = providerQuotaDetailProjectorRegistry,
                         providerUiRegistry = providerUiRegistry,
+                        refreshPolicy = subscriptionRefreshPolicy,
                         highEmphasisMetrics = highEmphasisMetrics,
                         hapticConfirmation = hapticConfirmation,
                         onBackClick = { navController.popBackStack() }

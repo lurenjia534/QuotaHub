@@ -13,7 +13,8 @@ data class SubscriptionSyncStatus(
     val state: SyncState,
     val lastSuccessAt: Long? = null,
     val lastFailureAt: Long? = null,
-    val lastError: String? = null
+    val lastError: String? = null,
+    val syncStartedAt: Long? = null
 ) {
     val isConnected: Boolean
         get() = state != SyncState.AuthFailed
@@ -23,11 +24,15 @@ data class SubscriptionSyncStatus(
             state = SyncState.NeverSynced
         )
 
-        fun syncing(previous: SubscriptionSyncStatus): SubscriptionSyncStatus = SubscriptionSyncStatus(
+        fun syncing(
+            previous: SubscriptionSyncStatus,
+            startedAt: Long = System.currentTimeMillis()
+        ): SubscriptionSyncStatus = SubscriptionSyncStatus(
             state = SyncState.Syncing,
             lastSuccessAt = previous.lastSuccessAt,
             lastFailureAt = previous.lastFailureAt,
-            lastError = null
+            lastError = null,
+            syncStartedAt = startedAt
         )
 
         fun active(
@@ -37,7 +42,8 @@ data class SubscriptionSyncStatus(
             state = SyncState.Active,
             lastSuccessAt = fetchedAt,
             lastFailureAt = previous?.lastFailureAt,
-            lastError = null
+            lastError = null,
+            syncStartedAt = null
         )
 
         fun failed(
@@ -49,7 +55,8 @@ data class SubscriptionSyncStatus(
             state = state,
             lastSuccessAt = previous.lastSuccessAt,
             lastFailureAt = failedAt,
-            lastError = errorMessage
+            lastError = errorMessage,
+            syncStartedAt = null
         )
     }
 }

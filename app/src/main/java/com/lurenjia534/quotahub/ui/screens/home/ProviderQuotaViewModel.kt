@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.lurenjia534.quotahub.data.model.Subscription
 import com.lurenjia534.quotahub.data.provider.SecretBundle
 import com.lurenjia534.quotahub.data.provider.SubscriptionGateway
+import com.lurenjia534.quotahub.sync.SubscriptionRefreshPolicy
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,7 +31,8 @@ data class ProviderQuotaUiState(
 
 class ProviderQuotaViewModel(
     private val subscriptionGateway: SubscriptionGateway,
-    private val detailProjectorRegistry: ProviderQuotaDetailProjectorRegistry
+    private val detailProjectorRegistry: ProviderQuotaDetailProjectorRegistry,
+    private val refreshPolicy: SubscriptionRefreshPolicy
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(
         ProviderQuotaUiState(subscription = subscriptionGateway.subscription)
@@ -60,7 +62,7 @@ class ProviderQuotaViewModel(
                 )
             )
 
-            if (snapshot.subscription.hasUsableCredentials) {
+            if (refreshPolicy.shouldAutoRefreshOnDetailOpen(snapshot.subscription)) {
                 refresh()
             }
         }
@@ -220,14 +222,16 @@ class ProviderQuotaViewModel(
 
     class Factory(
         private val subscriptionGateway: SubscriptionGateway,
-        private val detailProjectorRegistry: ProviderQuotaDetailProjectorRegistry
+        private val detailProjectorRegistry: ProviderQuotaDetailProjectorRegistry,
+        private val refreshPolicy: SubscriptionRefreshPolicy
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(ProviderQuotaViewModel::class.java)) {
                 return ProviderQuotaViewModel(
                     subscriptionGateway = subscriptionGateway,
-                    detailProjectorRegistry = detailProjectorRegistry
+                    detailProjectorRegistry = detailProjectorRegistry,
+                    refreshPolicy = refreshPolicy
                 ) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class")

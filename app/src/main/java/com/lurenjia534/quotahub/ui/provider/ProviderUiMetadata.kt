@@ -1,7 +1,7 @@
 package com.lurenjia534.quotahub.ui.provider
 
 import androidx.annotation.DrawableRes
-import com.lurenjia534.quotahub.data.provider.ProviderModule
+import com.lurenjia534.quotahub.bootstrap.provider.ProviderModule
 import com.lurenjia534.quotahub.data.provider.ProviderDescriptor
 
 data class ProviderUiMetadata(

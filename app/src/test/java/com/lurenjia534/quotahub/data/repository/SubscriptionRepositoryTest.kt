@@ -91,6 +91,66 @@ class SubscriptionRepositoryTest {
         assertEquals("keystore unavailable", result.exceptionOrNull()?.message)
     }
 
+    @Test
+    fun subscriptions_recoverTimedOutSyncingToSyncError() = runBlocking {
+        val subscriptionDao = FakeSubscriptionDao(
+            initialEntities = listOf(
+                SubscriptionEntity(
+                    id = 10L,
+                    providerId = TEST_PROVIDER_ID,
+                    customTitle = "Interrupted source",
+                    apiKey = "encrypted-payload",
+                    syncState = SyncState.Syncing.name,
+                    syncStartedAt = 1L
+                )
+            )
+        )
+        val repository = SubscriptionRepository(
+            database = FakeQuotaDatabase(subscriptionDao),
+            subscriptionDao = subscriptionDao,
+            quotaSnapshotDao = NoOpQuotaSnapshotDao(),
+            providerCatalog = providerCatalog(),
+            apiKeyCipher = PassthroughCipher()
+        )
+
+        val subscription = repository.subscriptions.first().single()
+
+        assertEquals(SyncState.SyncError, subscription.syncStatus.state)
+        assertEquals("Previous sync was interrupted before completion.", subscription.syncStatus.lastError)
+        assertTrue(subscription.syncStatus.lastFailureAt != null)
+        assertEquals(null, subscription.syncStatus.syncStartedAt)
+    }
+
+    @Test
+    fun subscriptions_recoverTimedOutSyncingToStaleWhenLastSuccessIsOld() = runBlocking {
+        val subscriptionDao = FakeSubscriptionDao(
+            initialEntities = listOf(
+                SubscriptionEntity(
+                    id = 11L,
+                    providerId = TEST_PROVIDER_ID,
+                    customTitle = "Interrupted source",
+                    apiKey = "encrypted-payload",
+                    syncState = SyncState.Syncing.name,
+                    lastSuccessAt = 1L,
+                    syncStartedAt = 1L
+                )
+            )
+        )
+        val repository = SubscriptionRepository(
+            database = FakeQuotaDatabase(subscriptionDao),
+            subscriptionDao = subscriptionDao,
+            quotaSnapshotDao = NoOpQuotaSnapshotDao(),
+            providerCatalog = providerCatalog(),
+            apiKeyCipher = PassthroughCipher()
+        )
+
+        val subscription = repository.subscriptions.first().single()
+
+        assertEquals(SyncState.Stale, subscription.syncStatus.state)
+        assertEquals("Previous sync was interrupted before completion.", subscription.syncStatus.lastError)
+        assertEquals(null, subscription.syncStatus.syncStartedAt)
+    }
+
     private fun providerCatalog(): ProviderCatalog {
         return ProviderCatalog(
             providers = listOf(
@@ -128,6 +188,12 @@ class SubscriptionRepositoryTest {
         override fun decrypt(storedValue: String): String {
             throw IllegalStateException("keystore unavailable")
         }
+    }
+
+    private class PassthroughCipher : ApiKeyCipher {
+        override fun encrypt(plainText: String): String = plainText
+
+        override fun decrypt(storedValue: String): String = storedValue
     }
 
     private class FakeSubscriptionDao(

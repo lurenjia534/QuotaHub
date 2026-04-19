@@ -73,6 +73,7 @@ import com.lurenjia534.quotahub.data.model.QuotaRisk
 import com.lurenjia534.quotahub.data.model.SyncState
 import com.lurenjia534.quotahub.data.provider.CredentialFieldSpec
 import com.lurenjia534.quotahub.data.provider.SubscriptionGateway
+import com.lurenjia534.quotahub.sync.SubscriptionRefreshPolicy
 import com.lurenjia534.quotahub.ui.components.MetricEmphasisLevel
 import com.lurenjia534.quotahub.ui.components.QuotaMetricText
 import com.lurenjia534.quotahub.ui.components.QuotaLoadingIndicator
@@ -89,6 +90,7 @@ fun ProviderQuotaScreen(
     subscriptionGateway: SubscriptionGateway,
     detailProjectorRegistry: ProviderQuotaDetailProjectorRegistry,
     providerUiRegistry: ProviderUiRegistry,
+    refreshPolicy: SubscriptionRefreshPolicy,
     highEmphasisMetrics: Boolean,
     hapticConfirmation: Boolean,
     onBackClick: () -> Unit
@@ -97,7 +99,8 @@ fun ProviderQuotaScreen(
         key = "provider-quota-${subscriptionGateway.subscription.id}",
         factory = ProviderQuotaViewModel.Factory(
             subscriptionGateway = subscriptionGateway,
-            detailProjectorRegistry = detailProjectorRegistry
+            detailProjectorRegistry = detailProjectorRegistry,
+            refreshPolicy = refreshPolicy
         )
     )
     val uiState by viewModel.uiState.collectAsState()

@@ -1,12 +1,12 @@
 package com.lurenjia534.quotahub.ui.screens.home
 
+import com.lurenjia534.quotahub.bootstrap.provider.ProviderModule
 import com.lurenjia534.quotahub.data.model.QuotaResource
 import com.lurenjia534.quotahub.data.model.QuotaRisk
 import com.lurenjia534.quotahub.data.model.QuotaSnapshot
 import com.lurenjia534.quotahub.data.model.QuotaWindow
 import com.lurenjia534.quotahub.data.model.Subscription
 import com.lurenjia534.quotahub.data.model.WindowScope
-import com.lurenjia534.quotahub.data.provider.ProviderModule
 
 interface ProviderQuotaDetailProjector {
     fun project(

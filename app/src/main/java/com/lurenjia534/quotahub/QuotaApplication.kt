@@ -2,15 +2,17 @@ package com.lurenjia534.quotahub
 
 import android.app.Application
 import android.util.Log
+import com.lurenjia534.quotahub.bootstrap.provider.ProviderModules
 import com.lurenjia534.quotahub.data.local.QuotaDatabase
 import com.lurenjia534.quotahub.data.preferences.UiPreferencesRepository
 import com.lurenjia534.quotahub.data.provider.ProviderCatalog
-import com.lurenjia534.quotahub.data.provider.ProviderModules
 import com.lurenjia534.quotahub.data.provider.SubscriptionCardProjectorRegistry
 import com.lurenjia534.quotahub.data.provider.SubscriptionRegistry
 import com.lurenjia534.quotahub.data.repository.SubscriptionRepository
 import com.lurenjia534.quotahub.data.security.AndroidKeystoreApiKeyCipher
 import com.lurenjia534.quotahub.data.upgrade.QuotaUpgradeCoordinator
+import com.lurenjia534.quotahub.sync.DefaultSubscriptionRefreshPolicy
+import com.lurenjia534.quotahub.sync.SubscriptionRefreshPolicy
 import com.lurenjia534.quotahub.ui.provider.ProviderUiRegistry
 import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaDetailProjectorRegistry
 import kotlinx.coroutines.CoroutineScope
@@ -71,6 +73,10 @@ class QuotaApplication : Application() {
 
     val uiPreferencesRepository: UiPreferencesRepository by lazy {
         UiPreferencesRepository(this)
+    }
+
+    val subscriptionRefreshPolicy: SubscriptionRefreshPolicy by lazy {
+        DefaultSubscriptionRefreshPolicy()
     }
 
     override fun onCreate() {

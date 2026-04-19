@@ -13,7 +13,7 @@ import androidx.room.PrimaryKey
  * - customTitle: 用户自定义的显示标题（可选）
  * - apiKey: 加密后的凭证载荷（当前沿用旧列名以避免数据库迁移）
  * - syncState: 最近一次同步的健康状态
- * - lastSuccessAt/lastFailureAt/lastError: 用于展示同步历史和错误信息
+ * - lastSuccessAt/lastFailureAt/lastError/syncStartedAt: 用于展示同步历史和恢复中断同步
  * - createdAt: 订阅创建时间戳
  *
  * 当前结构支持用户同时管理多个订阅，并为多服务商扩展预留了空间。
@@ -40,6 +40,8 @@ data class SubscriptionEntity(
     val lastFailureAt: Long? = null,
     /** 最近一次同步错误信息 */
     val lastError: String? = null,
+    /** 最近一次同步开始时间，用于回收中断的 Syncing 状态 */
+    val syncStartedAt: Long? = null,
     /** 订阅创建时间，用于排序和显示 */
     val createdAt: Long = System.currentTimeMillis()
 )

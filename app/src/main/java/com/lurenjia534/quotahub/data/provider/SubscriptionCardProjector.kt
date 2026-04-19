@@ -1,5 +1,6 @@
 package com.lurenjia534.quotahub.data.provider
 
+import com.lurenjia534.quotahub.bootstrap.provider.ProviderModule
 import com.lurenjia534.quotahub.data.model.QuotaResource
 import com.lurenjia534.quotahub.data.model.QuotaRisk
 import com.lurenjia534.quotahub.data.model.QuotaSnapshot

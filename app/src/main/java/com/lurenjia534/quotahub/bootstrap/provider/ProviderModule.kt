@@ -1,6 +1,8 @@
-package com.lurenjia534.quotahub.data.provider
+package com.lurenjia534.quotahub.bootstrap.provider
 
 import com.lurenjia534.quotahub.R
+import com.lurenjia534.quotahub.data.provider.CodingPlanProvider
+import com.lurenjia534.quotahub.data.provider.SubscriptionCardProjector
 import com.lurenjia534.quotahub.data.provider.minimax.MiniMaxCodingPlanProvider
 import com.lurenjia534.quotahub.data.provider.minimax.MiniMaxSubscriptionCardProjector
 import com.lurenjia534.quotahub.ui.provider.ProviderUiMetadata
