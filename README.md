@@ -1,10 +1,10 @@
 # QuotaHub
 
-QuotaHub is an Android quota dashboard built with Jetpack Compose. It is designed to help users track remaining AI subscription quotas, inspect model-level limits, and monitor upcoming reset windows from a single app. The current codebase integrates multiple providers, including `OpenAI Codex`, `MiniMax Coding Plan`, and `Zhipu BigModel`.
+QuotaHub is an Android quota dashboard built with Jetpack Compose. It is designed to help users track remaining AI subscription quotas, inspect model-level limits, and monitor upcoming reset windows from a single app. The current codebase integrates multiple providers, including `OpenAI Codex`, `MiniMax Coding Plan`, `Z.ai`, and `Zhipu BigModel`.
 
 ## Current Features
 
-- Add Codex, MiniMax, or Zhipu subscriptions from the app and validate credentials before saving them.
+- Add Codex, MiniMax, Z.ai, or Zhipu subscriptions from the app and validate credentials before saving them.
 - Show connected subscriptions on the home screen with model counts, remaining calls, risk level, and nearest reset time.
 - Open a subscription detail page to inspect model-level quota data, pull to refresh, rename the subscription, or disconnect it.
 - Cache subscriptions and the latest quota snapshot locally with Room.
@@ -62,7 +62,7 @@ To install the debug build on a connected device:
 After launching the app:
 
 1. Tap the add action on the home screen.
-2. Choose `OpenAI Codex`, `MiniMax Coding Plan`, or `Zhipu BigModel`.
+2. Choose `OpenAI Codex`, `MiniMax Coding Plan`, `Z.ai`, or `Zhipu BigModel`.
 3. Enter the required credentials and optionally set a custom title.
 4. Save the subscription to validate credentials and fetch the initial quota snapshot.
 
@@ -79,7 +79,7 @@ This structure is already used for multi-provider support. Adding a new provider
 
 ## Implementation Status
 
-- `OpenAI Codex`, `MiniMax`, and `Zhipu` are currently integrated.
+- `OpenAI Codex`, `MiniMax`, `Z.ai`, and `Zhipu` are currently integrated.
 - The codebase includes unit tests for repository, gateway, upgrade replay, and provider-specific normalization/projector logic, but it still lacks broader end-to-end coverage.
 - Part of the `Settings` screen is still UI-only placeholder behavior and does not fully persist or drive background update policies.
 

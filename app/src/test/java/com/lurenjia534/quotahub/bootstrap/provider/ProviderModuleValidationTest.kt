@@ -73,6 +73,15 @@ class ProviderModuleValidationTest {
         )
     }
 
+    @Test
+    fun providerModules_includeZaiProvider() {
+        assertTrue(
+            ProviderModules.all.any { module ->
+                module.provider.descriptor.id == "zai"
+            }
+        )
+    }
+
     private fun module(providerId: String): ProviderModule {
         return ProviderModule(
             provider = FakeProvider(providerId),
