@@ -21,8 +21,8 @@ import androidx.room.RoomDatabase
  * 设计说明：
  * - 采用单例模式确保数据库实例全局唯一
  * - 使用volatile关键字保证多线程安全
- * - 对版本5及以上使用显式Room migration保留用户数据
- * - 仅对更早的历史开发schema保留有限的 destructive fallback
+ * - 当前WIP阶段仅维护schema v9
+ * - 旧schema在打开时直接重建，不保留历史兼容迁移代码
  */
 @Database(
     entities = [
@@ -74,8 +74,7 @@ abstract class QuotaDatabase : RoomDatabase() {
                     QuotaDatabase::class.java,
                     "quota_database"
                 )
-                    .addMigrations(*QuotaMigrations.ALL)
-                    .fallbackToDestructiveMigrationFrom(true, 1, 2, 3, 4)
+                    .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
                 INSTANCE = instance
                 instance
