@@ -1,6 +1,7 @@
 package com.lurenjia534.quotahub.ui.screens.home
 
 import java.text.NumberFormat
+import kotlin.math.abs
 
 internal fun formatTimeRemaining(millis: Long): String {
     val seconds = millis / 1000
@@ -17,3 +18,8 @@ internal fun formatTimeRemaining(millis: Long): String {
 }
 
 internal fun formatCount(value: Int): String = NumberFormat.getIntegerInstance().format(value)
+
+internal fun formatTimeAgo(timestamp: Long): String {
+    val elapsed = (System.currentTimeMillis() - timestamp).coerceAtLeast(0L)
+    return "${formatTimeRemaining(elapsed)} ago"
+}

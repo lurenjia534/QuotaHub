@@ -3,7 +3,6 @@ package com.lurenjia534.quotahub.ui.screens.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.lurenjia534.quotahub.data.model.ModelRemain
 import com.lurenjia534.quotahub.data.model.Subscription
 import com.lurenjia534.quotahub.data.provider.SubscriptionGateway
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,10 +13,10 @@ import kotlinx.coroutines.launch
 
 data class ProviderQuotaUiState(
     val subscription: Subscription,
+    val detail: ProviderQuotaDetailUiModel = ProviderQuotaDetailUiModel(),
     val isBootstrapping: Boolean = true,
     val isLoading: Boolean = false,
     val isSavingTitle: Boolean = false,
-    val modelRemains: List<ModelRemain> = emptyList(),
     val error: String? = null,
     val isConnected: Boolean = true,
     val showRenameDialog: Boolean = false,
@@ -25,7 +24,8 @@ data class ProviderQuotaUiState(
 )
 
 class ProviderQuotaViewModel(
-    private val subscriptionGateway: SubscriptionGateway
+    private val subscriptionGateway: SubscriptionGateway,
+    private val detailProjectorRegistry: ProviderQuotaDetailProjectorRegistry
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(
         ProviderQuotaUiState(subscription = subscriptionGateway.subscription)
@@ -43,8 +43,11 @@ class ProviderQuotaViewModel(
 
             _uiState.value = _uiState.value.copy(
                 isBootstrapping = false,
-                isConnected = true,
-                modelRemains = snapshot.modelRemains
+                isConnected = snapshot.subscription.syncStatus.isConnected,
+                detail = detailProjectorRegistry.project(
+                    subscription = snapshot.subscription,
+                    snapshot = snapshot.quotaSnapshot
+                )
             )
 
             refresh()
@@ -56,7 +59,11 @@ class ProviderQuotaViewModel(
             subscriptionGateway.snapshot.collect { snapshot ->
                 _uiState.value = _uiState.value.copy(
                     subscription = snapshot.subscription,
-                    modelRemains = snapshot.modelRemains,
+                    isConnected = snapshot.subscription.syncStatus.isConnected,
+                    detail = detailProjectorRegistry.project(
+                        subscription = snapshot.subscription,
+                        snapshot = snapshot.quotaSnapshot
+                    ),
                     titleInput = if (_uiState.value.showRenameDialog) {
                         _uiState.value.titleInput
                     } else {
@@ -128,12 +135,16 @@ class ProviderQuotaViewModel(
     }
 
     class Factory(
-        private val subscriptionGateway: SubscriptionGateway
+        private val subscriptionGateway: SubscriptionGateway,
+        private val detailProjectorRegistry: ProviderQuotaDetailProjectorRegistry
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(ProviderQuotaViewModel::class.java)) {
-                return ProviderQuotaViewModel(subscriptionGateway) as T
+                return ProviderQuotaViewModel(
+                    subscriptionGateway = subscriptionGateway,
+                    detailProjectorRegistry = detailProjectorRegistry
+                ) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class")
         }

@@ -4,8 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.lurenjia534.quotahub.data.model.QuotaRisk
+import com.lurenjia534.quotahub.data.model.SyncState
+import com.lurenjia534.quotahub.data.provider.ProviderDescriptor
+import com.lurenjia534.quotahub.data.provider.SecretBundle
 import com.lurenjia534.quotahub.data.provider.SubscriptionCard
 import com.lurenjia534.quotahub.data.provider.SubscriptionRegistry
+import com.lurenjia534.quotahub.ui.provider.ProviderUiRegistry
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,6 +18,7 @@ import kotlinx.coroutines.launch
 
 data class SubscriptionCardUiModel(
     val subscriptionId: Long,
+    val providerId: String,
     val displayTitle: String,
     val subtitle: String,
     val providerIconRes: Int,
@@ -21,6 +26,9 @@ data class SubscriptionCardUiModel(
     val remainingCalls: Int,
     val remainingTime: Long?,
     val risk: QuotaRisk,
+    val syncState: SyncState,
+    val syncLabel: String,
+    val syncDescription: String,
     val isConnected: Boolean
 )
 
@@ -28,9 +36,9 @@ data class HomeHubUiState(
     val isBootstrapping: Boolean = true,
     val isSaving: Boolean = false,
     val subscriptionCards: List<SubscriptionCardUiModel> = emptyList(),
-    val selectedProvider: QuotaProvider? = null,
+    val selectedProvider: ProviderDescriptor? = null,
     val customTitleInput: String = "",
-    val credentialInput: String = "",
+    val credentialInputs: Map<String, String> = emptyMap(),
     val showCredentialDialog: Boolean = false,
     val error: String? = null
 )
@@ -66,11 +74,11 @@ class HomeHubViewModel(
         }
     }
 
-    fun showCredentialDialog(provider: QuotaProvider) {
+    fun showCredentialDialog(provider: ProviderDescriptor) {
         _uiState.value = _uiState.value.copy(
             selectedProvider = provider,
             customTitleInput = "",
-            credentialInput = "",
+            credentialInputs = provider.credentialFields.associate { it.key to "" },
             showCredentialDialog = true,
             error = null
         )
@@ -80,8 +88,10 @@ class HomeHubViewModel(
         _uiState.value = _uiState.value.copy(showCredentialDialog = false)
     }
 
-    fun updateCredentialInput(credential: String) {
-        _uiState.value = _uiState.value.copy(credentialInput = credential)
+    fun updateCredentialInput(fieldKey: String, credential: String) {
+        _uiState.value = _uiState.value.copy(
+            credentialInputs = _uiState.value.credentialInputs + (fieldKey to credential)
+        )
     }
 
     fun updateCustomTitleInput(title: String) {
@@ -90,18 +100,22 @@ class HomeHubViewModel(
 
     fun saveSelectedProviderCredential() {
         val provider = _uiState.value.selectedProvider ?: return
-        val credential = _uiState.value.credentialInput.trim()
-        if (credential.isBlank()) {
-            _uiState.value = _uiState.value.copy(error = "${provider.credentialLabel} is required")
+        val missingField = provider.credentialFields.firstOrNull { field ->
+            _uiState.value.credentialInputs[field.key].isNullOrBlank()
+        }
+        if (missingField != null) {
+            _uiState.value = _uiState.value.copy(error = "${missingField.label} is required")
             return
         }
+
+        val credentials = SecretBundle.of(_uiState.value.credentialInputs)
 
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSaving = true, error = null)
             subscriptionRegistry.validateAndCreateSubscription(
                 provider = provider,
                 customTitle = _uiState.value.customTitleInput.takeIf { it.isNotBlank() },
-                apiKey = credential
+                credentials = credentials
             ).fold(
                 onSuccess = {
                     _uiState.value = _uiState.value.copy(
@@ -112,7 +126,7 @@ class HomeHubViewModel(
                 onFailure = { error ->
                     _uiState.value = _uiState.value.copy(
                         isSaving = false,
-                        error = error.message ?: "Invalid API key"
+                        error = error.message ?: "Invalid credentials"
                     )
                 }
             )
@@ -124,16 +138,21 @@ class HomeHubViewModel(
     }
 
     private fun SubscriptionCard.toCardUiModel(): SubscriptionCardUiModel {
+        val providerUi = ProviderUiRegistry.require(subscription.provider)
         return SubscriptionCardUiModel(
             subscriptionId = subscription.id,
+            providerId = subscription.provider.id,
             displayTitle = subscription.displayTitle,
-            subtitle = subscription.subtitle,
-            providerIconRes = subscription.provider.iconRes,
+            subtitle = "${subscription.provider.displayName} • ${providerUi.subtitle}",
+            providerIconRes = providerUi.iconRes,
             modelCount = modelCount,
             remainingCalls = remainingCalls,
             remainingTime = remainingTime,
             risk = risk,
-            isConnected = isConnected
+            syncState = subscription.syncStatus.state,
+            syncLabel = subscription.syncStatus.label(),
+            syncDescription = subscription.syncStatus.description(),
+            isConnected = subscription.syncStatus.isConnected
         )
     }
 

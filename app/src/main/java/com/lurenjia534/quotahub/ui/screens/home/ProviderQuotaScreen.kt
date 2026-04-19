@@ -66,26 +66,13 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.lurenjia534.quotahub.data.model.ModelRemain
 import com.lurenjia534.quotahub.data.model.QuotaRisk
-import com.lurenjia534.quotahub.data.model.atRiskModelCount
-import com.lurenjia534.quotahub.data.model.dominantQuotaRisk
-import com.lurenjia534.quotahub.data.model.effectiveUsageProgress
-import com.lurenjia534.quotahub.data.model.effectiveRemainingCount
-import com.lurenjia534.quotahub.data.model.hasVisibleWeeklyQuota
-import com.lurenjia534.quotahub.data.model.hasPlanLevelWeeklyQuota
-import com.lurenjia534.quotahub.data.model.intervalRemainingCount
-import com.lurenjia534.quotahub.data.model.intervalUsageProgress
-import com.lurenjia534.quotahub.data.model.intervalUsedCount
-import com.lurenjia534.quotahub.data.model.quotaRisk
-import com.lurenjia534.quotahub.data.model.relevantResetTime
-import com.lurenjia534.quotahub.data.model.weeklyRemainingCount
-import com.lurenjia534.quotahub.data.model.weeklyUsedCount
 import com.lurenjia534.quotahub.data.provider.SubscriptionGateway
 import com.lurenjia534.quotahub.ui.components.MetricEmphasisLevel
-import com.lurenjia534.quotahub.ui.components.rememberQuotaHaptics
 import com.lurenjia534.quotahub.ui.components.QuotaMetricText
 import com.lurenjia534.quotahub.ui.components.QuotaLoadingIndicator
+import com.lurenjia534.quotahub.ui.components.rememberQuotaHaptics
+import com.lurenjia534.quotahub.ui.provider.ProviderUiRegistry
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -95,18 +82,23 @@ import kotlin.math.roundToInt
 fun ProviderQuotaScreen(
     modifier: Modifier = Modifier,
     subscriptionGateway: SubscriptionGateway,
+    detailProjectorRegistry: ProviderQuotaDetailProjectorRegistry,
     highEmphasisMetrics: Boolean,
     hapticConfirmation: Boolean,
     onBackClick: () -> Unit
 ) {
     val viewModel: ProviderQuotaViewModel = viewModel(
         key = "provider-quota-${subscriptionGateway.subscription.id}",
-        factory = ProviderQuotaViewModel.Factory(subscriptionGateway)
+        factory = ProviderQuotaViewModel.Factory(
+            subscriptionGateway = subscriptionGateway,
+            detailProjectorRegistry = detailProjectorRegistry
+        )
     )
     val uiState by viewModel.uiState.collectAsState()
+    val providerUi = ProviderUiRegistry.require(uiState.subscription.provider)
     val pullToRefreshState = rememberPullToRefreshState()
     val scope = rememberCoroutineScope()
-    val isRefreshing = uiState.isLoading && uiState.modelRemains.isNotEmpty()
+    val isRefreshing = uiState.isLoading && uiState.detail.hasData
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val quotaHaptics = rememberQuotaHaptics(hapticConfirmation)
     var showDisconnectDialog by remember { mutableStateOf(false) }
@@ -256,14 +248,14 @@ fun ProviderQuotaScreen(
                 subtitle = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            painter = painterResource(uiState.subscription.provider.iconRes),
+                            painter = painterResource(providerUi.iconRes),
                             contentDescription = null,
                             modifier = Modifier.size(18.dp),
                             tint = Color.Unspecified
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = uiState.subscription.subtitle,
+                            text = "${uiState.subscription.provider.displayName} • ${providerUi.subtitle}",
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -324,8 +316,8 @@ fun ProviderQuotaScreen(
                 item {
                     AnimatedSection(visible = summaryVisible) {
                         QuotaSummaryBoard(
-                            subscription = uiState.subscription,
-                            modelRemains = uiState.modelRemains,
+                            providerIconRes = providerUi.iconRes,
+                            summary = uiState.detail.summary,
                             highEmphasisMetrics = highEmphasisMetrics,
                             isBootstrapping = uiState.isBootstrapping,
                             isRefreshing = isRefreshing
@@ -345,7 +337,7 @@ fun ProviderQuotaScreen(
                 }
 
                 when {
-                    uiState.isBootstrapping || (uiState.isLoading && uiState.modelRemains.isEmpty()) -> {
+                    uiState.isBootstrapping || (uiState.isLoading && !uiState.detail.hasData) -> {
                         item {
                             AnimatedSection(visible = statusVisible) {
                                 DetailLoadingRow()
@@ -353,19 +345,19 @@ fun ProviderQuotaScreen(
                         }
                     }
 
-                    uiState.modelRemains.isNotEmpty() -> {
+                    uiState.detail.hasData -> {
                         item {
                             AnimatedSection(visible = modelsVisible) {
                                 SectionHeader(
-                                    title = "Model quota",
-                                    subtitle = "Interval usage is grouped here for quick scanning. Pull down anytime to refresh remote values."
+                                    title = uiState.detail.sectionTitle,
+                                    subtitle = uiState.detail.sectionSubtitle
                                 )
                             }
                         }
                         item {
                             AnimatedSection(visible = modelsVisible) {
                                 ModelQuotaSection(
-                                    modelRemains = uiState.modelRemains,
+                                    resources = uiState.detail.resources,
                                     highEmphasisMetrics = highEmphasisMetrics
                                 )
                             }
@@ -375,7 +367,7 @@ fun ProviderQuotaScreen(
                     else -> {
                         item {
                             AnimatedSection(visible = modelsVisible) {
-                                DetailEmptyState(provider = uiState.subscription.provider)
+                                DetailEmptyState(providerIconRes = providerUi.iconRes)
                             }
                         }
                     }
@@ -405,58 +397,18 @@ private fun AnimatedSection(
 
 @Composable
 private fun QuotaSummaryBoard(
-    subscription: com.lurenjia534.quotahub.data.model.Subscription,
-    modelRemains: List<ModelRemain>,
+    providerIconRes: Int,
+    summary: ProviderQuotaSummaryUiModel?,
     highEmphasisMetrics: Boolean,
     isBootstrapping: Boolean,
     isRefreshing: Boolean
 ) {
+    if (summary == null) {
+        return
+    }
+
     val colorScheme = MaterialTheme.colorScheme
-    val planHasWeeklyQuota = modelRemains.hasPlanLevelWeeklyQuota
-    val totalIntervalAllowance = modelRemains.sumOf { it.currentIntervalTotalCount }
-    val totalIntervalUsed = modelRemains.sumOf { it.intervalUsedCount }
-    val totalIntervalRemaining = modelRemains.sumOf { it.intervalRemainingCount }
-    val modelsWithVisibleWeeklyQuota = modelRemains.filter { it.hasVisibleWeeklyQuota(planHasWeeklyQuota) }
-    val totalWeeklyAllowance = modelsWithVisibleWeeklyQuota.sumOf { it.currentWeeklyTotalCount }
-    val totalWeeklyUsed = modelsWithVisibleWeeklyQuota.sumOf { it.weeklyUsedCount }
-    val totalWeeklyRemaining = modelsWithVisibleWeeklyQuota.sumOf { it.weeklyRemainingCount }
-    val totalEffectiveRemaining = modelRemains.sumOf {
-        it.effectiveRemainingCount(planHasWeeklyQuota)
-    }
-    val intervalProgress = if (totalIntervalAllowance > 0) {
-        totalIntervalUsed.toFloat() / totalIntervalAllowance.toFloat()
-    } else {
-        0f
-    }
-    val weeklyProgress = if (totalWeeklyAllowance > 0) {
-        totalWeeklyUsed.toFloat() / totalWeeklyAllowance.toFloat()
-    } else {
-        0f
-    }
-    val soonestReset = modelRemains.mapNotNull {
-        it.relevantResetTime(planHasWeeklyQuota)
-    }.minOrNull()
-    val soonestIntervalReset = modelRemains.map { it.remainsTime }.minOrNull()
-    val soonestWeeklyReset = modelsWithVisibleWeeklyQuota
-        .map { it.weeklyRemainsTime }
-        .minOrNull()
-    val watchCount = modelRemains.atRiskModelCount(planHasWeeklyQuota)
-    val dominantRisk = modelRemains.dominantQuotaRisk(planHasWeeklyQuota)
-    val accentColor = riskColor(dominantRisk)
-    val stateLabel = when {
-        modelRemains.isEmpty() -> "Waiting for first snapshot"
-        dominantRisk == QuotaRisk.Critical -> "Critical attention"
-        dominantRisk == QuotaRisk.Watch -> "Watch list active"
-        planHasWeeklyQuota -> "Interval and weekly caps active"
-        else -> "Healthy coverage"
-    }
-    val stateDescription = when {
-        modelRemains.isEmpty() -> "Pull to refresh once data is available from the provider."
-        dominantRisk == QuotaRisk.Critical -> "At least one model is close to exhausting its available quota."
-        dominantRisk == QuotaRisk.Watch -> "Some models are trending low and should be monitored."
-        planHasWeeklyQuota -> "This plan combines interval and weekly caps. The headline value reflects the tighter limit for each model."
-        else -> "Quota levels are stable and no model is near its critical threshold."
-    }
+    val accentColor = riskColor(summary.risk)
 
     Surface(
         color = colorScheme.surfaceContainerHigh,
@@ -493,7 +445,7 @@ private fun QuotaSummaryBoard(
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
-                                    painter = painterResource(subscription.provider.iconRes),
+                                    painter = painterResource(providerIconRes),
                                     contentDescription = null,
                                     modifier = Modifier.size(26.dp),
                                     tint = Color.Unspecified
@@ -503,38 +455,46 @@ private fun QuotaSummaryBoard(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(
-                                text = if (planHasWeeklyQuota) "Current limits" else "Current interval",
+                                text = "Current limits",
                                 style = MaterialTheme.typography.labelLarge.copy(
                                     color = colorScheme.onSurfaceVariant
                                 )
                             )
                             Text(
-                                text = stateLabel,
+                                text = summary.stateLabel,
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
                             )
                         }
                     }
-                    RiskPill(risk = dominantRisk)
+                    RiskPill(risk = summary.risk)
                 }
 
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = "Sync ${summary.syncLabel}",
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            color = colorScheme.onSurfaceVariant
+                        )
+                    )
                     QuotaMetricText(
-                        text = formatCount(totalEffectiveRemaining),
+                        text = summary.headlineValue,
                         emphasized = highEmphasisMetrics,
                         level = MetricEmphasisLevel.Hero
                     )
                     Text(
-                        text = if (planHasWeeklyQuota) {
-                            "usable calls left across ${modelRemains.size} tracked models"
-                        } else {
-                            "calls left across ${modelRemains.size} tracked models"
-                        },
+                        text = summary.headlineLabel,
                         style = MaterialTheme.typography.bodyMedium.copy(
                             color = colorScheme.onSurfaceVariant
                         )
                     )
                     Text(
-                        text = stateDescription,
+                        text = summary.stateDescription,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = colorScheme.onSurfaceVariant
+                        )
+                    )
+                    Text(
+                        text = summary.syncDescription,
                         style = MaterialTheme.typography.bodySmall.copy(
                             color = colorScheme.onSurfaceVariant
                         )
@@ -547,43 +507,17 @@ private fun QuotaSummaryBoard(
                 ) {
                     Column {
                         SummaryMetricRow(
-                            highEmphasisMetrics = highEmphasisMetrics,
-                            firstLabel = if (planHasWeeklyQuota) "Interval left" else "Calls left",
-                            firstValue = formatCount(totalIntervalRemaining),
-                            secondLabel = if (planHasWeeklyQuota) "Interval reset" else "Soonest reset",
-                            secondValue = (if (planHasWeeklyQuota) soonestIntervalReset else soonestReset)
-                                ?.let { formatTimeRemaining(it) }
-                                ?: "Waiting",
-                            thirdLabel = "Models to watch",
-                            thirdValue = watchCount.toString()
+                            row = summary.primaryMetrics,
+                            highEmphasisMetrics = highEmphasisMetrics
                         )
-                        if (planHasWeeklyQuota) {
+                        summary.secondaryMetrics?.let { secondaryMetrics ->
                             HorizontalDivider(
                                 modifier = Modifier.padding(horizontal = 16.dp),
                                 color = colorScheme.outlineVariant.copy(alpha = 0.6f)
                             )
                             SummaryMetricRow(
-                                highEmphasisMetrics = highEmphasisMetrics,
-                                firstLabel = "Weekly left",
-                                firstValue = formatCount(totalWeeklyRemaining),
-                                secondLabel = "Weekly reset",
-                                secondValue = soonestWeeklyReset?.let { formatTimeRemaining(it) } ?: "Waiting",
-                                thirdLabel = "Weekly used",
-                                thirdValue = "${(weeklyProgress * 100).roundToInt()}%"
-                            )
-                        } else {
-                            HorizontalDivider(
-                                modifier = Modifier.padding(horizontal = 16.dp),
-                                color = colorScheme.outlineVariant.copy(alpha = 0.6f)
-                            )
-                            SummaryMetricRow(
-                                highEmphasisMetrics = highEmphasisMetrics,
-                                firstLabel = "Used",
-                                firstValue = "${(intervalProgress * 100).roundToInt()}%",
-                                secondLabel = "Interval total",
-                                secondValue = formatCount(totalIntervalAllowance),
-                                thirdLabel = "Used calls",
-                                thirdValue = formatCount(totalIntervalUsed)
+                                row = secondaryMetrics,
+                                highEmphasisMetrics = highEmphasisMetrics
                             )
                         }
                     }
@@ -612,13 +546,8 @@ private fun QuotaSummaryBoard(
 
 @Composable
 private fun SummaryMetricRow(
-    highEmphasisMetrics: Boolean,
-    firstLabel: String,
-    firstValue: String,
-    secondLabel: String,
-    secondValue: String,
-    thirdLabel: String,
-    thirdValue: String
+    row: SummaryMetricRowUiModel,
+    highEmphasisMetrics: Boolean
 ) {
     Row(
         modifier = Modifier
@@ -629,22 +558,19 @@ private fun SummaryMetricRow(
     ) {
         SummaryMetric(
             modifier = Modifier.weight(1f),
-            label = firstLabel,
-            value = firstValue,
+            metric = row.first,
             highEmphasisMetrics = highEmphasisMetrics
         )
         VerticalDivider()
         SummaryMetric(
             modifier = Modifier.weight(1f),
-            label = secondLabel,
-            value = secondValue,
+            metric = row.second,
             highEmphasisMetrics = highEmphasisMetrics
         )
         VerticalDivider()
         SummaryMetric(
             modifier = Modifier.weight(1f),
-            label = thirdLabel,
-            value = thirdValue,
+            metric = row.third,
             highEmphasisMetrics = highEmphasisMetrics
         )
     }
@@ -652,8 +578,7 @@ private fun SummaryMetricRow(
 
 @Composable
 private fun SummaryMetric(
-    label: String,
-    value: String,
+    metric: LabeledValueUiModel,
     highEmphasisMetrics: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -662,13 +587,13 @@ private fun SummaryMetric(
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(
-            text = label,
+            text = metric.label,
             style = MaterialTheme.typography.labelMedium.copy(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         )
         QuotaMetricText(
-            text = value,
+            text = metric.value,
             emphasized = highEmphasisMetrics,
             level = MetricEmphasisLevel.Standard
         )
@@ -786,19 +711,16 @@ private fun SectionHeader(
 
 @Composable
 private fun ModelQuotaSection(
-    modelRemains: List<ModelRemain>,
+    resources: List<ProviderQuotaResourceUiModel>,
     highEmphasisMetrics: Boolean
 ) {
-    val planHasWeeklyQuota = modelRemains.hasPlanLevelWeeklyQuota
-
     SectionSurface {
-        modelRemains.forEachIndexed { index, modelRemain ->
+        resources.forEachIndexed { index, resource ->
             ModelQuotaRow(
-                modelRemain = modelRemain,
-                planHasWeeklyQuota = planHasWeeklyQuota,
+                resource = resource,
                 highEmphasisMetrics = highEmphasisMetrics
             )
-            if (index < modelRemains.lastIndex) {
+            if (index < resources.lastIndex) {
                 HorizontalDivider(
                     modifier = Modifier.padding(start = 88.dp, end = 18.dp),
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
@@ -810,20 +732,10 @@ private fun ModelQuotaSection(
 
 @Composable
 private fun ModelQuotaRow(
-    modelRemain: ModelRemain,
-    planHasWeeklyQuota: Boolean,
+    resource: ProviderQuotaResourceUiModel,
     highEmphasisMetrics: Boolean
 ) {
-    val intervalRemaining = modelRemain.intervalRemainingCount
-    val intervalUsed = modelRemain.intervalUsedCount
-    val intervalTotal = modelRemain.currentIntervalTotalCount
-    val weeklyRemaining = modelRemain.weeklyRemainingCount
-    val weeklyUsed = modelRemain.weeklyUsedCount
-    val weeklyTotal = modelRemain.currentWeeklyTotalCount
-    val showWeeklyQuota = modelRemain.hasVisibleWeeklyQuota(planHasWeeklyQuota)
-    val progress = modelRemain.effectiveUsageProgress(planHasWeeklyQuota)
-    val risk = modelRemain.quotaRisk(planHasWeeklyQuota)
-    val progressColor = riskColor(risk)
+    val progressColor = riskColor(resource.risk)
 
     Row(
         modifier = Modifier
@@ -838,7 +750,7 @@ private fun ModelQuotaRow(
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
-                    imageVector = if (risk == QuotaRisk.Healthy) Icons.Default.CheckCircle else Icons.Default.Warning,
+                    imageVector = if (resource.risk == QuotaRisk.Healthy) Icons.Default.CheckCircle else Icons.Default.Warning,
                     contentDescription = null,
                     tint = progressColor
                 )
@@ -861,78 +773,52 @@ private fun ModelQuotaRow(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
-                        text = modelRemain.modelName,
+                        text = resource.title,
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     QuotaMetricText(
-                        text = if (showWeeklyQuota) {
-                            "Interval reset in ${formatTimeRemaining(modelRemain.remainsTime)}"
-                        } else {
-                            "Reset in ${formatTimeRemaining(modelRemain.remainsTime)}"
-                        },
+                        text = resource.resetLabel,
                         emphasized = highEmphasisMetrics,
                         level = MetricEmphasisLevel.Compact,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 Spacer(modifier = Modifier.width(12.dp))
-                RiskPill(risk = risk)
+                RiskPill(risk = resource.risk)
             }
 
-            QuotaProgressBar(progress = progress, color = progressColor)
+            QuotaProgressBar(progress = resource.progress, color = progressColor)
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                DetailMetric(
-                    modifier = Modifier.weight(1f),
-                    label = if (showWeeklyQuota) "Interval left" else "Remaining",
-                    value = formatCount(intervalRemaining),
-                    highEmphasisMetrics = highEmphasisMetrics,
-                    valueColor = progressColor
-                )
-                DetailMetric(
-                    modifier = Modifier.weight(1f),
-                    label = "Used",
-                    value = "${formatCount(intervalUsed)} / ${formatCount(intervalTotal)}",
-                    highEmphasisMetrics = highEmphasisMetrics
-                )
-                DetailMetric(
-                    modifier = Modifier.weight(1f),
-                    label = if (showWeeklyQuota) "Interval usage" else "Usage",
-                    value = "${(modelRemain.intervalUsageProgress * 100).roundToInt()}%",
-                    highEmphasisMetrics = highEmphasisMetrics
-                )
+                resource.primaryMetrics.forEach { metric ->
+                    DetailMetric(
+                        modifier = Modifier.weight(1f),
+                        metric = metric,
+                        risk = resource.risk,
+                        highEmphasisMetrics = highEmphasisMetrics
+                    )
+                }
             }
 
-            if (showWeeklyQuota) {
+            if (resource.secondaryMetrics.isNotEmpty()) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    DetailMetric(
-                        modifier = Modifier.weight(1f),
-                        label = "Weekly left",
-                        value = formatCount(weeklyRemaining),
-                        highEmphasisMetrics = highEmphasisMetrics,
-                        valueColor = progressColor
-                    )
-                    DetailMetric(
-                        modifier = Modifier.weight(1f),
-                        label = "Weekly used",
-                        value = "${formatCount(weeklyUsed)} / ${formatCount(weeklyTotal)}",
-                        highEmphasisMetrics = highEmphasisMetrics
-                    )
-                    DetailMetric(
-                        modifier = Modifier.weight(1f),
-                        label = "Weekly reset",
-                        value = formatTimeRemaining(modelRemain.weeklyRemainsTime),
-                        highEmphasisMetrics = highEmphasisMetrics
-                    )
+                    resource.secondaryMetrics.forEach { metric ->
+                        DetailMetric(
+                            modifier = Modifier.weight(1f),
+                            metric = metric,
+                            risk = resource.risk,
+                            highEmphasisMetrics = highEmphasisMetrics
+                        )
+                    }
                 }
             }
         }
@@ -968,16 +854,15 @@ private fun QuotaProgressBar(
 
 @Composable
 private fun DetailMetric(
-    label: String,
-    value: String,
+    metric: LabeledValueUiModel,
+    risk: QuotaRisk,
     highEmphasisMetrics: Boolean,
-    modifier: Modifier = Modifier,
-    valueColor: Color = Color.Unspecified
+    modifier: Modifier = Modifier
 ) {
-    val resolvedValueColor = if (valueColor == Color.Unspecified) {
-        MaterialTheme.colorScheme.onSurface
+    val resolvedValueColor = if (metric.highlightRisk) {
+        riskColor(risk)
     } else {
-        valueColor
+        MaterialTheme.colorScheme.onSurface
     }
 
     Column(
@@ -985,13 +870,13 @@ private fun DetailMetric(
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(
-            text = label,
+            text = metric.label,
             style = MaterialTheme.typography.labelMedium.copy(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         )
         QuotaMetricText(
-            text = value,
+            text = metric.value,
             emphasized = highEmphasisMetrics,
             level = MetricEmphasisLevel.Compact,
             color = resolvedValueColor
@@ -1000,7 +885,7 @@ private fun DetailMetric(
 }
 
 @Composable
-private fun DetailEmptyState(provider: QuotaProvider) {
+private fun DetailEmptyState(providerIconRes: Int) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         shape = RoundedCornerShape(30.dp)
@@ -1018,7 +903,7 @@ private fun DetailEmptyState(provider: QuotaProvider) {
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
-                        painter = painterResource(provider.iconRes),
+                        painter = painterResource(providerIconRes),
                         contentDescription = null,
                         modifier = Modifier.size(26.dp),
                         tint = Color.Unspecified

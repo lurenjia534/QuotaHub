@@ -1,4 +1,4 @@
-package com.lurenjia534.quotahub.data.api
+package com.lurenjia534.quotahub.data.provider.minimax
 
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import kotlinx.serialization.json.Json
@@ -17,7 +17,7 @@ object MiniMaxApiClient {
     }
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
-        level = HttpLoggingInterceptor.Level.BODY
+        level = HttpLoggingInterceptor.Level.BASIC
     }
 
     private val okHttpClient = OkHttpClient.Builder()

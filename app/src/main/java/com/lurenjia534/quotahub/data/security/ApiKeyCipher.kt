@@ -10,7 +10,7 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /**
- * API Key加解密接口。
+ * 凭证载荷加解密接口。
  *
  * 用于将敏感凭证以密文形式持久化到本地存储。
  */
@@ -20,7 +20,7 @@ interface ApiKeyCipher {
 }
 
 /**
- * 基于Android Keystore的API Key加解密实现。
+ * 基于Android Keystore的凭证载荷加解密实现。
  *
  * 使用设备绑定的AES密钥进行AES/GCM加密，降低数据库被直接导出后
  * 凭证以明文暴露的风险。

@@ -1,7 +1,8 @@
 package com.lurenjia534.quotahub.data.model
 
 import com.lurenjia534.quotahub.data.local.SubscriptionEntity
-import com.lurenjia534.quotahub.ui.screens.home.QuotaProvider
+import com.lurenjia534.quotahub.data.provider.ProviderDescriptor
+import com.lurenjia534.quotahub.data.provider.SecretBundle
 
 /**
  * 订阅领域模型
@@ -14,53 +15,49 @@ import com.lurenjia534.quotahub.ui.screens.home.QuotaProvider
  * @param id 订阅的唯一标识符
  * @param provider AI服务提供商
  * @param customTitle 用户自定义显示标题（可选）
- * @param apiKey API密钥
+ * @param credentials 该订阅对应的凭证集合
+ * @param syncStatus 当前订阅的同步健康状态
  * @param createdAt 创建时间戳
  */
 data class Subscription(
     val id: Long,
-    val provider: QuotaProvider,
+    val provider: ProviderDescriptor,
     val customTitle: String?,
-    val apiKey: String,
+    val credentials: SecretBundle,
+    val syncStatus: SubscriptionSyncStatus,
     val createdAt: Long
 ) {
     /**
      * 显示标题
      *
      * 如果用户设置了自定义标题则使用自定义标题，
-     * 否则使用格式 "{提供商标题} #{订阅ID}"
+     * 否则使用格式 "{提供商显示名} #{订阅ID}"
      * 例如："MiniMax Coding Plan #1"
      */
     val displayTitle: String
         get() = customTitle?.takeIf { it.isNotBlank() }
-            ?: "${provider.title} #${id}"
-
-    /**
-     * 副标题
-     *
-     * 用于UI显示，格式为 "{提供商标题} • {提供商副标题}"
-     * 例如："MiniMax Coding Plan • minimaxi.com"
-     */
-    val subtitle: String
-        get() = "${provider.title} • ${provider.subtitle}"
+            ?: "${provider.displayName} #${id}"
 }
 
 /**
  * 将数据库实体转换为领域模型
  *
- * 转换过程中会根据providerId查找对应的QuotaProvider。
+ * 转换过程中会根据providerId解析对应的ProviderDescriptor。
  * 如果找不到对应的提供商（例如提供商ID无效），则返回null。
  *
  * @return 转换后的Subscription，如果提供商不存在则返回null
  */
-fun SubscriptionEntity.toSubscription(apiKey: String = this.apiKey): Subscription? {
-    // 根据providerId查找提供商枚举
-    val provider = QuotaProvider.fromId(providerId) ?: return null
+fun SubscriptionEntity.toSubscription(
+    provider: ProviderDescriptor,
+    credentials: SecretBundle,
+    syncStatus: SubscriptionSyncStatus
+): Subscription {
     return Subscription(
         id = id,
         provider = provider,
         customTitle = customTitle,
-        apiKey = apiKey,
+        credentials = credentials,
+        syncStatus = syncStatus,
         createdAt = createdAt
     )
 }

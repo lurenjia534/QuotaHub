@@ -1,6 +1,6 @@
 package com.lurenjia534.quotahub.data.provider
 
-import com.lurenjia534.quotahub.data.model.ModelRemain
+import com.lurenjia534.quotahub.data.model.QuotaSnapshot
 import com.lurenjia534.quotahub.data.model.Subscription
 import kotlinx.coroutines.flow.Flow
 
@@ -11,11 +11,11 @@ import kotlinx.coroutines.flow.Flow
  * 用于UI层展示订阅的完整信息。
  *
  * @param subscription 订阅信息
- * @param modelRemains 该订阅下各模型的剩余配额列表
+ * @param quotaSnapshot 该订阅的规范化配额快照
  */
 data class SubscriptionSnapshot(
     val subscription: Subscription,
-    val modelRemains: List<ModelRemain> = emptyList()
+    val quotaSnapshot: QuotaSnapshot = QuotaSnapshot.empty()
 )
 
 /**

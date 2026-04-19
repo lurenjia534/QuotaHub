@@ -63,10 +63,14 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lurenjia534.quotahub.data.model.QuotaRisk
+import com.lurenjia534.quotahub.data.model.SyncState
+import com.lurenjia534.quotahub.data.provider.CredentialFieldSpec
+import com.lurenjia534.quotahub.data.provider.ProviderDescriptor
 import com.lurenjia534.quotahub.data.provider.SubscriptionRegistry
 import com.lurenjia534.quotahub.ui.components.MetricEmphasisLevel
 import com.lurenjia534.quotahub.ui.components.QuotaMetricText
 import com.lurenjia534.quotahub.ui.components.QuotaLoadingIndicator
+import com.lurenjia534.quotahub.ui.provider.ProviderUiRegistry
 import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -85,16 +89,17 @@ fun HomeScreen(
     var showBottomSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
 
-    val connectedSubscriptions = uiState.subscriptionCards.filter { it.isConnected }
-    val connectedCount = connectedSubscriptions.size
+    val subscriptionCards = uiState.subscriptionCards
+    val connectedCount = subscriptionCards.count { it.isConnected }
     val providerCount = subscriptionRegistry.providers.size
-    val trackedCalls = connectedSubscriptions.sumOf { it.remainingCalls }
-    val trackedModels = connectedSubscriptions.sumOf { it.modelCount }
-    val nextRefreshWindow = connectedSubscriptions.mapNotNull { it.remainingTime }.minOrNull()
-    val dominantRisk = connectedSubscriptions.dominantRisk()
-    val hasSubscriptions = connectedSubscriptions.isNotEmpty()
-    val connectedProviderKeys = connectedSubscriptions
-        .map { it.subtitle.substringAfterLast("•").trim() }
+    val trackedCalls = subscriptionCards.sumOf { it.remainingCalls }
+    val trackedModels = subscriptionCards.sumOf { it.modelCount }
+    val nextRefreshWindow = subscriptionCards.mapNotNull { it.remainingTime }.minOrNull()
+    val dominantRisk = subscriptionCards.dominantRisk()
+    val dominantSyncState = subscriptionCards.dominantSyncState()
+    val hasSubscriptions = subscriptionCards.isNotEmpty()
+    val connectedProviderIds = subscriptionCards
+        .map { it.providerId }
         .toSet()
 
     var boardVisible by remember { mutableStateOf(false) }
@@ -133,6 +138,7 @@ fun HomeScreen(
                         nextRefreshWindow = nextRefreshWindow,
                         highEmphasisMetrics = highEmphasisMetrics,
                         dominantRisk = dominantRisk,
+                        dominantSyncState = dominantSyncState,
                         isBootstrapping = uiState.isBootstrapping,
                         onAddClick = { showBottomSheet = true }
                     )
@@ -171,7 +177,7 @@ fun HomeScreen(
                 }
             } else if (hasSubscriptions) {
                 items(
-                    items = connectedSubscriptions,
+                    items = subscriptionCards,
                     key = { it.subscriptionId }
                 ) { subscriptionCard ->
                     SubscriptionQueueRow(
@@ -192,7 +198,7 @@ fun HomeScreen(
                 AnimatedSection(visible = providerVisible) {
                     ProviderAccessSection(
                         providers = subscriptionRegistry.providers,
-                        connectedProviderKeys = connectedProviderKeys,
+                        connectedProviderIds = connectedProviderIds,
                         onAddClick = { showBottomSheet = true }
                     )
                 }
@@ -213,10 +219,10 @@ fun HomeScreen(
         }
 
         if (uiState.showCredentialDialog) {
-            ProviderApiKeyDialog(
-                provider = uiState.selectedProvider ?: QuotaProvider.MiniMax,
+            ProviderCredentialDialog(
+                provider = uiState.selectedProvider ?: subscriptionRegistry.providers.first(),
                 customTitleInput = uiState.customTitleInput,
-                credentialInput = uiState.credentialInput,
+                credentialInputs = uiState.credentialInputs,
                 isSaving = uiState.isSaving,
                 errorMessage = uiState.error,
                 onCustomTitleChange = viewModel::updateCustomTitleInput,
@@ -258,6 +264,7 @@ private fun HomeOperationsBoard(
     nextRefreshWindow: Long?,
     highEmphasisMetrics: Boolean,
     dominantRisk: QuotaRisk,
+    dominantSyncState: SyncState,
     isBootstrapping: Boolean,
     onAddClick: () -> Unit
 ) {
@@ -265,6 +272,11 @@ private fun HomeOperationsBoard(
     val accentColor by animateColorAsState(
         targetValue = when {
             connectedCount == 0 -> colorScheme.secondaryContainer
+            dominantSyncState == SyncState.AuthFailed -> colorScheme.errorContainer
+            dominantSyncState == SyncState.SyncError -> colorScheme.errorContainer
+            dominantSyncState == SyncState.Stale -> colorScheme.tertiaryContainer
+            dominantSyncState == SyncState.Syncing -> colorScheme.secondaryContainer
+            dominantSyncState == SyncState.NeverSynced -> colorScheme.secondaryContainer
             dominantRisk == QuotaRisk.Critical -> colorScheme.errorContainer
             dominantRisk == QuotaRisk.Watch -> colorScheme.tertiaryContainer
             else -> colorScheme.primaryContainer
@@ -275,12 +287,22 @@ private fun HomeOperationsBoard(
 
     val stateLabel = when {
         connectedCount == 0 -> "No sources connected"
+        dominantSyncState == SyncState.AuthFailed -> "Credentials need attention"
+        dominantSyncState == SyncState.SyncError -> "Sync issues detected"
+        dominantSyncState == SyncState.Stale -> "Snapshots getting stale"
+        dominantSyncState == SyncState.Syncing -> "Sync in progress"
+        dominantSyncState == SyncState.NeverSynced -> "Awaiting first sync"
         dominantRisk == QuotaRisk.Critical -> "Critical attention"
         dominantRisk == QuotaRisk.Watch -> "Watch list active"
         else -> "Coverage healthy"
     }
     val stateDescription = when {
         connectedCount == 0 -> "Connect a provider to begin tracking quotas and refresh windows."
+        dominantSyncState == SyncState.AuthFailed -> "At least one subscription can no longer authenticate and needs updated credentials."
+        dominantSyncState == SyncState.SyncError -> "At least one subscription failed to refresh and is serving cached data."
+        dominantSyncState == SyncState.Stale -> "Some cached quota snapshots have not refreshed recently and may no longer be current."
+        dominantSyncState == SyncState.Syncing -> "A provider refresh is currently in flight."
+        dominantSyncState == SyncState.NeverSynced -> "One or more subscriptions are connected but still waiting for their first successful snapshot."
         dominantRisk == QuotaRisk.Critical -> "At least one source is close to exhausting its available quota."
         dominantRisk == QuotaRisk.Watch -> "Some sources are trending low and should be monitored."
         else -> "Tracked sources are connected and current quota data is readable at a glance."
@@ -711,18 +733,10 @@ private fun SubscriptionQueueRow(
                 )
                 QueueMetric(
                     modifier = Modifier.weight(1f),
-                    label = "State",
-                    value = when (risk) {
-                        QuotaRisk.Critical -> "Critical"
-                        QuotaRisk.Watch -> "Watch"
-                        QuotaRisk.Healthy -> "Healthy"
-                    },
+                    label = "Sync",
+                    value = subscriptionCard.syncLabel,
                     highEmphasisMetrics = highEmphasisMetrics,
-                    valueColor = when (risk) {
-                        QuotaRisk.Critical -> colorScheme.error
-                        QuotaRisk.Watch -> colorScheme.tertiary
-                        QuotaRisk.Healthy -> colorScheme.onSurface
-                    }
+                    valueColor = syncStateColor(subscriptionCard.syncState)
                 )
             }
 
@@ -732,7 +746,7 @@ private fun SubscriptionQueueRow(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Open model-level detail and refresh controls",
+                    text = subscriptionCard.syncDescription,
                     style = MaterialTheme.typography.bodySmall.copy(
                         color = colorScheme.onSurfaceVariant
                     )
@@ -785,6 +799,17 @@ private fun List<SubscriptionCardUiModel>.dominantRisk(): QuotaRisk {
         any { it.risk == QuotaRisk.Critical } -> QuotaRisk.Critical
         any { it.risk == QuotaRisk.Watch } -> QuotaRisk.Watch
         else -> QuotaRisk.Healthy
+    }
+}
+
+private fun List<SubscriptionCardUiModel>.dominantSyncState(): SyncState {
+    return when {
+        any { it.syncState == SyncState.AuthFailed } -> SyncState.AuthFailed
+        any { it.syncState == SyncState.SyncError } -> SyncState.SyncError
+        any { it.syncState == SyncState.Stale } -> SyncState.Stale
+        any { it.syncState == SyncState.Syncing } -> SyncState.Syncing
+        any { it.syncState == SyncState.NeverSynced } -> SyncState.NeverSynced
+        else -> SyncState.Active
     }
 }
 
@@ -846,8 +871,8 @@ private fun HomeEmptyState(
 
 @Composable
 private fun ProviderAccessSection(
-    providers: List<QuotaProvider>,
-    connectedProviderKeys: Set<String>,
+    providers: List<ProviderDescriptor>,
+    connectedProviderIds: Set<String>,
     onAddClick: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -865,7 +890,7 @@ private fun ProviderAccessSection(
                 providers.forEachIndexed { index, provider ->
                     ProviderAccessRow(
                         provider = provider,
-                        isConnected = connectedProviderKeys.contains(provider.subtitle),
+                        isConnected = connectedProviderIds.contains(provider.id),
                         onAddClick = onAddClick
                     )
 
@@ -883,11 +908,12 @@ private fun ProviderAccessSection(
 
 @Composable
 private fun ProviderAccessRow(
-    provider: QuotaProvider,
+    provider: ProviderDescriptor,
     isConnected: Boolean,
     onAddClick: () -> Unit
 ) {
     val colorScheme = MaterialTheme.colorScheme
+    val providerUi = ProviderUiRegistry.require(provider)
     val statusColor by animateColorAsState(
         targetValue = if (isConnected) colorScheme.secondaryContainer else colorScheme.surface,
         animationSpec = spring(stiffness = 420f, dampingRatio = 0.9f),
@@ -906,7 +932,7 @@ private fun ProviderAccessRow(
             shape = RoundedCornerShape(18.dp)
         ) {
             Icon(
-                painter = painterResource(provider.iconRes),
+                painter = painterResource(providerUi.iconRes),
                 contentDescription = null,
                 modifier = Modifier
                     .size(46.dp)
@@ -920,11 +946,11 @@ private fun ProviderAccessRow(
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
-                text = provider.title,
+                text = provider.displayName,
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
             )
             Text(
-                text = provider.detailDescription,
+                text = providerUi.detailDescription,
                 style = MaterialTheme.typography.bodyMedium.copy(
                     color = colorScheme.onSurfaceVariant
                 )
@@ -939,13 +965,25 @@ private fun ProviderAccessRow(
     }
 }
 
+@Composable
+private fun syncStateColor(state: SyncState): Color {
+    return when (state) {
+        SyncState.AuthFailed -> MaterialTheme.colorScheme.error
+        SyncState.SyncError -> MaterialTheme.colorScheme.error
+        SyncState.Stale -> MaterialTheme.colorScheme.tertiary
+        SyncState.Syncing -> MaterialTheme.colorScheme.primary
+        SyncState.NeverSynced -> MaterialTheme.colorScheme.onSurfaceVariant
+        SyncState.Active -> MaterialTheme.colorScheme.onSurface
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ProviderBottomSheet(
     sheetState: SheetState,
     onDismiss: () -> Unit,
-    providers: List<QuotaProvider>,
-    onProviderClick: (QuotaProvider) -> Unit
+    providers: List<ProviderDescriptor>,
+    onProviderClick: (ProviderDescriptor) -> Unit
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -972,6 +1010,7 @@ private fun ProviderBottomSheet(
             }
 
             providers.forEach { provider ->
+                val providerUi = ProviderUiRegistry.require(provider)
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -990,7 +1029,7 @@ private fun ProviderBottomSheet(
                             shape = RoundedCornerShape(18.dp)
                         ) {
                             Icon(
-                                painter = painterResource(provider.iconRes),
+                                painter = painterResource(providerUi.iconRes),
                                 contentDescription = null,
                                 modifier = Modifier
                                     .size(46.dp)
@@ -1004,11 +1043,11 @@ private fun ProviderBottomSheet(
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Text(
-                                text = provider.title,
+                                text = provider.displayName,
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
                             )
                             Text(
-                                text = provider.connectDescription,
+                                text = providerUi.connectDescription,
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -1027,14 +1066,14 @@ private fun ProviderBottomSheet(
 }
 
 @Composable
-private fun ProviderApiKeyDialog(
-    provider: QuotaProvider,
+private fun ProviderCredentialDialog(
+    provider: ProviderDescriptor,
     customTitleInput: String,
-    credentialInput: String,
+    credentialInputs: Map<String, String>,
     isSaving: Boolean,
     errorMessage: String?,
     onCustomTitleChange: (String) -> Unit,
-    onCredentialChange: (String) -> Unit,
+    onCredentialChange: (String, String) -> Unit,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
@@ -1042,14 +1081,14 @@ private fun ProviderApiKeyDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = "Connect ${provider.title}",
+                text = "Connect ${provider.displayName}",
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold)
             )
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    text = "Name the subscription if needed, then provide your ${provider.credentialLabel.lowercase()} to validate and cache the first quota snapshot.",
+                    text = "Name the subscription if needed, then provide the credentials below to validate and cache the first quota snapshot.",
                     style = MaterialTheme.typography.bodyMedium.copy(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1062,16 +1101,15 @@ private fun ProviderApiKeyDialog(
                     placeholder = { Text("e.g., My MiniMax workspace") },
                     modifier = Modifier.fillMaxWidth()
                 )
-                OutlinedTextField(
-                    value = credentialInput,
-                    onValueChange = onCredentialChange,
-                    label = { Text(provider.credentialLabel) },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { onConfirm() }),
-                    modifier = Modifier.fillMaxWidth()
-                )
+                provider.credentialFields.forEachIndexed { index, field ->
+                    CredentialInputField(
+                        field = field,
+                        value = credentialInputs[field.key].orEmpty(),
+                        isLastField = index == provider.credentialFields.lastIndex,
+                        onValueChange = { onCredentialChange(field.key, it) },
+                        onSubmit = onConfirm
+                    )
+                }
 
                 if (errorMessage != null) {
                     Text(
@@ -1086,7 +1124,7 @@ private fun ProviderApiKeyDialog(
         confirmButton = {
             TextButton(
                 onClick = onConfirm,
-                enabled = credentialInput.isNotBlank() && !isSaving
+                enabled = provider.credentialFields.all { !credentialInputs[it.key].isNullOrBlank() } && !isSaving
             ) {
                 Text(if (isSaving) "Connecting..." else "Connect")
             }
@@ -1099,5 +1137,33 @@ private fun ProviderApiKeyDialog(
                 Text("Cancel")
             }
         }
+    )
+}
+
+@Composable
+private fun CredentialInputField(
+    field: CredentialFieldSpec,
+    value: String,
+    isLastField: Boolean,
+    onValueChange: (String) -> Unit,
+    onSubmit: () -> Unit
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(field.label) },
+        singleLine = true,
+        visualTransformation = if (field.isSecret) {
+            PasswordVisualTransformation()
+        } else {
+            androidx.compose.ui.text.input.VisualTransformation.None
+        },
+        keyboardOptions = KeyboardOptions(
+            imeAction = if (isLastField) ImeAction.Done else ImeAction.Next
+        ),
+        keyboardActions = KeyboardActions(
+            onDone = { if (isLastField) onSubmit() }
+        ),
+        modifier = Modifier.fillMaxWidth()
     )
 }
