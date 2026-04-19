@@ -23,6 +23,7 @@ import com.lurenjia534.quotahub.ui.components.QuotaLoadingIndicator
 import com.lurenjia534.quotahub.ui.screens.home.HomeScreen
 import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaScreen
 import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaDetailProjectorRegistry
+import com.lurenjia534.quotahub.ui.provider.ProviderUiRegistry
 import com.lurenjia534.quotahub.ui.screens.settings.SettingsScreen
 
 @Composable
@@ -30,6 +31,7 @@ fun QuotaNavHost(
     navController: NavHostController,
     subscriptionRegistry: SubscriptionRegistry,
     providerQuotaDetailProjectorRegistry: ProviderQuotaDetailProjectorRegistry,
+    providerUiRegistry: ProviderUiRegistry,
     highEmphasisMetrics: Boolean,
     hapticConfirmation: Boolean,
     onHighEmphasisMetricsChange: (Boolean) -> Unit,
@@ -45,6 +47,7 @@ fun QuotaNavHost(
         composable(route = Screen.Home.route) {
             HomeScreen(
                 subscriptionRegistry = subscriptionRegistry,
+                providerUiRegistry = providerUiRegistry,
                 highEmphasisMetrics = highEmphasisMetrics,
                 bottomContentPadding = bottomContentPadding,
                 onSubscriptionClick = { subscriptionId ->
@@ -85,6 +88,7 @@ fun QuotaNavHost(
                     ProviderQuotaScreen(
                         subscriptionGateway = subscriptionGateway!!,
                         detailProjectorRegistry = providerQuotaDetailProjectorRegistry,
+                        providerUiRegistry = providerUiRegistry,
                         highEmphasisMetrics = highEmphasisMetrics,
                         hapticConfirmation = hapticConfirmation,
                         onBackClick = { navController.popBackStack() }

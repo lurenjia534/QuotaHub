@@ -1,6 +1,5 @@
 package com.lurenjia534.quotahub.data.provider.minimax
 
-import com.lurenjia534.quotahub.data.model.QuotaRisk
 import com.lurenjia534.quotahub.data.model.QuotaResource
 import com.lurenjia534.quotahub.data.model.QuotaSnapshot
 import com.lurenjia534.quotahub.data.model.QuotaUnit
@@ -9,7 +8,6 @@ import com.lurenjia534.quotahub.data.model.ResourceType
 import com.lurenjia534.quotahub.data.model.WindowScope
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlin.math.max
 
 @Serializable
 data class MiniMaxModelQuota(
@@ -66,11 +64,12 @@ fun MiniMaxQuotaResponse.toQuotaSnapshot(
                 windows = buildList {
                     add(
                         QuotaWindow(
+                            windowKey = INTERVAL_WINDOW_KEY,
                             scope = WindowScope.Interval,
                             total = quota.currentIntervalTotalCount.toLong(),
                             used = quota.intervalUsedCount.toLong(),
                             remaining = quota.intervalRemainingCount.toLong(),
-                            resetsAt = quota.remainsTime,
+                            resetAtEpochMillis = quota.intervalResetAtEpochMillis,
                             startsAt = quota.startTime,
                             endsAt = quota.endTime,
                             unit = QuotaUnit.Request
@@ -79,11 +78,12 @@ fun MiniMaxQuotaResponse.toQuotaSnapshot(
                     if (quota.hasWeeklyQuota) {
                         add(
                             QuotaWindow(
+                                windowKey = WEEKLY_WINDOW_KEY,
                                 scope = WindowScope.Weekly,
                                 total = quota.currentWeeklyTotalCount.toLong(),
                                 used = quota.weeklyUsedCount.toLong(),
                                 remaining = quota.weeklyRemainingCount.toLong(),
-                                resetsAt = quota.weeklyRemainsTime,
+                                resetAtEpochMillis = quota.weeklyResetAtEpochMillis,
                                 startsAt = quota.weeklyStartTime,
                                 endsAt = quota.weeklyEndTime,
                                 unit = QuotaUnit.Request
@@ -130,73 +130,11 @@ val MiniMaxModelQuota.weeklyUsageProgress: Float
         0f
     }
 
-private val WeeklyPlanAnchorModelNames = setOf(
-    "MiniMax-M*",
-    "coding-plan-vlm",
-    "coding-plan-search"
-)
+val MiniMaxModelQuota.intervalResetAtEpochMillis: Long?
+    get() = endTime.takeIf { it > 0L }
 
-val List<MiniMaxModelQuota>.hasPlanLevelWeeklyQuota: Boolean
-    get() = any { modelQuota ->
-        modelQuota.modelName in WeeklyPlanAnchorModelNames &&
-            modelQuota.currentWeeklyTotalCount > 0
-    }
+val MiniMaxModelQuota.weeklyResetAtEpochMillis: Long?
+    get() = weeklyEndTime.takeIf { it > 0L }
 
-fun MiniMaxModelQuota.hasVisibleWeeklyQuota(planHasWeeklyQuota: Boolean): Boolean {
-    return planHasWeeklyQuota && hasWeeklyQuota
-}
-
-fun MiniMaxModelQuota.effectiveRemainingCount(planHasWeeklyQuota: Boolean): Int {
-    return if (hasVisibleWeeklyQuota(planHasWeeklyQuota)) {
-        minOf(intervalRemainingCount, weeklyRemainingCount)
-    } else {
-        intervalRemainingCount
-    }
-}
-
-fun MiniMaxModelQuota.effectiveUsageProgress(planHasWeeklyQuota: Boolean): Float {
-    return if (hasVisibleWeeklyQuota(planHasWeeklyQuota)) {
-        max(intervalUsageProgress, weeklyUsageProgress)
-    } else {
-        intervalUsageProgress
-    }
-}
-
-fun MiniMaxModelQuota.relevantResetTime(planHasWeeklyQuota: Boolean): Long? {
-    return buildList {
-        if (remainsTime > 0) {
-            add(remainsTime)
-        }
-        if (hasVisibleWeeklyQuota(planHasWeeklyQuota) && weeklyRemainsTime > 0) {
-            add(weeklyRemainsTime)
-        }
-    }.minOrNull()
-}
-
-private const val WatchUsageThreshold = 0.80f
-private const val CriticalUsageThreshold = 0.95f
-
-fun MiniMaxModelQuota.quotaRisk(planHasWeeklyQuota: Boolean): QuotaRisk {
-    val usageProgress = effectiveUsageProgress(planHasWeeklyQuota)
-    return when {
-        usageProgress >= CriticalUsageThreshold -> QuotaRisk.Critical
-        usageProgress >= WatchUsageThreshold -> QuotaRisk.Watch
-        else -> QuotaRisk.Healthy
-    }
-}
-
-fun List<MiniMaxModelQuota>.dominantQuotaRisk(
-    planHasWeeklyQuota: Boolean = hasPlanLevelWeeklyQuota
-): QuotaRisk {
-    return when {
-        any { it.quotaRisk(planHasWeeklyQuota) == QuotaRisk.Critical } -> QuotaRisk.Critical
-        any { it.quotaRisk(planHasWeeklyQuota) == QuotaRisk.Watch } -> QuotaRisk.Watch
-        else -> QuotaRisk.Healthy
-    }
-}
-
-fun List<MiniMaxModelQuota>.atRiskModelCount(
-    planHasWeeklyQuota: Boolean = hasPlanLevelWeeklyQuota
-): Int {
-    return count { it.quotaRisk(planHasWeeklyQuota) != QuotaRisk.Healthy }
-}
+private const val INTERVAL_WINDOW_KEY = "interval"
+private const val WEEKLY_WINDOW_KEY = "weekly"

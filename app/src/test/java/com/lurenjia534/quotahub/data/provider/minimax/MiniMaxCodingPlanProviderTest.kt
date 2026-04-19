@@ -53,9 +53,11 @@ class MiniMaxCodingPlanProviderTest {
         assertTrue(resource.windows.any { it.scope == WindowScope.Interval })
         assertTrue(resource.windows.any { it.scope == WindowScope.Weekly })
         val intervalWindow = resource.windows.first { it.scope == WindowScope.Interval }
+        assertEquals("interval", intervalWindow.windowKey)
         assertEquals(100L, intervalWindow.total)
         assertEquals(60L, intervalWindow.used)
         assertEquals(40L, intervalWindow.remaining)
+        assertEquals(200L, intervalWindow.resetAtEpochMillis)
     }
 
     @Test

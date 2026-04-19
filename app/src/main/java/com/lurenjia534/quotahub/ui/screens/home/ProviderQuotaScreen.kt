@@ -6,6 +6,8 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -63,10 +65,13 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lurenjia534.quotahub.data.model.QuotaRisk
+import com.lurenjia534.quotahub.data.model.SyncState
+import com.lurenjia534.quotahub.data.provider.CredentialFieldSpec
 import com.lurenjia534.quotahub.data.provider.SubscriptionGateway
 import com.lurenjia534.quotahub.ui.components.MetricEmphasisLevel
 import com.lurenjia534.quotahub.ui.components.QuotaMetricText
@@ -83,6 +88,7 @@ fun ProviderQuotaScreen(
     modifier: Modifier = Modifier,
     subscriptionGateway: SubscriptionGateway,
     detailProjectorRegistry: ProviderQuotaDetailProjectorRegistry,
+    providerUiRegistry: ProviderUiRegistry,
     highEmphasisMetrics: Boolean,
     hapticConfirmation: Boolean,
     onBackClick: () -> Unit
@@ -95,10 +101,11 @@ fun ProviderQuotaScreen(
         )
     )
     val uiState by viewModel.uiState.collectAsState()
-    val providerUi = ProviderUiRegistry.require(uiState.subscription.provider)
+    val providerUi = providerUiRegistry.require(uiState.subscription.provider)
     val pullToRefreshState = rememberPullToRefreshState()
     val scope = rememberCoroutineScope()
     val isRefreshing = uiState.isLoading && uiState.detail.hasData
+    val needsCredentialRepair = uiState.subscription.syncStatus.state == SyncState.AuthFailed
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val quotaHaptics = rememberQuotaHaptics(hapticConfirmation)
     var showDisconnectDialog by remember { mutableStateOf(false) }
@@ -234,6 +241,68 @@ fun ProviderQuotaScreen(
         )
     }
 
+    if (uiState.showCredentialDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!uiState.isSavingCredentials) {
+                    viewModel.hideCredentialDialog()
+                }
+            },
+            title = {
+                Text(
+                    text = "Update credentials",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold)
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = "Enter a fresh set of ${uiState.subscription.provider.displayName} credentials. QuotaHub will validate them before replacing the stored secret.",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+                    uiState.subscription.provider.credentialFields.forEachIndexed { index, field ->
+                        ProviderCredentialInputField(
+                            field = field,
+                            value = uiState.credentialInputs[field.key].orEmpty(),
+                            isLastField = index == uiState.subscription.provider.credentialFields.lastIndex,
+                            onValueChange = { viewModel.updateCredentialInput(field.key, it) },
+                            onSubmit = viewModel::saveCredentials
+                        )
+                    }
+
+                    if (uiState.credentialError != null) {
+                        Text(
+                            text = uiState.credentialError.orEmpty(),
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = viewModel::saveCredentials,
+                    enabled = uiState.subscription.provider.credentialFields.all {
+                        !uiState.credentialInputs[it.key].isNullOrBlank()
+                    } && !uiState.isSavingCredentials
+                ) {
+                    Text(if (uiState.isSavingCredentials) "Saving..." else "Update")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = viewModel::hideCredentialDialog,
+                    enabled = !uiState.isSavingCredentials
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
@@ -270,6 +339,15 @@ fun ProviderQuotaScreen(
                     }
                 },
                 actions = {
+                    if (needsCredentialRepair) {
+                        IconButton(onClick = viewModel::showCredentialDialog) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = "Update credentials",
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
                     IconButton(onClick = viewModel::showRenameDialog) {
                         Icon(
                             imageVector = Icons.Default.Edit,
@@ -329,8 +407,22 @@ fun ProviderQuotaScreen(
                     item {
                         AnimatedSection(visible = statusVisible) {
                             DetailErrorStrip(
+                                title = if (needsCredentialRepair) {
+                                    "Credentials need attention"
+                                } else {
+                                    "Refresh failed"
+                                },
                                 message = uiState.error!!,
-                                onDismiss = requestRefresh
+                                actionLabel = if (needsCredentialRepair) {
+                                    "Update credentials"
+                                } else {
+                                    "Retry"
+                                },
+                                onAction = if (needsCredentialRepair) {
+                                    viewModel::showCredentialDialog
+                                } else {
+                                    requestRefresh
+                                }
                             )
                         }
                     }
@@ -612,8 +704,10 @@ private fun VerticalDivider() {
 
 @Composable
 private fun DetailErrorStrip(
+    title: String,
     message: String,
-    onDismiss: () -> Unit
+    actionLabel: String,
+    onAction: () -> Unit
 ) {
     val colorScheme = MaterialTheme.colorScheme
     Surface(
@@ -637,7 +731,7 @@ private fun DetailErrorStrip(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    text = "Refresh failed",
+                    text = title,
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.SemiBold,
                         color = colorScheme.onErrorContainer
@@ -650,14 +744,42 @@ private fun DetailErrorStrip(
                     )
                 )
             }
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = onAction) {
                 Text(
-                    text = "Retry",
+                    text = actionLabel,
                     color = colorScheme.onErrorContainer
                 )
             }
         }
     }
+}
+
+@Composable
+private fun ProviderCredentialInputField(
+    field: CredentialFieldSpec,
+    value: String,
+    isLastField: Boolean,
+    onValueChange: (String) -> Unit,
+    onSubmit: () -> Unit
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(field.label) },
+        singleLine = true,
+        visualTransformation = if (field.isSecret) {
+            PasswordVisualTransformation()
+        } else {
+            VisualTransformation.None
+        },
+        keyboardOptions = KeyboardOptions(
+            imeAction = if (isLastField) ImeAction.Done else ImeAction.Next
+        ),
+        keyboardActions = KeyboardActions(
+            onDone = { if (isLastField) onSubmit() }
+        ),
+        modifier = Modifier.fillMaxWidth()
+    )
 }
 
 @Composable

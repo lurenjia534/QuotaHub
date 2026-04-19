@@ -26,11 +26,12 @@ enum class ResourceType {
 }
 
 data class QuotaWindow(
+    val windowKey: String,
     val scope: WindowScope,
     val total: Long?,
     val used: Long?,
     val remaining: Long?,
-    val resetsAt: Long?,
+    val resetAtEpochMillis: Long?,
     val startsAt: Long? = null,
     val endsAt: Long? = null,
     val unit: QuotaUnit = QuotaUnit.Request

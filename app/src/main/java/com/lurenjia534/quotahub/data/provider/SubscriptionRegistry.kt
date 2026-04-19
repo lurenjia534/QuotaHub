@@ -12,9 +12,10 @@ import kotlinx.coroutines.flow.map
 
 data class SubscriptionCard(
     val subscription: com.lurenjia534.quotahub.data.model.Subscription,
-    val modelCount: Int,
-    val remainingCalls: Int,
-    val remainingTime: Long?,
+    val primaryMetric: CardMetric,
+    val secondaryMetric: CardMetric?,
+    val resourceCount: Int,
+    val nextResetAt: Long?,
     val risk: QuotaRisk
 )
 
@@ -39,9 +40,10 @@ class SubscriptionRegistry(
                     ).let { projection ->
                         SubscriptionCard(
                             subscription = sub,
-                            modelCount = projection.modelCount,
-                            remainingCalls = projection.remainingCalls,
-                            remainingTime = projection.remainingTime,
+                            primaryMetric = projection.primaryMetric,
+                            secondaryMetric = projection.secondaryMetric,
+                            resourceCount = projection.resourceCount,
+                            nextResetAt = projection.nextResetAt,
                             risk = projection.risk
                         )
                     }

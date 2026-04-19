@@ -45,7 +45,7 @@ class MiniMaxCodingPlanProvider : CodingPlanProvider {
     }
 
     override suspend fun fetchSnapshot(subscription: Subscription): Result<CapturedQuotaSnapshot> {
-        return validate(subscription.credentials)
+        return validate(subscription.requireCredentials())
     }
 
     override fun replay(payload: ProviderReplayPayload): Result<CapturedQuotaSnapshot> {

@@ -21,8 +21,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.lurenjia534.quotahub.ui.components.QuotaNavigationBar
 import com.lurenjia534.quotahub.ui.navigation.QuotaNavHost
-import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaDetailProjectorRegistry
 import com.lurenjia534.quotahub.ui.navigation.bottomNavItems
+import com.lurenjia534.quotahub.ui.provider.ProviderUiRegistry
+import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaDetailProjectorRegistry
 import com.lurenjia534.quotahub.ui.theme.QuotaHubTheme
 
 private val FloatingBottomNavClearance = 120.dp
@@ -34,12 +35,14 @@ class MainActivity : ComponentActivity() {
         val application = application as QuotaApplication
         val subscriptionRegistry = application.subscriptionRegistry
         val providerQuotaDetailProjectorRegistry = application.providerQuotaDetailProjectorRegistry
+        val providerUiRegistry = application.providerUiRegistry
         val uiPreferencesRepository = application.uiPreferencesRepository
         setContent {
             QuotaHubTheme {
                 QuotaApp(
                     subscriptionRegistry = subscriptionRegistry,
                     providerQuotaDetailProjectorRegistry = providerQuotaDetailProjectorRegistry,
+                    providerUiRegistry = providerUiRegistry,
                     uiPreferencesRepository = uiPreferencesRepository
                 )
             }
@@ -51,6 +54,7 @@ class MainActivity : ComponentActivity() {
 fun QuotaApp(
     subscriptionRegistry: com.lurenjia534.quotahub.data.provider.SubscriptionRegistry,
     providerQuotaDetailProjectorRegistry: ProviderQuotaDetailProjectorRegistry,
+    providerUiRegistry: ProviderUiRegistry,
     uiPreferencesRepository: UiPreferencesRepository
 ) {
     val navController = rememberNavController()
@@ -76,6 +80,7 @@ fun QuotaApp(
                     navController = navController,
                     subscriptionRegistry = subscriptionRegistry,
                     providerQuotaDetailProjectorRegistry = providerQuotaDetailProjectorRegistry,
+                    providerUiRegistry = providerUiRegistry,
                     highEmphasisMetrics = uiPreferences.highEmphasisMetrics,
                     hapticConfirmation = uiPreferences.hapticConfirmation,
                     onHighEmphasisMetricsChange = uiPreferencesRepository::setHighEmphasisMetrics,

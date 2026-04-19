@@ -78,12 +78,16 @@ import kotlinx.coroutines.delay
 fun HomeScreen(
     modifier: Modifier = Modifier,
     subscriptionRegistry: SubscriptionRegistry,
+    providerUiRegistry: ProviderUiRegistry,
     highEmphasisMetrics: Boolean,
     bottomContentPadding: Dp = 0.dp,
     onSubscriptionClick: (Long) -> Unit
 ) {
     val viewModel: HomeHubViewModel = viewModel(
-        factory = HomeHubViewModel.Factory(subscriptionRegistry)
+        factory = HomeHubViewModel.Factory(
+            subscriptionRegistry = subscriptionRegistry,
+            providerUiRegistry = providerUiRegistry
+        )
     )
     val uiState by viewModel.uiState.collectAsState()
     var showBottomSheet by remember { mutableStateOf(false) }
@@ -92,9 +96,8 @@ fun HomeScreen(
     val subscriptionCards = uiState.subscriptionCards
     val connectedCount = subscriptionCards.count { it.isConnected }
     val providerCount = subscriptionRegistry.providers.size
-    val trackedCalls = subscriptionCards.sumOf { it.remainingCalls }
-    val trackedModels = subscriptionCards.sumOf { it.modelCount }
-    val nextRefreshWindow = subscriptionCards.mapNotNull { it.remainingTime }.minOrNull()
+    val trackedResources = subscriptionCards.sumOf { it.resourceCount }
+    val nextRefreshWindow = subscriptionCards.mapNotNull { it.nextResetAt }.minOrNull()
     val dominantRisk = subscriptionCards.dominantRisk()
     val dominantSyncState = subscriptionCards.dominantSyncState()
     val hasSubscriptions = subscriptionCards.isNotEmpty()
@@ -133,8 +136,7 @@ fun HomeScreen(
                     HomeOperationsBoard(
                         connectedCount = connectedCount,
                         providerCount = providerCount,
-                        trackedCalls = trackedCalls,
-                        trackedModels = trackedModels,
+                        trackedResources = trackedResources,
                         nextRefreshWindow = nextRefreshWindow,
                         highEmphasisMetrics = highEmphasisMetrics,
                         dominantRisk = dominantRisk,
@@ -161,7 +163,7 @@ fun HomeScreen(
                     HomeSectionHeader(
                         title = if (hasSubscriptions) "Subscription queue" else "Subscriptions",
                         subtitle = if (hasSubscriptions) {
-                            "Active sources ordered for fast scanning. Open any row for model-level quota detail."
+                            "Active sources ordered for fast scanning. Open any row for resource-level quota detail."
                         } else {
                             "No sources connected yet. Add a provider to start caching quota snapshots."
                         }
@@ -198,6 +200,7 @@ fun HomeScreen(
                 AnimatedSection(visible = providerVisible) {
                     ProviderAccessSection(
                         providers = subscriptionRegistry.providers,
+                        providerUiRegistry = providerUiRegistry,
                         connectedProviderIds = connectedProviderIds,
                         onAddClick = { showBottomSheet = true }
                     )
@@ -210,6 +213,7 @@ fun HomeScreen(
                 sheetState = sheetState,
                 onDismiss = { showBottomSheet = false },
                 providers = subscriptionRegistry.providers,
+                providerUiRegistry = providerUiRegistry,
                 onProviderClick = { provider ->
                     viewModel.clearError()
                     viewModel.showCredentialDialog(provider)
@@ -259,8 +263,7 @@ private fun AnimatedSection(
 private fun HomeOperationsBoard(
     connectedCount: Int,
     providerCount: Int,
-    trackedCalls: Int,
-    trackedModels: Int,
+    trackedResources: Int,
     nextRefreshWindow: Long?,
     highEmphasisMetrics: Boolean,
     dominantRisk: QuotaRisk,
@@ -374,13 +377,13 @@ private fun HomeOperationsBoard(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            text = "Tracked calls",
+                            text = "Tracked resources",
                             style = MaterialTheme.typography.labelLarge.copy(
                                 color = colorScheme.onSurfaceVariant
                             )
                         )
                         QuotaMetricText(
-                            text = formatCount(trackedCalls),
+                            text = formatCount(trackedResources),
                             emphasized = highEmphasisMetrics,
                             level = MetricEmphasisLevel.Hero
                         )
@@ -402,16 +405,16 @@ private fun HomeOperationsBoard(
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             MiniBoardMetric(
-                                label = "Connected",
-                                value = "$connectedCount / $providerCount",
+                                label = "Sources",
+                                value = formatCount(connectedCount),
                                 highEmphasisMetrics = highEmphasisMetrics
                             )
                             HorizontalDivider(
                                 color = colorScheme.outlineVariant.copy(alpha = 0.6f)
                             )
                             MiniBoardMetric(
-                                label = "Models visible",
-                                value = formatCount(trackedModels),
+                                label = "Providers",
+                                value = formatCount(providerCount),
                                 highEmphasisMetrics = highEmphasisMetrics
                             )
                         }
@@ -440,7 +443,7 @@ private fun HomeOperationsBoard(
                         OverviewStripMetric(
                             modifier = Modifier.weight(1f),
                             label = "Next reset",
-                            value = nextRefreshWindow?.let { formatTimeRemaining(it) } ?: "Waiting",
+                            value = nextRefreshWindow?.let(::formatTimeUntil) ?: "Waiting",
                             highEmphasisMetrics = highEmphasisMetrics,
                             valueColor = colorScheme.onSurface
                         )
@@ -703,7 +706,7 @@ private fun SubscriptionQueueRow(
                         )
                     )
                     QuotaMetricText(
-                        text = subscriptionCard.remainingTime?.let { formatTimeRemaining(it) } ?: "Manual",
+                        text = subscriptionCard.nextResetAt?.let(::formatTimeUntil) ?: "Manual",
                         emphasized = highEmphasisMetrics,
                         level = MetricEmphasisLevel.Standard,
                         color = colorScheme.onSurface
@@ -721,14 +724,14 @@ private fun SubscriptionQueueRow(
             ) {
                 QueueMetric(
                     modifier = Modifier.weight(1f),
-                    label = "Calls",
-                    value = formatCount(subscriptionCard.remainingCalls),
+                    label = subscriptionCard.primaryMetric.label,
+                    value = subscriptionCard.primaryMetric.value,
                     highEmphasisMetrics = highEmphasisMetrics
                 )
                 QueueMetric(
                     modifier = Modifier.weight(1f),
-                    label = "Models",
-                    value = formatCount(subscriptionCard.modelCount),
+                    label = subscriptionCard.secondaryMetric?.label ?: "Resources",
+                    value = subscriptionCard.secondaryMetric?.value ?: formatCount(subscriptionCard.resourceCount),
                     highEmphasisMetrics = highEmphasisMetrics
                 )
                 QueueMetric(
@@ -872,6 +875,7 @@ private fun HomeEmptyState(
 @Composable
 private fun ProviderAccessSection(
     providers: List<ProviderDescriptor>,
+    providerUiRegistry: ProviderUiRegistry,
     connectedProviderIds: Set<String>,
     onAddClick: () -> Unit
 ) {
@@ -890,6 +894,7 @@ private fun ProviderAccessSection(
                 providers.forEachIndexed { index, provider ->
                     ProviderAccessRow(
                         provider = provider,
+                        providerUiRegistry = providerUiRegistry,
                         isConnected = connectedProviderIds.contains(provider.id),
                         onAddClick = onAddClick
                     )
@@ -909,11 +914,12 @@ private fun ProviderAccessSection(
 @Composable
 private fun ProviderAccessRow(
     provider: ProviderDescriptor,
+    providerUiRegistry: ProviderUiRegistry,
     isConnected: Boolean,
     onAddClick: () -> Unit
 ) {
     val colorScheme = MaterialTheme.colorScheme
-    val providerUi = ProviderUiRegistry.require(provider)
+    val providerUi = providerUiRegistry.require(provider)
     val statusColor by animateColorAsState(
         targetValue = if (isConnected) colorScheme.secondaryContainer else colorScheme.surface,
         animationSpec = spring(stiffness = 420f, dampingRatio = 0.9f),
@@ -983,6 +989,7 @@ private fun ProviderBottomSheet(
     sheetState: SheetState,
     onDismiss: () -> Unit,
     providers: List<ProviderDescriptor>,
+    providerUiRegistry: ProviderUiRegistry,
     onProviderClick: (ProviderDescriptor) -> Unit
 ) {
     ModalBottomSheet(
@@ -1010,7 +1017,7 @@ private fun ProviderBottomSheet(
             }
 
             providers.forEach { provider ->
-                val providerUi = ProviderUiRegistry.require(provider)
+                val providerUi = providerUiRegistry.require(provider)
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()

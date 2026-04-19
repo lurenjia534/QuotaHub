@@ -54,6 +54,11 @@ interface SubscriptionGateway {
     suspend fun refresh(): Result<Unit>
 
     /**
+     * 更新订阅凭证并立即验证、缓存最新快照。
+     */
+    suspend fun updateCredentials(credentials: SecretBundle): Result<Unit>
+
+    /**
      * 更新订阅名称
      *
      * 传入null或空白字符串时，会恢复为默认名称。

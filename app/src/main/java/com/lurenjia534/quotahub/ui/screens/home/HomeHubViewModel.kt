@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.lurenjia534.quotahub.data.model.QuotaRisk
 import com.lurenjia534.quotahub.data.model.SyncState
+import com.lurenjia534.quotahub.data.provider.CardMetric
 import com.lurenjia534.quotahub.data.provider.ProviderDescriptor
 import com.lurenjia534.quotahub.data.provider.SecretBundle
 import com.lurenjia534.quotahub.data.provider.SubscriptionCard
@@ -22,9 +23,10 @@ data class SubscriptionCardUiModel(
     val displayTitle: String,
     val subtitle: String,
     val providerIconRes: Int,
-    val modelCount: Int,
-    val remainingCalls: Int,
-    val remainingTime: Long?,
+    val primaryMetric: CardMetric,
+    val secondaryMetric: CardMetric?,
+    val resourceCount: Int,
+    val nextResetAt: Long?,
     val risk: QuotaRisk,
     val syncState: SyncState,
     val syncLabel: String,
@@ -44,7 +46,8 @@ data class HomeHubUiState(
 )
 
 class HomeHubViewModel(
-    private val subscriptionRegistry: SubscriptionRegistry
+    private val subscriptionRegistry: SubscriptionRegistry,
+    private val providerUiRegistry: ProviderUiRegistry
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(HomeHubUiState())
     val uiState: StateFlow<HomeHubUiState> = _uiState.asStateFlow()
@@ -138,16 +141,17 @@ class HomeHubViewModel(
     }
 
     private fun SubscriptionCard.toCardUiModel(): SubscriptionCardUiModel {
-        val providerUi = ProviderUiRegistry.require(subscription.provider)
+        val providerUi = providerUiRegistry.require(subscription.provider)
         return SubscriptionCardUiModel(
             subscriptionId = subscription.id,
             providerId = subscription.provider.id,
             displayTitle = subscription.displayTitle,
             subtitle = "${subscription.provider.displayName} • ${providerUi.subtitle}",
             providerIconRes = providerUi.iconRes,
-            modelCount = modelCount,
-            remainingCalls = remainingCalls,
-            remainingTime = remainingTime,
+            primaryMetric = primaryMetric,
+            secondaryMetric = secondaryMetric,
+            resourceCount = resourceCount,
+            nextResetAt = nextResetAt,
             risk = risk,
             syncState = subscription.syncStatus.state,
             syncLabel = subscription.syncStatus.label(),
@@ -157,12 +161,16 @@ class HomeHubViewModel(
     }
 
     class Factory(
-        private val subscriptionRegistry: SubscriptionRegistry
+        private val subscriptionRegistry: SubscriptionRegistry,
+        private val providerUiRegistry: ProviderUiRegistry
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(HomeHubViewModel::class.java)) {
-                return HomeHubViewModel(subscriptionRegistry) as T
+                return HomeHubViewModel(
+                    subscriptionRegistry = subscriptionRegistry,
+                    providerUiRegistry = providerUiRegistry
+                ) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class")
         }

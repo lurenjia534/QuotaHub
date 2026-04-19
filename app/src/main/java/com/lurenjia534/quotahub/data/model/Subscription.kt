@@ -4,6 +4,18 @@ import com.lurenjia534.quotahub.data.local.SubscriptionEntity
 import com.lurenjia534.quotahub.data.provider.ProviderDescriptor
 import com.lurenjia534.quotahub.data.provider.SecretBundle
 
+sealed interface CredentialState {
+    data class Valid(val credentials: SecretBundle) : CredentialState
+
+    data class Broken(val reason: String? = null) : CredentialState
+
+    data class Missing(val reason: String? = null) : CredentialState
+}
+
+class CredentialUnavailableException(
+    message: String
+) : IllegalStateException(message)
+
 /**
  * 订阅领域模型
  *
@@ -15,7 +27,7 @@ import com.lurenjia534.quotahub.data.provider.SecretBundle
  * @param id 订阅的唯一标识符
  * @param provider AI服务提供商
  * @param customTitle 用户自定义显示标题（可选）
- * @param credentials 该订阅对应的凭证集合
+ * @param credentialState 该订阅对应的凭证状态
  * @param syncStatus 当前订阅的同步健康状态
  * @param createdAt 创建时间戳
  */
@@ -23,7 +35,7 @@ data class Subscription(
     val id: Long,
     val provider: ProviderDescriptor,
     val customTitle: String?,
-    val credentials: SecretBundle,
+    val credentialState: CredentialState,
     val syncStatus: SubscriptionSyncStatus,
     val createdAt: Long
 ) {
@@ -37,6 +49,26 @@ data class Subscription(
     val displayTitle: String
         get() = customTitle?.takeIf { it.isNotBlank() }
             ?: "${provider.displayName} #${id}"
+
+    val hasUsableCredentials: Boolean
+        get() = credentialState is CredentialState.Valid
+
+    val credentialIssue: String?
+        get() = when (val state = credentialState) {
+            is CredentialState.Valid -> null
+            is CredentialState.Broken -> state.reason
+            is CredentialState.Missing -> state.reason
+        }
+
+    fun requireCredentials(): SecretBundle {
+        val credentials = (credentialState as? CredentialState.Valid)?.credentials
+        if (credentials != null) {
+            return credentials
+        }
+        throw CredentialUnavailableException(
+            credentialIssue ?: "Credentials are unavailable and need to be entered again."
+        )
+    }
 }
 
 /**
@@ -49,14 +81,14 @@ data class Subscription(
  */
 fun SubscriptionEntity.toSubscription(
     provider: ProviderDescriptor,
-    credentials: SecretBundle,
+    credentialState: CredentialState,
     syncStatus: SubscriptionSyncStatus
 ): Subscription {
     return Subscription(
         id = id,
         provider = provider,
         customTitle = customTitle,
-        credentials = credentials,
+        credentialState = credentialState,
         syncStatus = syncStatus,
         createdAt = createdAt
     )

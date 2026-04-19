@@ -9,6 +9,8 @@ import com.lurenjia534.quotahub.data.local.SubscriptionDao
 import com.lurenjia534.quotahub.data.local.SubscriptionEntity
 import com.lurenjia534.quotahub.data.local.toEntities
 import com.lurenjia534.quotahub.data.local.toQuotaSnapshot
+import com.lurenjia534.quotahub.data.model.CredentialState
+import com.lurenjia534.quotahub.data.model.CredentialUnavailableException
 import com.lurenjia534.quotahub.data.model.QuotaSnapshot
 import com.lurenjia534.quotahub.data.model.Subscription
 import com.lurenjia534.quotahub.data.model.SubscriptionSyncStatus
@@ -19,6 +21,7 @@ import com.lurenjia534.quotahub.data.provider.ProviderCatalog
 import com.lurenjia534.quotahub.data.provider.ProviderDescriptor
 import com.lurenjia534.quotahub.data.provider.ProviderReplayPayload
 import com.lurenjia534.quotahub.data.provider.SecretBundle
+import com.lurenjia534.quotahub.data.provider.SubscriptionGatewayStore
 import com.lurenjia534.quotahub.data.security.ApiKeyCipher
 import com.lurenjia534.quotahub.data.upgrade.QuotaSnapshotReplayRunner
 import kotlinx.coroutines.flow.Flow
@@ -50,7 +53,7 @@ class SubscriptionRepository(
     private val quotaSnapshotDao: QuotaSnapshotDao,
     private val providerCatalog: ProviderCatalog,
     private val apiKeyCipher: ApiKeyCipher
-) : QuotaSnapshotReplayRunner {
+) : QuotaSnapshotReplayRunner, SubscriptionGatewayStore {
     private val json = Json {
         ignoreUnknownKeys = true
         coerceInputValues = true
@@ -60,7 +63,7 @@ class SubscriptionRepository(
         entities.mapNotNull(::toSubscription)
     }
 
-    fun getSubscription(subscriptionId: Long): Flow<Subscription?> {
+    override fun getSubscription(subscriptionId: Long): Flow<Subscription?> {
         return subscriptionDao.getSubscription(subscriptionId).map { entity ->
             entity?.let(::toSubscription)
         }
@@ -68,6 +71,22 @@ class SubscriptionRepository(
 
     suspend fun getSubscriptionOnce(subscriptionId: Long): Subscription? {
         return subscriptionDao.getSubscriptionOnce(subscriptionId)?.let(::toSubscription)
+    }
+
+    override suspend fun getSubscriptionForRefresh(subscriptionId: Long): Result<Subscription> {
+        val entity = subscriptionDao.getSubscriptionOnce(subscriptionId)
+            ?: return Result.failure(IllegalStateException("Subscription no longer exists"))
+        val subscription = toSubscription(entity)
+            ?: return Result.failure(IllegalStateException("Unsupported provider: ${entity.providerId}"))
+        if (!subscription.hasUsableCredentials) {
+            return Result.failure(
+                CredentialUnavailableException(
+                    subscription.credentialIssue
+                        ?: "Stored credentials are unavailable and need to be entered again."
+                )
+            )
+        }
+        return Result.success(subscription)
     }
 
     suspend fun getSubscriptionCount(): Int {
@@ -97,7 +116,7 @@ class SubscriptionRepository(
             id = subscription.id,
             providerId = subscription.provider.id,
             customTitle = subscription.customTitle?.trim()?.takeIf { it.isNotBlank() },
-            apiKey = apiKeyCipher.encrypt(serializeCredentials(subscription.credentials)),
+            apiKey = apiKeyCipher.encrypt(serializeCredentials(subscription.requireCredentials())),
             syncState = subscription.syncStatus.state.toPersistedState().name,
             lastSuccessAt = subscription.syncStatus.lastSuccessAt,
             lastFailureAt = subscription.syncStatus.lastFailureAt,
@@ -107,7 +126,20 @@ class SubscriptionRepository(
         subscriptionDao.updateSubscription(entity)
     }
 
-    suspend fun updateSubscriptionTitle(subscriptionId: Long, customTitle: String?): Result<Unit> {
+    override suspend fun updateSubscriptionCredentials(
+        subscriptionId: Long,
+        credentials: SecretBundle
+    ) {
+        val currentSubscription = subscriptionDao.getSubscriptionOnce(subscriptionId)
+            ?: throw IllegalStateException("Subscription no longer exists")
+        subscriptionDao.updateSubscription(
+            currentSubscription.copy(
+                apiKey = apiKeyCipher.encrypt(serializeCredentials(credentials))
+            )
+        )
+    }
+
+    override suspend fun updateSubscriptionTitle(subscriptionId: Long, customTitle: String?): Result<Unit> {
         return runCatching {
             val currentSubscription = subscriptionDao.getSubscriptionOnce(subscriptionId)
                 ?: throw IllegalStateException("Subscription no longer exists")
@@ -119,17 +151,17 @@ class SubscriptionRepository(
         }
     }
 
-    suspend fun deleteSubscription(subscriptionId: Long) {
+    override suspend fun deleteSubscription(subscriptionId: Long) {
         subscriptionDao.deleteSubscriptionById(subscriptionId)
     }
 
-    suspend fun markSubscriptionSyncing(subscriptionId: Long) {
+    override suspend fun markSubscriptionSyncing(subscriptionId: Long) {
         updateSyncStatus(subscriptionId) { current ->
             SubscriptionSyncStatus.syncing(current)
         }
     }
 
-    suspend fun markSubscriptionSyncSuccess(subscriptionId: Long, fetchedAt: Long) {
+    override suspend fun markSubscriptionSyncSuccess(subscriptionId: Long, fetchedAt: Long) {
         updateSyncStatus(subscriptionId) { current ->
             SubscriptionSyncStatus.active(
                 fetchedAt = fetchedAt,
@@ -138,7 +170,7 @@ class SubscriptionRepository(
         }
     }
 
-    suspend fun markSubscriptionSyncFailure(subscriptionId: Long, error: Throwable) {
+    override suspend fun markSubscriptionSyncFailure(subscriptionId: Long, error: Throwable) {
         updateSyncStatus(subscriptionId) { current ->
             SubscriptionSyncStatus.failed(
                 state = error.toSyncFailureState(),
@@ -149,13 +181,13 @@ class SubscriptionRepository(
         }
     }
 
-    fun getQuotaSnapshot(subscriptionId: Long): Flow<QuotaSnapshot> {
+    override fun getQuotaSnapshot(subscriptionId: Long): Flow<QuotaSnapshot> {
         return quotaSnapshotDao.observeQuotaSnapshotRows(subscriptionId).map { rows ->
             rows.toQuotaSnapshot()
         }
     }
 
-    suspend fun cacheQuotaSnapshot(
+    override suspend fun cacheQuotaSnapshot(
         subscriptionId: Long,
         capturedSnapshot: CapturedQuotaSnapshot
     ) {
@@ -273,16 +305,12 @@ class SubscriptionRepository(
 
     private fun toSubscription(entity: SubscriptionEntity): Subscription? {
         val descriptor = providerCatalog.descriptor(entity.providerId) ?: return null
-        return runCatching {
-            entity.toSubscription(
-                provider = descriptor,
-                credentials = deserializeCredentials(entity.apiKey, descriptor),
-                syncStatus = entity.toSyncStatus()
-            )
-        }.getOrElse { error ->
-            Log.e(TAG, "Failed to decrypt credentials for subscription ${entity.id}", error)
-            null
-        }
+        val credentialState = resolveCredentialState(entity, descriptor)
+        return entity.toSubscription(
+            provider = descriptor,
+            credentialState = credentialState,
+            syncStatus = entity.toSyncStatus().withCredentialState(credentialState)
+        )
     }
 
     private fun serializeCredentials(credentials: SecretBundle): String {
@@ -298,6 +326,30 @@ class SubscriptionRepository(
             json.decodeFromString(SecretBundle.serializer(), decrypted)
         }.getOrElse {
             SecretBundle.single(provider.primaryCredentialField.key, decrypted)
+        }
+    }
+
+    private fun resolveCredentialState(
+        entity: SubscriptionEntity,
+        provider: ProviderDescriptor
+    ): CredentialState {
+        return runCatching {
+            val credentials = deserializeCredentials(entity.apiKey, provider)
+            val missingFields = provider.credentialFields
+                .filter { credentials.value(it.key) == null }
+            when {
+                missingFields.isEmpty() -> CredentialState.Valid(credentials)
+                else -> CredentialState.Missing(
+                    reason = "Stored credentials are incomplete. Enter ${missingFields.joinToString { it.label }} again."
+                )
+            }
+        }.getOrElse { error ->
+            runCatching {
+                Log.e(TAG, "Failed to load credentials for subscription ${entity.id}", error)
+            }
+            CredentialState.Broken(
+                reason = error.message ?: "Stored credentials can no longer be read on this device."
+            )
         }
     }
 
@@ -348,6 +400,20 @@ private fun SyncState.toPersistedState(): SyncState {
     return if (this == SyncState.Stale) SyncState.Active else this
 }
 
+private fun SubscriptionSyncStatus.withCredentialState(
+    credentialState: CredentialState
+): SubscriptionSyncStatus {
+    val issue = when (credentialState) {
+        is CredentialState.Valid -> return this
+        is CredentialState.Broken -> credentialState.reason
+        is CredentialState.Missing -> credentialState.reason
+    }
+    return copy(
+        state = SyncState.AuthFailed,
+        lastError = issue ?: lastError
+    )
+}
+
 private fun QuotaSnapshotEntity.toReplayPayload(): ProviderReplayPayload? {
     val rawPayloadJsonValue = rawPayloadJson ?: return null
     val rawPayloadFormatValue = rawPayloadFormat ?: return null
@@ -360,7 +426,10 @@ private fun QuotaSnapshotEntity.toReplayPayload(): ProviderReplayPayload? {
 }
 
 private fun Throwable.toSyncFailureState(): SyncState {
-    return if (this is HttpException && (code() == 401 || code() == 403)) {
+    return if (
+        this is CredentialUnavailableException ||
+        (this is HttpException && (code() == 401 || code() == 403))
+    ) {
         SyncState.AuthFailed
     } else {
         SyncState.SyncError

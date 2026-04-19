@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.lurenjia534.quotahub.data.model.Subscription
+import com.lurenjia534.quotahub.data.provider.SecretBundle
 import com.lurenjia534.quotahub.data.provider.SubscriptionGateway
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,10 +18,14 @@ data class ProviderQuotaUiState(
     val isBootstrapping: Boolean = true,
     val isLoading: Boolean = false,
     val isSavingTitle: Boolean = false,
+    val isSavingCredentials: Boolean = false,
     val error: String? = null,
+    val credentialError: String? = null,
     val isConnected: Boolean = true,
     val showRenameDialog: Boolean = false,
-    val titleInput: String = ""
+    val showCredentialDialog: Boolean = false,
+    val titleInput: String = "",
+    val credentialInputs: Map<String, String> = emptyMap()
 )
 
 class ProviderQuotaViewModel(
@@ -44,13 +49,20 @@ class ProviderQuotaViewModel(
             _uiState.value = _uiState.value.copy(
                 isBootstrapping = false,
                 isConnected = snapshot.subscription.syncStatus.isConnected,
+                error = if (!snapshot.subscription.hasUsableCredentials) {
+                    snapshot.subscription.credentialIssue ?: snapshot.subscription.syncStatus.lastError
+                } else {
+                    null
+                },
                 detail = detailProjectorRegistry.project(
                     subscription = snapshot.subscription,
                     snapshot = snapshot.quotaSnapshot
                 )
             )
 
-            refresh()
+            if (snapshot.subscription.hasUsableCredentials) {
+                refresh()
+            }
         }
     }
 
@@ -60,6 +72,11 @@ class ProviderQuotaViewModel(
                 _uiState.value = _uiState.value.copy(
                     subscription = snapshot.subscription,
                     isConnected = snapshot.subscription.syncStatus.isConnected,
+                    error = if (_uiState.value.error == null && !snapshot.subscription.hasUsableCredentials) {
+                        snapshot.subscription.credentialIssue ?: snapshot.subscription.syncStatus.lastError
+                    } else {
+                        _uiState.value.error
+                    },
                     detail = detailProjectorRegistry.project(
                         subscription = snapshot.subscription,
                         snapshot = snapshot.quotaSnapshot
@@ -68,6 +85,11 @@ class ProviderQuotaViewModel(
                         _uiState.value.titleInput
                     } else {
                         snapshot.subscription.customTitle.orEmpty()
+                    },
+                    credentialInputs = if (_uiState.value.showCredentialDialog) {
+                        _uiState.value.credentialInputs
+                    } else {
+                        snapshot.subscription.provider.credentialFields.associate { it.key to "" }
                     }
                 )
             }
@@ -89,8 +111,31 @@ class ProviderQuotaViewModel(
         )
     }
 
+    fun showCredentialDialog() {
+        _uiState.value = _uiState.value.copy(
+            showCredentialDialog = true,
+            credentialInputs = _uiState.value.subscription.provider.credentialFields.associate { it.key to "" },
+            credentialError = null,
+            error = null
+        )
+    }
+
+    fun hideCredentialDialog() {
+        _uiState.value = _uiState.value.copy(
+            showCredentialDialog = false,
+            credentialInputs = _uiState.value.subscription.provider.credentialFields.associate { it.key to "" },
+            credentialError = null
+        )
+    }
+
     fun updateTitleInput(title: String) {
         _uiState.value = _uiState.value.copy(titleInput = title)
+    }
+
+    fun updateCredentialInput(fieldKey: String, value: String) {
+        _uiState.value = _uiState.value.copy(
+            credentialInputs = _uiState.value.credentialInputs + (fieldKey to value)
+        )
     }
 
     fun renameSubscription() {
@@ -107,6 +152,45 @@ class ProviderQuotaViewModel(
                     _uiState.value = _uiState.value.copy(
                         isSavingTitle = false,
                         error = error.message ?: "Unable to update subscription name"
+                    )
+                }
+            )
+        }
+    }
+
+    fun saveCredentials() {
+        val provider = _uiState.value.subscription.provider
+        val missingField = provider.credentialFields.firstOrNull { field ->
+            _uiState.value.credentialInputs[field.key].isNullOrBlank()
+        }
+        if (missingField != null) {
+            _uiState.value = _uiState.value.copy(
+                credentialError = "${missingField.label} is required"
+            )
+            return
+        }
+
+        val credentials = SecretBundle.of(_uiState.value.credentialInputs)
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                isSavingCredentials = true,
+                credentialError = null,
+                error = null
+            )
+            subscriptionGateway.updateCredentials(credentials).fold(
+                onSuccess = {
+                    _uiState.value = _uiState.value.copy(
+                        isSavingCredentials = false,
+                        showCredentialDialog = false,
+                        error = null,
+                        credentialError = null,
+                        credentialInputs = provider.credentialFields.associate { it.key to "" }
+                    )
+                },
+                onFailure = { error ->
+                    _uiState.value = _uiState.value.copy(
+                        isSavingCredentials = false,
+                        credentialError = error.message ?: "Unable to update credentials"
                     )
                 }
             )

@@ -55,7 +55,7 @@ data class QuotaResourceEntity(
 
 @Entity(
     tableName = "quota_window",
-    primaryKeys = ["subscriptionId", "resourceKey", "scope"],
+    primaryKeys = ["subscriptionId", "resourceKey", "windowKey"],
     foreignKeys = [
         ForeignKey(
             entity = QuotaResourceEntity::class,
@@ -69,12 +69,13 @@ data class QuotaResourceEntity(
 data class QuotaWindowEntity(
     val subscriptionId: Long,
     val resourceKey: String,
+    val windowKey: String,
     val scope: String,
     val displayOrder: Int,
     val total: Long?,
     val used: Long?,
     val remaining: Long?,
-    val resetsAt: Long?,
+    val resetAtEpochMillis: Long?,
     val startsAt: Long?,
     val endsAt: Long?,
     val unit: String
@@ -87,12 +88,13 @@ data class QuotaSnapshotRow(
     val title: String?,
     val resourceType: String?,
     val resourceDisplayOrder: Int?,
+    val windowKey: String?,
     val scope: String?,
     val windowDisplayOrder: Int?,
     val total: Long?,
     val used: Long?,
     val remaining: Long?,
-    val resetsAt: Long?,
+    val resetAtEpochMillis: Long?,
     val startsAt: Long?,
     val endsAt: Long?,
     val unit: String?
@@ -131,12 +133,13 @@ fun QuotaSnapshot.toEntities(
             QuotaWindowEntity(
                 subscriptionId = subscriptionId,
                 resourceKey = resource.key,
+                windowKey = window.windowKey,
                 scope = window.scope.name,
                 displayOrder = windowIndex,
                 total = window.total,
                 used = window.used,
                 remaining = window.remaining,
-                resetsAt = window.resetsAt,
+                resetAtEpochMillis = window.resetAtEpochMillis,
                 startsAt = window.startsAt,
                 endsAt = window.endsAt,
                 unit = window.unit.name
@@ -171,11 +174,12 @@ fun List<QuotaSnapshotRow>.toQuotaSnapshot(): QuotaSnapshot {
             resource.windows += LocalWindowAccumulator(
                 displayOrder = row.windowDisplayOrder ?: Int.MAX_VALUE,
                 window = QuotaWindow(
+                    windowKey = row.windowKey ?: row.scope.orEmpty(),
                     scope = row.scope.toWindowScope(),
                     total = row.total,
                     used = row.used,
                     remaining = row.remaining,
-                    resetsAt = row.resetsAt,
+                    resetAtEpochMillis = row.resetAtEpochMillis,
                     startsAt = row.startsAt,
                     endsAt = row.endsAt,
                     unit = row.unit.toQuotaUnit()
