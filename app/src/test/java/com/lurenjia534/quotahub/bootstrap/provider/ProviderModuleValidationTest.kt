@@ -64,6 +64,15 @@ class ProviderModuleValidationTest {
         )
     }
 
+    @Test
+    fun providerModules_includeZhipuProvider() {
+        assertTrue(
+            ProviderModules.all.any { module ->
+                module.provider.descriptor.id == "zhipu"
+            }
+        )
+    }
+
     private fun module(providerId: String): ProviderModule {
         return ProviderModule(
             provider = FakeProvider(providerId),
