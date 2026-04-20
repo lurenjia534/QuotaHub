@@ -4,19 +4,17 @@ import com.lurenjia534.quotahub.R
 import com.lurenjia534.quotahub.data.provider.CodingPlanProvider
 import com.lurenjia534.quotahub.data.provider.SubscriptionCardProjector
 import com.lurenjia534.quotahub.data.provider.codex.CodexCodingPlanProvider
+import com.lurenjia534.quotahub.data.provider.codex.CodexProviderQuotaDetailProjector
 import com.lurenjia534.quotahub.data.provider.codex.CodexSubscriptionCardProjector
 import com.lurenjia534.quotahub.data.provider.minimax.MiniMaxCodingPlanProvider
+import com.lurenjia534.quotahub.data.provider.minimax.MiniMaxProviderQuotaDetailProjector
 import com.lurenjia534.quotahub.data.provider.minimax.MiniMaxSubscriptionCardProjector
+import com.lurenjia534.quotahub.data.provider.monitor.MonitorQuotaDetailProjector
+import com.lurenjia534.quotahub.data.provider.monitor.MonitorQuotaSubscriptionCardProjector
 import com.lurenjia534.quotahub.data.provider.zai.ZaiCodingPlanProvider
-import com.lurenjia534.quotahub.data.provider.zai.ZaiSubscriptionCardProjector
 import com.lurenjia534.quotahub.data.provider.zhipu.ZhipuCodingPlanProvider
-import com.lurenjia534.quotahub.data.provider.zhipu.ZhipuSubscriptionCardProjector
-import com.lurenjia534.quotahub.ui.screens.home.CodexProviderQuotaDetailProjector
 import com.lurenjia534.quotahub.ui.provider.ProviderUiMetadata
-import com.lurenjia534.quotahub.ui.screens.home.MiniMaxProviderQuotaDetailProjector
 import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaDetailProjector
-import com.lurenjia534.quotahub.ui.screens.home.ZaiProviderQuotaDetailProjector
-import com.lurenjia534.quotahub.ui.screens.home.ZhipuProviderQuotaDetailProjector
 
 data class ProviderModule(
     val provider: CodingPlanProvider,
@@ -70,8 +68,8 @@ object ProviderModules {
                     connectDescription = "Connect to Z.ai monitor usage",
                     detailDescription = "Monitor your token and MCP quota windows"
                 ),
-                cardProjector = ZaiSubscriptionCardProjector(),
-                detailProjector = ZaiProviderQuotaDetailProjector()
+                cardProjector = MonitorQuotaSubscriptionCardProjector(),
+                detailProjector = MonitorQuotaDetailProjector(providerName = "Z.ai")
             ),
             ProviderModule(
                 provider = ZhipuCodingPlanProvider(),
@@ -81,8 +79,8 @@ object ProviderModules {
                     connectDescription = "Connect to Zhipu monitor usage",
                     detailDescription = "Monitor your token and MCP quota windows"
                 ),
-                cardProjector = ZhipuSubscriptionCardProjector(),
-                detailProjector = ZhipuProviderQuotaDetailProjector()
+                cardProjector = MonitorQuotaSubscriptionCardProjector(),
+                detailProjector = MonitorQuotaDetailProjector(providerName = "Zhipu")
             )
         )
     )

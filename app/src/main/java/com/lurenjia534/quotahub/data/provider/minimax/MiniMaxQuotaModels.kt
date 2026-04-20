@@ -1,11 +1,11 @@
 package com.lurenjia534.quotahub.data.provider.minimax
 
-import com.lurenjia534.quotahub.data.model.QuotaResource
 import com.lurenjia534.quotahub.data.model.QuotaBuckets
+import com.lurenjia534.quotahub.data.model.QuotaResource
 import com.lurenjia534.quotahub.data.model.QuotaSnapshot
 import com.lurenjia534.quotahub.data.model.QuotaUnit
-import com.lurenjia534.quotahub.data.model.QuotaWindowLabels
 import com.lurenjia534.quotahub.data.model.QuotaWindow
+import com.lurenjia534.quotahub.data.model.QuotaWindowLabels
 import com.lurenjia534.quotahub.data.model.ResourceRole
 import com.lurenjia534.quotahub.data.model.ResourceType
 import com.lurenjia534.quotahub.data.model.WindowScope
@@ -46,6 +46,14 @@ data class MiniMaxBaseResponse(
     val statusMsg: String
 )
 
+internal class MiniMaxApiException(
+    val statusCode: Int,
+    statusMsg: String
+) : IllegalStateException(
+    statusMsg.takeIf { it.isNotBlank() }
+        ?: "MiniMax request failed with status code $statusCode."
+)
+
 @Serializable
 data class MiniMaxQuotaResponse(
     @SerialName("model_remains")
@@ -57,6 +65,7 @@ data class MiniMaxQuotaResponse(
 fun MiniMaxQuotaResponse.toQuotaSnapshot(
     fetchedAt: Long = System.currentTimeMillis()
 ): QuotaSnapshot {
+    baseResp.requireSuccess()
     return QuotaSnapshot(
         fetchedAt = fetchedAt,
         resources = modelRemains.map { quota ->
@@ -105,6 +114,12 @@ fun MiniMaxQuotaResponse.toQuotaSnapshot(
             )
         }
     )
+}
+
+private fun MiniMaxBaseResponse.requireSuccess() {
+    if (statusCode != 0) {
+        throw MiniMaxApiException(statusCode = statusCode, statusMsg = statusMsg)
+    }
 }
 
 // MiniMax returns remaining quota counts in the `*_usage_count` fields.

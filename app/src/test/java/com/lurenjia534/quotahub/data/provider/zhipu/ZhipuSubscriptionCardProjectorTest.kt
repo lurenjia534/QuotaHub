@@ -5,11 +5,12 @@ import com.lurenjia534.quotahub.data.model.QuotaRisk
 import com.lurenjia534.quotahub.data.model.Subscription
 import com.lurenjia534.quotahub.data.model.SubscriptionProvider
 import com.lurenjia534.quotahub.data.model.SubscriptionSyncStatus
+import com.lurenjia534.quotahub.data.provider.monitor.MonitorQuotaSubscriptionCardProjector
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class ZhipuSubscriptionCardProjectorTest {
-    private val projector = ZhipuSubscriptionCardProjector()
+    private val projector = MonitorQuotaSubscriptionCardProjector()
 
     @Test
     fun project_usesLowestRemainingLimitAsHeadroom() {

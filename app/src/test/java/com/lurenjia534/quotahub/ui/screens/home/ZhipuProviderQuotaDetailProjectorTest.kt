@@ -5,6 +5,7 @@ import com.lurenjia534.quotahub.data.model.QuotaRisk
 import com.lurenjia534.quotahub.data.model.Subscription
 import com.lurenjia534.quotahub.data.model.SubscriptionProvider
 import com.lurenjia534.quotahub.data.model.SubscriptionSyncStatus
+import com.lurenjia534.quotahub.data.provider.monitor.MonitorQuotaDetailProjector
 import com.lurenjia534.quotahub.data.provider.zhipu.ZhipuCodingPlanProvider
 import com.lurenjia534.quotahub.data.provider.zhipu.ZhipuUsageBundle
 import com.lurenjia534.quotahub.data.provider.zhipu.sampleModelUsageResponse
@@ -16,7 +17,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class ZhipuProviderQuotaDetailProjectorTest {
-    private val projector = ZhipuProviderQuotaDetailProjector()
+    private val projector = MonitorQuotaDetailProjector(providerName = "Zhipu")
 
     @Test
     fun project_surfacesQuotaLimitsAndUsageBreakdown() {

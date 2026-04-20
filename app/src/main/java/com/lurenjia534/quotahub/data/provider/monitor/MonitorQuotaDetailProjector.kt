@@ -1,21 +1,20 @@
-package com.lurenjia534.quotahub.ui.screens.home
+package com.lurenjia534.quotahub.data.provider.monitor
 
 import com.lurenjia534.quotahub.data.model.QuotaBuckets
 import com.lurenjia534.quotahub.data.model.QuotaRisk
 import com.lurenjia534.quotahub.data.model.QuotaSnapshot
 import com.lurenjia534.quotahub.data.model.ResourceRole
 import com.lurenjia534.quotahub.data.model.Subscription
-import com.lurenjia534.quotahub.data.provider.monitor.highestUsedPercent
-import com.lurenjia534.quotahub.data.provider.monitor.lowestHeadroomPercent
-import com.lurenjia534.quotahub.data.provider.monitor.monitorDominantRisk
-import com.lurenjia534.quotahub.data.provider.monitor.monitorLimitResources
-import com.lurenjia534.quotahub.data.provider.monitor.monitorResources
-import com.lurenjia534.quotahub.data.provider.monitor.monitorRisk
-import com.lurenjia534.quotahub.data.provider.monitor.monitorWindow
-import com.lurenjia534.quotahub.data.provider.monitor.progressPercent
-import com.lurenjia534.quotahub.data.provider.monitor.windowRemainingPercent
-import com.lurenjia534.quotahub.data.provider.monitor.windowUsedCount
-import com.lurenjia534.quotahub.data.provider.monitor.windowUsedPercent
+import com.lurenjia534.quotahub.ui.screens.home.LabeledValueUiModel
+import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaDetailProjector
+import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaDetailUiModel
+import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaResourceUiModel
+import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaSummaryUiModel
+import com.lurenjia534.quotahub.ui.screens.home.SummaryMetricRowUiModel
+import com.lurenjia534.quotahub.ui.screens.home.formatCount
+import com.lurenjia534.quotahub.ui.screens.home.formatTimeUntil
+import com.lurenjia534.quotahub.ui.screens.home.description
+import com.lurenjia534.quotahub.ui.screens.home.label
 import java.text.NumberFormat
 
 class MonitorQuotaDetailProjector(

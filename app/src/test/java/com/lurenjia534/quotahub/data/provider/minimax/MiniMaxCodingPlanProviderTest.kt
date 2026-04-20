@@ -2,12 +2,20 @@ package com.lurenjia534.quotahub.data.provider.minimax
 
 import com.lurenjia534.quotahub.data.model.ResourceType
 import com.lurenjia534.quotahub.data.model.WindowScope
+import com.lurenjia534.quotahub.data.provider.ProviderFailure
 import com.lurenjia534.quotahub.data.provider.ProviderReplayPayload
+import com.lurenjia534.quotahub.data.provider.ProviderSyncException
+import com.lurenjia534.quotahub.data.provider.SecretBundle
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import retrofit2.HttpException
+import retrofit2.Response
 
 class MiniMaxCodingPlanProviderTest {
     private val provider = MiniMaxCodingPlanProvider()
@@ -61,6 +69,121 @@ class MiniMaxCodingPlanProviderTest {
     }
 
     @Test
+    fun validate_wrapsAuthStatusCodeAsAuthFailure() = runBlocking {
+        val service = FakeMiniMaxApiService(
+            response = MiniMaxQuotaResponse(
+                modelRemains = emptyList(),
+                baseResp = MiniMaxBaseResponse(
+                    statusCode = 1004,
+                    statusMsg = "unauthorized"
+                )
+            )
+        )
+
+        val result = MiniMaxCodingPlanProvider(apiService = service).validate(
+            SecretBundle.single(MiniMaxCodingPlanProvider.API_KEY_FIELD, "api-key")
+        )
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull() is ProviderSyncException)
+        assertTrue((result.exceptionOrNull() as ProviderSyncException).failure is ProviderFailure.Auth)
+    }
+
+    @Test
+    fun validate_wrapsUnauthorizedHttpExceptionAsAuthFailure() = runBlocking {
+        val service = FakeMiniMaxApiService(
+            throwable = httpException(401)
+        )
+
+        val result = MiniMaxCodingPlanProvider(apiService = service).validate(
+            SecretBundle.single(MiniMaxCodingPlanProvider.API_KEY_FIELD, "api-key")
+        )
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull() is ProviderSyncException)
+        assertTrue((result.exceptionOrNull() as ProviderSyncException).failure is ProviderFailure.Auth)
+    }
+
+    @Test
+    fun validate_wrapsRateLimitedStatusCodeAsRateLimitedFailure() = runBlocking {
+        val service = FakeMiniMaxApiService(
+            response = MiniMaxQuotaResponse(
+                modelRemains = emptyList(),
+                baseResp = MiniMaxBaseResponse(
+                    statusCode = 1002,
+                    statusMsg = "request frequency exceeded"
+                )
+            )
+        )
+
+        val result = MiniMaxCodingPlanProvider(apiService = service).validate(
+            SecretBundle.single(MiniMaxCodingPlanProvider.API_KEY_FIELD, "api-key")
+        )
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull() is ProviderSyncException)
+        assertTrue((result.exceptionOrNull() as ProviderSyncException).failure is ProviderFailure.RateLimited)
+    }
+
+    @Test
+    fun validate_wrapsTransientStatusCodeAsTransientFailure() = runBlocking {
+        val service = FakeMiniMaxApiService(
+            response = MiniMaxQuotaResponse(
+                modelRemains = emptyList(),
+                baseResp = MiniMaxBaseResponse(
+                    statusCode = 1024,
+                    statusMsg = "internal error"
+                )
+            )
+        )
+
+        val result = MiniMaxCodingPlanProvider(apiService = service).validate(
+            SecretBundle.single(MiniMaxCodingPlanProvider.API_KEY_FIELD, "api-key")
+        )
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull() is ProviderSyncException)
+        assertTrue((result.exceptionOrNull() as ProviderSyncException).failure is ProviderFailure.Transient)
+    }
+
+    @Test
+    fun validate_wrapsValidationStatusCodeAsValidationFailure() = runBlocking {
+        val service = FakeMiniMaxApiService(
+            response = MiniMaxQuotaResponse(
+                modelRemains = emptyList(),
+                baseResp = MiniMaxBaseResponse(
+                    statusCode = 1042,
+                    statusMsg = "illegal characters"
+                )
+            )
+        )
+
+        val result = MiniMaxCodingPlanProvider(apiService = service).validate(
+            SecretBundle.single(MiniMaxCodingPlanProvider.API_KEY_FIELD, "api-key")
+        )
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull() is ProviderSyncException)
+        assertTrue((result.exceptionOrNull() as ProviderSyncException).failure is ProviderFailure.Validation)
+    }
+
+    @Test
+    fun replay_wrapsMalformedJsonAsSchemaChangedFailure() {
+        val payload = ProviderReplayPayload(
+            fetchedAt = 123456789L,
+            payloadFormat = MiniMaxCodingPlanProvider.RAW_PAYLOAD_FORMAT,
+            rawPayloadJson = """{"model_remains":[{"start_time":1}]""",
+            normalizerVersion = MiniMaxCodingPlanProvider.NORMALIZER_VERSION
+        )
+
+        val result = provider.replay(payload)
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull() is ProviderSyncException)
+        assertTrue((result.exceptionOrNull() as ProviderSyncException).failure is ProviderFailure.SchemaChanged)
+    }
+
+    @Test
     fun requiresReplay_onlyWhenStoredNormalizerVersionIsOlder() {
         val currentPayload = ProviderReplayPayload(
             fetchedAt = 1L,
@@ -72,5 +195,20 @@ class MiniMaxCodingPlanProviderTest {
 
         assertFalse(provider.requiresReplay(currentPayload))
         assertTrue(provider.requiresReplay(outdatedPayload))
+    }
+
+    private class FakeMiniMaxApiService(
+        private val response: MiniMaxQuotaResponse? = null,
+        private val throwable: Throwable? = null
+    ) : MiniMaxApiService {
+        override suspend fun getModelRemains(authorization: String): MiniMaxQuotaResponse {
+            throwable?.let { throw it }
+            return response ?: error("Expected either a response or an error")
+        }
+    }
+
+    private fun httpException(code: Int): HttpException {
+        val body = "{}".toResponseBody("application/json".toMediaType())
+        return HttpException(Response.error<Any>(code, body))
     }
 }

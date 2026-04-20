@@ -1,21 +1,18 @@
-package com.lurenjia534.quotahub.ui.screens.home
+package com.lurenjia534.quotahub.data.provider.codex
 
 import com.lurenjia534.quotahub.data.model.QuotaRisk
 import com.lurenjia534.quotahub.data.model.QuotaSnapshot
 import com.lurenjia534.quotahub.data.model.Subscription
-import com.lurenjia534.quotahub.data.provider.codex.codexDominantRisk
-import com.lurenjia534.quotahub.data.provider.codex.codexRisk
-import com.lurenjia534.quotahub.data.provider.codex.displayTitle
-import com.lurenjia534.quotahub.data.provider.codex.displayName
-import com.lurenjia534.quotahub.data.provider.codex.highestUsedPercent
-import com.lurenjia534.quotahub.data.provider.codex.lowestHeadroomPercent
-import com.lurenjia534.quotahub.data.provider.codex.planLabel
-import com.lurenjia534.quotahub.data.provider.codex.primaryWindow
-import com.lurenjia534.quotahub.data.provider.codex.progress
-import com.lurenjia534.quotahub.data.provider.codex.remainingPercentValue
-import com.lurenjia534.quotahub.data.provider.codex.secondaryWindow
-import com.lurenjia534.quotahub.data.provider.codex.soonestResetAt
-import com.lurenjia534.quotahub.data.provider.codex.usedPercentValue
+import com.lurenjia534.quotahub.ui.screens.home.LabeledValueUiModel
+import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaDetailProjector
+import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaDetailUiModel
+import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaResourceUiModel
+import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaSummaryUiModel
+import com.lurenjia534.quotahub.ui.screens.home.SummaryMetricRowUiModel
+import com.lurenjia534.quotahub.ui.screens.home.description
+import com.lurenjia534.quotahub.ui.screens.home.formatCount
+import com.lurenjia534.quotahub.ui.screens.home.formatTimeUntil
+import com.lurenjia534.quotahub.ui.screens.home.label
 
 class CodexProviderQuotaDetailProjector : ProviderQuotaDetailProjector {
     override fun project(

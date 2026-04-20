@@ -3,14 +3,20 @@ package com.lurenjia534.quotahub.data.provider.codex
 import com.lurenjia534.quotahub.data.model.QuotaUnit
 import com.lurenjia534.quotahub.data.model.ResourceType
 import com.lurenjia534.quotahub.data.model.WindowScope
+import com.lurenjia534.quotahub.data.provider.ProviderFailure
 import com.lurenjia534.quotahub.data.provider.ProviderReplayPayload
+import com.lurenjia534.quotahub.data.provider.ProviderSyncException
 import com.lurenjia534.quotahub.data.provider.SecretBundle
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import retrofit2.HttpException
+import retrofit2.Response
 
 class CodexCodingPlanProviderTest {
     @Test
@@ -44,6 +50,79 @@ class CodexCodingPlanProviderTest {
         assertEquals(ResourceType.Feature, featureResource.type)
         assertEquals("feature-a", featureResource.key)
         assertEquals(12L, featureResource.windows.single().remaining)
+    }
+
+    @Test
+    fun validate_wrapsUnauthorizedHttpExceptionAsAuthFailure() = runBlocking {
+        val provider = CodexCodingPlanProvider(
+            apiService = FakeCodexApiService(throwable = httpException(401))
+        )
+
+        val result = provider.validate(
+            SecretBundle.single(CodexCodingPlanProvider.ACCESS_TOKEN_FIELD, "token-123")
+        )
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull() is ProviderSyncException)
+        assertTrue((result.exceptionOrNull() as ProviderSyncException).failure is ProviderFailure.Auth)
+    }
+
+    @Test
+    fun validate_wrapsRateLimitedHttpExceptionAsRateLimitedFailure() = runBlocking {
+        val provider = CodexCodingPlanProvider(
+            apiService = FakeCodexApiService(throwable = httpException(429))
+        )
+
+        val result = provider.validate(
+            SecretBundle.single(CodexCodingPlanProvider.ACCESS_TOKEN_FIELD, "token-123")
+        )
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull() is ProviderSyncException)
+        assertTrue((result.exceptionOrNull() as ProviderSyncException).failure is ProviderFailure.RateLimited)
+    }
+
+    @Test
+    fun validate_wrapsMissingCredentialAsValidationFailure() = runBlocking {
+        val provider = CodexCodingPlanProvider(apiService = FakeCodexApiService(sampleResponse()))
+
+        val result = provider.validate(SecretBundle.of(emptyMap()))
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull() is ProviderSyncException)
+        assertTrue((result.exceptionOrNull() as ProviderSyncException).failure is ProviderFailure.Validation)
+    }
+
+    @Test
+    fun validate_wrapsIOExceptionAsTransientFailure() = runBlocking {
+        val provider = CodexCodingPlanProvider(
+            apiService = FakeCodexApiService(throwable = java.io.IOException("network down"))
+        )
+
+        val result = provider.validate(
+            SecretBundle.single(CodexCodingPlanProvider.ACCESS_TOKEN_FIELD, "token-123")
+        )
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull() is ProviderSyncException)
+        assertTrue((result.exceptionOrNull() as ProviderSyncException).failure is ProviderFailure.Transient)
+    }
+
+    @Test
+    fun replay_wrapsUnsupportedPayloadFormatAsSchemaChangedFailure() {
+        val provider = CodexCodingPlanProvider(apiService = FakeCodexApiService(sampleResponse()))
+        val payload = ProviderReplayPayload(
+            fetchedAt = 123_456L,
+            payloadFormat = "codex.usage-response.v0",
+            rawPayloadJson = Json.encodeToString(CodexUsageResponse.serializer(), sampleResponse()),
+            normalizerVersion = CodexCodingPlanProvider.NORMALIZER_VERSION
+        )
+
+        val result = provider.replay(payload)
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull() is ProviderSyncException)
+        assertTrue((result.exceptionOrNull() as ProviderSyncException).failure is ProviderFailure.SchemaChanged)
     }
 
     @Test
@@ -83,7 +162,8 @@ class CodexCodingPlanProviderTest {
     }
 
     private class FakeCodexApiService(
-        private val response: CodexUsageResponse
+        private val response: CodexUsageResponse? = null,
+        private val throwable: Throwable? = null
     ) : CodexApiService {
         var authorization: String? = null
         var accountId: String? = null
@@ -94,8 +174,14 @@ class CodexCodingPlanProviderTest {
         ): CodexUsageResponse {
             this.authorization = authorization
             this.accountId = accountId
-            return response
+            throwable?.let { throw it }
+            return response ?: error("Expected either a response or an error")
         }
+    }
+
+    private fun httpException(code: Int): HttpException {
+        val body = "{}".toResponseBody("application/json".toMediaType())
+        return HttpException(Response.error<Any>(code, body))
     }
 }
 

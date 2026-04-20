@@ -6,6 +6,7 @@ import com.lurenjia534.quotahub.data.model.Subscription
 import com.lurenjia534.quotahub.data.model.SubscriptionProvider
 import com.lurenjia534.quotahub.data.model.SubscriptionSyncStatus
 import com.lurenjia534.quotahub.data.provider.codex.CodexCodingPlanProvider
+import com.lurenjia534.quotahub.data.provider.codex.CodexProviderQuotaDetailProjector
 import com.lurenjia534.quotahub.data.provider.codex.sampleResponse
 import com.lurenjia534.quotahub.data.provider.codex.toQuotaSnapshot
 import org.junit.Assert.assertEquals

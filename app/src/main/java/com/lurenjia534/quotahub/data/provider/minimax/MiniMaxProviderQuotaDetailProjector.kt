@@ -1,23 +1,19 @@
-package com.lurenjia534.quotahub.ui.screens.home
+package com.lurenjia534.quotahub.data.provider.minimax
 
 import com.lurenjia534.quotahub.data.model.QuotaResource
 import com.lurenjia534.quotahub.data.model.QuotaRisk
 import com.lurenjia534.quotahub.data.model.QuotaSnapshot
 import com.lurenjia534.quotahub.data.model.Subscription
-import com.lurenjia534.quotahub.data.provider.minimax.dominantQuotaRisk
-import com.lurenjia534.quotahub.data.provider.minimax.effectiveRemainingCount
-import com.lurenjia534.quotahub.data.provider.minimax.effectiveUsageProgress
-import com.lurenjia534.quotahub.data.provider.minimax.hasMiniMaxPlanLevelWeeklyQuota
-import com.lurenjia534.quotahub.data.provider.minimax.hasVisibleWeeklyQuota
-import com.lurenjia534.quotahub.data.provider.minimax.intervalRemainingCount
-import com.lurenjia534.quotahub.data.provider.minimax.intervalUsedCount
-import com.lurenjia534.quotahub.data.provider.minimax.intervalUsageProgress
-import com.lurenjia534.quotahub.data.provider.minimax.intervalWindow
-import com.lurenjia534.quotahub.data.provider.minimax.quotaRisk
-import com.lurenjia534.quotahub.data.provider.minimax.relevantResetAt
-import com.lurenjia534.quotahub.data.provider.minimax.weeklyRemainingCount
-import com.lurenjia534.quotahub.data.provider.minimax.weeklyUsedCount
-import com.lurenjia534.quotahub.data.provider.minimax.weeklyWindow
+import com.lurenjia534.quotahub.ui.screens.home.LabeledValueUiModel
+import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaDetailProjector
+import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaDetailUiModel
+import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaResourceUiModel
+import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaSummaryUiModel
+import com.lurenjia534.quotahub.ui.screens.home.SummaryMetricRowUiModel
+import com.lurenjia534.quotahub.ui.screens.home.description
+import com.lurenjia534.quotahub.ui.screens.home.formatCount
+import com.lurenjia534.quotahub.ui.screens.home.formatTimeUntil
+import com.lurenjia534.quotahub.ui.screens.home.label
 import kotlin.math.roundToInt
 
 class MiniMaxProviderQuotaDetailProjector : ProviderQuotaDetailProjector {
