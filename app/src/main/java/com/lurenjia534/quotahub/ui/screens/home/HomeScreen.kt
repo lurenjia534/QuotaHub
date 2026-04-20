@@ -649,7 +649,10 @@ private fun SubscriptionQueueRow(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .clickable(
+                enabled = subscriptionCard.canOpenDetail,
+                onClick = onClick
+            ),
         color = colorScheme.surfaceContainerLow,
         shape = RoundedCornerShape(30.dp),
         tonalElevation = 1.dp
@@ -750,11 +753,21 @@ private fun SubscriptionQueueRow(
                         color = colorScheme.onSurfaceVariant
                     )
                 )
-                Icon(
-                    imageVector = Icons.Filled.ChevronRight,
-                    contentDescription = null,
-                    tint = colorScheme.primary
-                )
+                if (subscriptionCard.canOpenDetail) {
+                    Icon(
+                        imageVector = Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = colorScheme.primary
+                    )
+                } else {
+                    Text(
+                        text = "Unavailable",
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            color = colorScheme.error,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    )
+                }
             }
         }
     }

@@ -2,6 +2,7 @@ package com.lurenjia534.quotahub.sync
 
 import com.lurenjia534.quotahub.data.model.CredentialState
 import com.lurenjia534.quotahub.data.model.Subscription
+import com.lurenjia534.quotahub.data.model.SubscriptionProvider
 import com.lurenjia534.quotahub.data.model.SubscriptionSyncStatus
 import com.lurenjia534.quotahub.data.model.SyncState
 import com.lurenjia534.quotahub.data.provider.CredentialFieldSpec
@@ -112,13 +113,15 @@ class SubscriptionRefreshPolicyTest {
     ): Subscription {
         return Subscription(
             id = 1L,
-            provider = ProviderDescriptor(
-                id = "test-provider",
-                displayName = "Test Provider",
-                credentialFields = listOf(
-                    CredentialFieldSpec(
-                        key = "apiKey",
-                        label = "API Key"
+            provider = SubscriptionProvider.Supported(
+                ProviderDescriptor(
+                    id = "test-provider",
+                    displayName = "Test Provider",
+                    credentialFields = listOf(
+                        CredentialFieldSpec(
+                            key = "apiKey",
+                            label = "API Key"
+                        )
                     )
                 )
             ),

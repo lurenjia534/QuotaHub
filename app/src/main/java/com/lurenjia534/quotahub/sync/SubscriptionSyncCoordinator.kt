@@ -39,7 +39,7 @@ class DefaultSubscriptionSyncCoordinator(
                     repository.markSubscriptionSyncFailure(subscriptionId, error)
                     return@withLock Result.failure(error)
                 }
-            val provider = providerCatalog.provider(currentSubscription.provider)
+            val provider = providerCatalog.provider(currentSubscription.provider.id)
                 ?: return@withLock fail(
                     subscriptionId,
                     IllegalStateException("Unsupported provider: ${currentSubscription.provider.id}")
@@ -80,7 +80,16 @@ class DefaultSubscriptionSyncCoordinator(
                     subscriptionId,
                     IllegalStateException("Subscription no longer exists")
                 )
-            val provider = providerCatalog.provider(currentSubscription.provider)
+            if (!currentSubscription.isProviderSupported) {
+                return@withLock fail(
+                    subscriptionId,
+                    IllegalStateException(
+                        currentSubscription.credentialIssue
+                            ?: "Unsupported provider: ${currentSubscription.provider.id}"
+                    )
+                )
+            }
+            val provider = providerCatalog.provider(currentSubscription.provider.id)
                 ?: return@withLock fail(
                     subscriptionId,
                     IllegalStateException("Unsupported provider: ${currentSubscription.provider.id}")

@@ -31,7 +31,8 @@ data class SubscriptionCardUiModel(
     val syncState: SyncState,
     val syncLabel: String,
     val syncDescription: String,
-    val isConnected: Boolean
+    val isConnected: Boolean,
+    val canOpenDetail: Boolean
 )
 
 data class HomeHubUiState(
@@ -140,22 +141,32 @@ class HomeHubViewModel(
     }
 
     private fun SubscriptionCard.toCardUiModel(): SubscriptionCardUiModel {
-        val providerUi = providerUiRegistry.require(subscription.provider)
+        val providerUi = providerUiRegistry.getOrFallback(subscription.provider.id)
+        val canOpenDetail = subscription.isProviderSupported
         return SubscriptionCardUiModel(
             subscriptionId = subscription.id,
             providerId = subscription.provider.id,
             displayTitle = subscription.displayTitle,
-            subtitle = "${subscription.provider.displayName} • ${providerUi.subtitle}",
+            subtitle = if (canOpenDetail) {
+                "${subscription.provider.displayName} • ${providerUi.subtitle}"
+            } else {
+                "${subscription.provider.displayName} • Provider unavailable in this app build"
+            },
             providerIconRes = providerUi.iconRes,
             primaryMetric = primaryMetric,
             secondaryMetric = secondaryMetric,
             resourceCount = resourceCount,
             nextResetAt = nextResetAt,
             risk = risk,
-            syncState = subscription.syncStatus.state,
-            syncLabel = subscription.syncStatus.label(),
-            syncDescription = subscription.syncStatus.description(),
-            isConnected = subscription.syncStatus.isConnected
+            syncState = if (canOpenDetail) subscription.syncStatus.state else SyncState.SyncError,
+            syncLabel = if (canOpenDetail) subscription.syncStatus.label() else "Unavailable",
+            syncDescription = if (canOpenDetail) {
+                subscription.syncStatus.description()
+            } else {
+                "Update the app or remove this subscription. Cached quota remains visible."
+            },
+            isConnected = canOpenDetail && subscription.syncStatus.isConnected,
+            canOpenDetail = canOpenDetail
         )
     }
 

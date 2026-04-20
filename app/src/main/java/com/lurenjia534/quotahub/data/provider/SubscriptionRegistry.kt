@@ -55,6 +55,7 @@ class SubscriptionRegistry(
     }
 
     fun getGateway(subscription: com.lurenjia534.quotahub.data.model.Subscription): SubscriptionGateway {
+        subscription.requireSupportedProvider()
         return RepositoryBackedSubscriptionGateway(
             subscriptionData = subscription,
             repository = repository,
@@ -64,6 +65,9 @@ class SubscriptionRegistry(
 
     suspend fun getGatewayById(subscriptionId: Long): SubscriptionGateway? {
         val subscription = repository.getSubscriptionOnce(subscriptionId) ?: return null
+        if (!subscription.isProviderSupported) {
+            return null
+        }
         return getGateway(subscription)
     }
 

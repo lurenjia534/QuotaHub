@@ -13,6 +13,7 @@ import com.lurenjia534.quotahub.data.model.CredentialState
 import com.lurenjia534.quotahub.data.model.CredentialUnavailableException
 import com.lurenjia534.quotahub.data.model.QuotaSnapshot
 import com.lurenjia534.quotahub.data.model.Subscription
+import com.lurenjia534.quotahub.data.model.SubscriptionProvider
 import com.lurenjia534.quotahub.data.model.SubscriptionSyncStatus
 import com.lurenjia534.quotahub.data.model.SyncState
 import com.lurenjia534.quotahub.data.model.toSubscription
@@ -57,7 +58,7 @@ class SubscriptionRepository(
     private val credentialVault: CredentialVault
 ) : QuotaSnapshotReplayRunner, SubscriptionGatewayStore {
     val subscriptions: Flow<List<Subscription>> = subscriptionDao.getAllSubscriptions().map { entities ->
-        entities.mapNotNull(::toSubscription)
+        entities.map(::toSubscription)
     }
 
     override fun getSubscription(subscriptionId: Long): Flow<Subscription?> {
@@ -74,7 +75,14 @@ class SubscriptionRepository(
         val entity = subscriptionDao.getSubscriptionOnce(subscriptionId)
             ?: return Result.failure(IllegalStateException("Subscription no longer exists"))
         val subscription = toSubscription(entity)
-            ?: return Result.failure(IllegalStateException("Unsupported provider: ${entity.providerId}"))
+        if (!subscription.isProviderSupported) {
+            return Result.failure(
+                IllegalStateException(
+                    subscription.credentialIssue
+                        ?: "Unsupported provider: ${entity.providerId}"
+                )
+            )
+        }
         if (!subscription.hasUsableCredentials) {
             return Result.failure(
                 CredentialUnavailableException(
@@ -221,7 +229,7 @@ class SubscriptionRepository(
     suspend fun replayStoredQuotaSnapshot(subscriptionId: Long): Result<QuotaSnapshot> {
         val subscription = getSubscriptionOnce(subscriptionId)
             ?: return Result.failure(IllegalStateException("Subscription no longer exists"))
-        val provider = providerCatalog.provider(subscription.provider)
+        val provider = providerCatalog.provider(subscription.provider.id)
             ?: return Result.failure(
                 IllegalStateException("Unsupported provider: ${subscription.provider.id}")
             )
@@ -307,13 +315,21 @@ class SubscriptionRepository(
         }
     }
 
-    private fun toSubscription(entity: SubscriptionEntity): Subscription? {
-        val descriptor = providerCatalog.descriptor(entity.providerId) ?: return null
-        val credentialState = resolveCredentialState(entity, descriptor)
+    private fun toSubscription(entity: SubscriptionEntity): Subscription {
+        val descriptor = providerCatalog.descriptor(entity.providerId)
+        val provider = descriptor?.let { SubscriptionProvider.Supported(it) }
+            ?: SubscriptionProvider.Unsupported(entity.providerId)
+        val credentialState = descriptor?.let { resolveCredentialState(entity, it) }
+            ?: CredentialState.Broken(
+                reason = "Provider module is unavailable in the current app build."
+            )
         return entity.toSubscription(
-            provider = descriptor,
+            provider = provider,
             credentialState = credentialState,
-            syncStatus = entity.toSyncStatus().withCredentialState(credentialState)
+            syncStatus = entity.toSyncStatus().withCredentialState(
+                credentialState = credentialState,
+                forceAuthFailed = descriptor != null
+            )
         )
     }
 
@@ -416,7 +432,8 @@ private fun SyncState.toPersistedState(): SyncState {
 }
 
 private fun SubscriptionSyncStatus.withCredentialState(
-    credentialState: CredentialState
+    credentialState: CredentialState,
+    forceAuthFailed: Boolean = true
 ): SubscriptionSyncStatus {
     val issue = when (credentialState) {
         is CredentialState.Available -> return this
@@ -424,7 +441,7 @@ private fun SubscriptionSyncStatus.withCredentialState(
         is CredentialState.Missing -> credentialState.reason
     }
     return copy(
-        state = SyncState.AuthFailed,
+        state = if (forceAuthFailed) SyncState.AuthFailed else SyncState.SyncError,
         lastError = issue ?: lastError
     )
 }

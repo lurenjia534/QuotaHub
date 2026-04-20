@@ -4,6 +4,7 @@ import com.lurenjia534.quotahub.data.model.CredentialState
 import com.lurenjia534.quotahub.data.model.CredentialUnavailableException
 import com.lurenjia534.quotahub.data.model.QuotaSnapshot
 import com.lurenjia534.quotahub.data.model.Subscription
+import com.lurenjia534.quotahub.data.model.SubscriptionProvider
 import com.lurenjia534.quotahub.data.model.SubscriptionSyncStatus
 import com.lurenjia534.quotahub.sync.SubscriptionSyncCoordinator
 import com.lurenjia534.quotahub.sync.SyncCause
@@ -89,13 +90,15 @@ class RepositoryBackedSubscriptionGatewayTest {
     private fun subscription(): Subscription {
         return Subscription(
             id = 1L,
-            provider = ProviderDescriptor(
-                id = "test-provider",
-                displayName = "Test Provider",
-                credentialFields = listOf(
-                    CredentialFieldSpec(
-                        key = API_KEY_FIELD,
-                        label = "API Key"
+            provider = SubscriptionProvider.Supported(
+                ProviderDescriptor(
+                    id = "test-provider",
+                    displayName = "Test Provider",
+                    credentialFields = listOf(
+                        CredentialFieldSpec(
+                            key = API_KEY_FIELD,
+                            label = "API Key"
+                        )
                     )
                 )
             ),

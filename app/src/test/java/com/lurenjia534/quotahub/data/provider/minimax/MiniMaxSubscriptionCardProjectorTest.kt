@@ -11,6 +11,7 @@ import com.lurenjia534.quotahub.data.model.ResourceRole
 import com.lurenjia534.quotahub.data.model.ResourceType
 import com.lurenjia534.quotahub.data.model.CredentialState
 import com.lurenjia534.quotahub.data.model.Subscription
+import com.lurenjia534.quotahub.data.model.SubscriptionProvider
 import com.lurenjia534.quotahub.data.model.SubscriptionSyncStatus
 import com.lurenjia534.quotahub.data.model.WindowScope
 import com.lurenjia534.quotahub.data.provider.CredentialFieldSpec
@@ -91,13 +92,15 @@ class MiniMaxSubscriptionCardProjectorTest {
     private fun subscription(): Subscription {
         return Subscription(
             id = 1L,
-            provider = ProviderDescriptor(
-                id = MiniMaxCodingPlanProvider.ID,
-                displayName = "MiniMax Coding Plan",
-                credentialFields = listOf(
-                    CredentialFieldSpec(
-                        key = MiniMaxCodingPlanProvider.API_KEY_FIELD,
-                        label = "API Key"
+            provider = SubscriptionProvider.Supported(
+                ProviderDescriptor(
+                    id = MiniMaxCodingPlanProvider.ID,
+                    displayName = "MiniMax Coding Plan",
+                    credentialFields = listOf(
+                        CredentialFieldSpec(
+                            key = MiniMaxCodingPlanProvider.API_KEY_FIELD,
+                            label = "API Key"
+                        )
                     )
                 )
             ),

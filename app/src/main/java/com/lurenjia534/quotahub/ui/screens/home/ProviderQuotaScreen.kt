@@ -104,7 +104,8 @@ fun ProviderQuotaScreen(
         )
     )
     val uiState by viewModel.uiState.collectAsState()
-    val providerUi = providerUiRegistry.require(uiState.subscription.provider)
+    val provider = uiState.subscription.requireSupportedProvider()
+    val providerUi = providerUiRegistry.require(provider)
     val pullToRefreshState = rememberPullToRefreshState()
     val scope = rememberCoroutineScope()
     val isRefreshing = uiState.isLoading && uiState.detail.hasData
@@ -260,16 +261,16 @@ fun ProviderQuotaScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        text = "Enter a fresh set of ${uiState.subscription.provider.displayName} credentials. QuotaHub will validate them before replacing the stored secret.",
+                        text = "Enter a fresh set of ${provider.displayName} credentials. QuotaHub will validate them before replacing the stored secret.",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
-                    uiState.subscription.provider.credentialFields.forEachIndexed { index, field ->
+                    provider.credentialFields.forEachIndexed { index, field ->
                         ProviderCredentialInputField(
                             field = field,
                             value = uiState.credentialInputs[field.key].orEmpty(),
-                            isLastField = index == uiState.subscription.provider.credentialFields.lastIndex,
+                            isLastField = index == provider.credentialFields.lastIndex,
                             onValueChange = { viewModel.updateCredentialInput(field.key, it) },
                             onSubmit = viewModel::saveCredentials
                         )
@@ -288,7 +289,7 @@ fun ProviderQuotaScreen(
             confirmButton = {
                 TextButton(
                     onClick = viewModel::saveCredentials,
-                    enabled = uiState.subscription.provider.credentialFields.all {
+                    enabled = provider.credentialFields.all {
                         !it.isRequired || !uiState.credentialInputs[it.key].isNullOrBlank()
                     } && !uiState.isSavingCredentials
                 ) {
@@ -327,7 +328,7 @@ fun ProviderQuotaScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "${uiState.subscription.provider.displayName} • ${providerUi.subtitle}",
+                            text = "${provider.displayName} • ${providerUi.subtitle}",
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )

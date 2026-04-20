@@ -3,6 +3,7 @@ package com.lurenjia534.quotahub.ui.screens.home
 import com.lurenjia534.quotahub.data.model.CredentialState
 import com.lurenjia534.quotahub.data.model.QuotaRisk
 import com.lurenjia534.quotahub.data.model.Subscription
+import com.lurenjia534.quotahub.data.model.SubscriptionProvider
 import com.lurenjia534.quotahub.data.model.SubscriptionSyncStatus
 import com.lurenjia534.quotahub.data.provider.zhipu.ZhipuCodingPlanProvider
 import com.lurenjia534.quotahub.data.provider.zhipu.ZhipuUsageBundle
@@ -71,9 +72,11 @@ class ZhipuProviderQuotaDetailProjectorTest {
     private fun subscription(): Subscription {
         return Subscription(
             id = 1L,
-            provider = ZhipuCodingPlanProvider(
-                apiServiceFactory = { error("No network call expected") }
-            ).descriptor,
+            provider = SubscriptionProvider.Supported(
+                ZhipuCodingPlanProvider(
+                    apiServiceFactory = { error("No network call expected") }
+                ).descriptor
+            ),
             customTitle = null,
             credentialState = CredentialState.Available,
             syncStatus = SubscriptionSyncStatus.neverSynced(),

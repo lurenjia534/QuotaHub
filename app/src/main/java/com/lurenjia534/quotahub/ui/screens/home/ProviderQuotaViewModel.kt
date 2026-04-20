@@ -91,7 +91,8 @@ class ProviderQuotaViewModel(
                     credentialInputs = if (_uiState.value.showCredentialDialog) {
                         _uiState.value.credentialInputs
                     } else {
-                        snapshot.subscription.provider.credentialFields.associate { it.key to "" }
+                        snapshot.subscription.requireSupportedProvider().credentialFields
+                            .associate { it.key to "" }
                     }
                 )
             }
@@ -114,18 +115,20 @@ class ProviderQuotaViewModel(
     }
 
     fun showCredentialDialog() {
+        val provider = _uiState.value.subscription.requireSupportedProvider()
         _uiState.value = _uiState.value.copy(
             showCredentialDialog = true,
-            credentialInputs = _uiState.value.subscription.provider.credentialFields.associate { it.key to "" },
+            credentialInputs = provider.credentialFields.associate { it.key to "" },
             credentialError = null,
             error = null
         )
     }
 
     fun hideCredentialDialog() {
+        val provider = _uiState.value.subscription.requireSupportedProvider()
         _uiState.value = _uiState.value.copy(
             showCredentialDialog = false,
-            credentialInputs = _uiState.value.subscription.provider.credentialFields.associate { it.key to "" },
+            credentialInputs = provider.credentialFields.associate { it.key to "" },
             credentialError = null
         )
     }
@@ -161,7 +164,7 @@ class ProviderQuotaViewModel(
     }
 
     fun saveCredentials() {
-        val provider = _uiState.value.subscription.provider
+        val provider = _uiState.value.subscription.requireSupportedProvider()
         val missingField = provider.credentialFields.firstOrNull { field ->
             field.isRequired && _uiState.value.credentialInputs[field.key].isNullOrBlank()
         }

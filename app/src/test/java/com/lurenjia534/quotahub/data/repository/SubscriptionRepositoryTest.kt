@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -117,6 +118,43 @@ class SubscriptionRepositoryTest {
     }
 
     @Test
+    fun subscriptions_keepUnsupportedProvidersVisible() = runBlocking {
+        val subscriptionDao = FakeSubscriptionDao(
+            initialEntities = listOf(
+                SubscriptionEntity(
+                    id = 8L,
+                    providerId = "legacy-provider",
+                    customTitle = "Legacy source",
+                    apiKey = "encrypted-payload",
+                    syncState = SyncState.Active.name
+                )
+            )
+        )
+        val repository = SubscriptionRepository(
+            database = FakeQuotaDatabase(subscriptionDao),
+            subscriptionDao = subscriptionDao,
+            quotaSnapshotDao = NoOpQuotaSnapshotDao(),
+            providerCatalog = ProviderCatalog(emptyList()),
+            credentialVault = EncryptedCredentialVault(PassthroughCipher())
+        )
+
+        val subscription = repository.subscriptions.first().single()
+
+        assertFalse(subscription.isProviderSupported)
+        assertEquals("legacy-provider", subscription.provider.id)
+        assertEquals("Legacy source", subscription.displayTitle)
+        assertEquals(SyncState.SyncError, subscription.syncStatus.state)
+        assertEquals(
+            "Provider module is unavailable in the current app build.",
+            subscription.syncStatus.lastError
+        )
+        assertEquals(
+            "legacy-provider is unavailable in the current app build. Update the app or remove this subscription.",
+            subscription.credentialIssue
+        )
+    }
+
+    @Test
     fun getSubscriptionForRefresh_failsWhenCredentialsCannotBeRead() = runBlocking {
         val subscriptionDao = FakeSubscriptionDao(
             initialEntities = listOf(
@@ -142,6 +180,37 @@ class SubscriptionRepositoryTest {
         assertTrue(result.isFailure)
         assertTrue(result.exceptionOrNull() is CredentialUnavailableException)
         assertEquals("keystore unavailable", result.exceptionOrNull()?.message)
+    }
+
+    @Test
+    fun getSubscriptionForRefresh_failsWhenProviderIsUnsupported() = runBlocking {
+        val subscriptionDao = FakeSubscriptionDao(
+            initialEntities = listOf(
+                SubscriptionEntity(
+                    id = 12L,
+                    providerId = "legacy-provider",
+                    customTitle = null,
+                    apiKey = "encrypted-payload",
+                    syncState = SyncState.Active.name
+                )
+            )
+        )
+        val repository = SubscriptionRepository(
+            database = FakeQuotaDatabase(subscriptionDao),
+            subscriptionDao = subscriptionDao,
+            quotaSnapshotDao = NoOpQuotaSnapshotDao(),
+            providerCatalog = ProviderCatalog(emptyList()),
+            credentialVault = EncryptedCredentialVault(PassthroughCipher())
+        )
+
+        val result = repository.getSubscriptionForRefresh(12L)
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull() is IllegalStateException)
+        assertEquals(
+            "legacy-provider is unavailable in the current app build. Update the app or remove this subscription.",
+            result.exceptionOrNull()?.message
+        )
     }
 
     @Test

@@ -15,6 +15,28 @@ class CredentialUnavailableException(
     message: String
 ) : IllegalStateException(message)
 
+sealed interface SubscriptionProvider {
+    val id: String
+    val displayName: String
+
+    data class Supported(
+        val descriptor: ProviderDescriptor
+    ) : SubscriptionProvider {
+        override val id: String
+            get() = descriptor.id
+
+        override val displayName: String
+            get() = descriptor.displayName
+    }
+
+    data class Unsupported(
+        override val id: String
+    ) : SubscriptionProvider {
+        override val displayName: String
+            get() = id
+    }
+}
+
 /**
  * 订阅领域模型
  *
@@ -32,7 +54,7 @@ class CredentialUnavailableException(
  */
 data class Subscription(
     val id: Long,
-    val provider: ProviderDescriptor,
+    val provider: SubscriptionProvider,
     val customTitle: String?,
     val credentialState: CredentialState,
     val syncStatus: SubscriptionSyncStatus,
@@ -49,15 +71,30 @@ data class Subscription(
         get() = customTitle?.takeIf { it.isNotBlank() }
             ?: "${provider.displayName} #${id}"
 
+    val isProviderSupported: Boolean
+        get() = provider is SubscriptionProvider.Supported
+
+    val supportedProvider: ProviderDescriptor?
+        get() = (provider as? SubscriptionProvider.Supported)?.descriptor
+
     val hasUsableCredentials: Boolean
-        get() = credentialState is CredentialState.Available
+        get() = isProviderSupported && credentialState is CredentialState.Available
 
     val credentialIssue: String?
-        get() = when (val state = credentialState) {
-            is CredentialState.Available -> null
-            is CredentialState.Broken -> state.reason
-            is CredentialState.Missing -> state.reason
+        get() = when {
+            !isProviderSupported ->
+                "${provider.displayName} is unavailable in the current app build. Update the app or remove this subscription."
+            else -> when (val state = credentialState) {
+                is CredentialState.Available -> null
+                is CredentialState.Broken -> state.reason
+                is CredentialState.Missing -> state.reason
+            }
         }
+
+    fun requireSupportedProvider(): ProviderDescriptor {
+        return supportedProvider
+            ?: throw IllegalStateException("Unsupported provider: ${provider.id}")
+    }
 }
 
 /**
@@ -69,7 +106,7 @@ data class Subscription(
  * @return 转换后的Subscription，如果提供商不存在则返回null
  */
 fun SubscriptionEntity.toSubscription(
-    provider: ProviderDescriptor,
+    provider: SubscriptionProvider,
     credentialState: CredentialState,
     syncStatus: SubscriptionSyncStatus
 ): Subscription {
