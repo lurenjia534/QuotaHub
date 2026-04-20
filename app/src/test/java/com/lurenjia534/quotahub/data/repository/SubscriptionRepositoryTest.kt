@@ -18,7 +18,9 @@ import com.lurenjia534.quotahub.data.provider.CodingPlanProvider
 import com.lurenjia534.quotahub.data.provider.CredentialFieldSpec
 import com.lurenjia534.quotahub.data.provider.ProviderCatalog
 import com.lurenjia534.quotahub.data.provider.ProviderDescriptor
+import com.lurenjia534.quotahub.data.provider.ProviderFailure
 import com.lurenjia534.quotahub.data.provider.ProviderReplayPayload
+import com.lurenjia534.quotahub.data.provider.ProviderSyncException
 import com.lurenjia534.quotahub.data.provider.SecretBundle
 import com.lurenjia534.quotahub.data.security.ApiKeyCipher
 import com.lurenjia534.quotahub.data.security.EncryptedCredentialVault
@@ -200,6 +202,69 @@ class SubscriptionRepositoryTest {
         assertEquals(SyncState.Stale, subscription.syncStatus.state)
         assertEquals("Previous sync was interrupted before completion.", subscription.syncStatus.lastError)
         assertEquals(null, subscription.syncStatus.syncStartedAt)
+    }
+
+    @Test
+    fun markSubscriptionSyncFailure_mapsProviderAuthFailureToAuthFailed() = runBlocking {
+        val subscriptionDao = FakeSubscriptionDao(initialEntities = emptyList())
+        val repository = SubscriptionRepository(
+            database = FakeQuotaDatabase(subscriptionDao),
+            subscriptionDao = subscriptionDao,
+            quotaSnapshotDao = NoOpQuotaSnapshotDao(),
+            providerCatalog = providerCatalog(),
+            credentialVault = EncryptedCredentialVault(PassthroughCipher())
+        )
+
+        val subscriptionId = repository.createSubscription(
+            provider = providerCatalog().descriptors.single(),
+            customTitle = null,
+            credentials = SecretBundle.single("apiKey", "live-secret")
+        )
+
+        repository.markSubscriptionSyncFailure(
+            subscriptionId = subscriptionId,
+            error = ProviderSyncException(
+                ProviderFailure.Auth("token expired")
+            )
+        )
+
+        val subscription = repository.getSubscriptionOnce(subscriptionId)
+
+        assertEquals(SyncState.AuthFailed, subscription?.syncStatus?.state)
+        assertEquals("token expired", subscription?.syncStatus?.lastError)
+    }
+
+    @Test
+    fun markSubscriptionSyncFailure_mapsProviderRateLimitFailureToSyncError() = runBlocking {
+        val subscriptionDao = FakeSubscriptionDao(initialEntities = emptyList())
+        val repository = SubscriptionRepository(
+            database = FakeQuotaDatabase(subscriptionDao),
+            subscriptionDao = subscriptionDao,
+            quotaSnapshotDao = NoOpQuotaSnapshotDao(),
+            providerCatalog = providerCatalog(),
+            credentialVault = EncryptedCredentialVault(PassthroughCipher())
+        )
+
+        val subscriptionId = repository.createSubscription(
+            provider = providerCatalog().descriptors.single(),
+            customTitle = null,
+            credentials = SecretBundle.single("apiKey", "live-secret")
+        )
+
+        repository.markSubscriptionSyncFailure(
+            subscriptionId = subscriptionId,
+            error = ProviderSyncException(
+                ProviderFailure.RateLimited(
+                    retryAfterMillis = 30_000L,
+                    userMessage = "rate limited"
+                )
+            )
+        )
+
+        val subscription = repository.getSubscriptionOnce(subscriptionId)
+
+        assertEquals(SyncState.SyncError, subscription?.syncStatus?.state)
+        assertEquals("rate limited", subscription?.syncStatus?.lastError)
     }
 
     private fun providerCatalog(): ProviderCatalog {

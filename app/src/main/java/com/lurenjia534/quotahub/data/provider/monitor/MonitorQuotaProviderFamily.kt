@@ -7,12 +7,15 @@ import com.lurenjia534.quotahub.data.provider.CredentialFieldSpec
 import com.lurenjia534.quotahub.data.provider.ProviderDescriptor
 import com.lurenjia534.quotahub.data.provider.ProviderReplayPayload
 import com.lurenjia534.quotahub.data.provider.ProviderReplaySupport
+import com.lurenjia534.quotahub.data.provider.ProviderSyncException
 import com.lurenjia534.quotahub.data.provider.SecretBundle
+import com.lurenjia534.quotahub.data.provider.monitorQuotaFailure
 import java.net.URL
 import java.time.Clock
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 
@@ -64,7 +67,7 @@ class MonitorQuotaProviderFamily<TBundle>(
     )
 
     override suspend fun validate(credentials: SecretBundle): Result<CapturedQuotaSnapshot> {
-        return runCatching {
+        return captureSuspendFailures {
             val authorization = credentials.requireValue(AUTH_TOKEN_FIELD)
             val fetchedAt = clock.millis()
             val bundle = bundleFetcher(
@@ -92,7 +95,7 @@ class MonitorQuotaProviderFamily<TBundle>(
     }
 
     override fun replay(payload: ProviderReplayPayload): Result<CapturedQuotaSnapshot> {
-        return runCatching {
+        return captureFailures {
             require(payload.payloadFormat == brand.rawPayloadFormat) {
                 "Unsupported replay payload format: ${payload.payloadFormat}"
             }
@@ -103,6 +106,41 @@ class MonitorQuotaProviderFamily<TBundle>(
                     payloadFormat = brand.rawPayloadFormat,
                     normalizerVersion = brand.normalizerVersion
                 )
+            )
+        }
+    }
+
+    private suspend inline fun <T> captureSuspendFailures(
+        crossinline block: suspend () -> T
+    ): Result<T> {
+        return try {
+            Result.success(block())
+        } catch (error: Throwable) {
+            if (error is CancellationException) {
+                throw error
+            }
+            Result.failure(providerSyncException(error))
+        }
+    }
+
+    private inline fun <T> captureFailures(block: () -> T): Result<T> {
+        return try {
+            Result.success(block())
+        } catch (error: Throwable) {
+            if (error is CancellationException) {
+                throw error
+            }
+            Result.failure(providerSyncException(error))
+        }
+    }
+
+    private fun providerSyncException(error: Throwable): ProviderSyncException {
+        return if (error is ProviderSyncException) {
+            error
+        } else {
+            ProviderSyncException(
+                failure = monitorQuotaFailure(brand.displayName, error),
+                cause = error
             )
         }
     }

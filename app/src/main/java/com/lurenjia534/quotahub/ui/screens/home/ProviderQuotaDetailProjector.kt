@@ -1,7 +1,4 @@
 package com.lurenjia534.quotahub.ui.screens.home
-
-import com.lurenjia534.quotahub.bootstrap.provider.ProviderModule
-import com.lurenjia534.quotahub.bootstrap.provider.requireValidProviderModules
 import com.lurenjia534.quotahub.data.model.QuotaResource
 import com.lurenjia534.quotahub.data.model.QuotaRisk
 import com.lurenjia534.quotahub.data.model.QuotaSnapshot
@@ -25,17 +22,6 @@ class ProviderQuotaDetailProjectorRegistry(
         snapshot: QuotaSnapshot
     ): ProviderQuotaDetailUiModel {
         return (projectors[subscription.provider.id] ?: fallback).project(subscription, snapshot)
-    }
-
-    companion object {
-        fun fromModules(modules: List<ProviderModule>): ProviderQuotaDetailProjectorRegistry {
-            val validatedModules = requireValidProviderModules(modules)
-            return ProviderQuotaDetailProjectorRegistry(
-                projectors = validatedModules.associate { module ->
-                    module.provider.descriptor.id to module.detailProjector
-                }
-            )
-        }
     }
 }
 

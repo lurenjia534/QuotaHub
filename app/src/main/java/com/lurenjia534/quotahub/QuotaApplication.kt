@@ -2,6 +2,7 @@ package com.lurenjia534.quotahub
 
 import android.app.Application
 import android.util.Log
+import com.lurenjia534.quotahub.bootstrap.provider.ProviderRegistryAssembly
 import com.lurenjia534.quotahub.bootstrap.provider.ProviderModules
 import com.lurenjia534.quotahub.data.local.QuotaDatabase
 import com.lurenjia534.quotahub.data.preferences.UiPreferencesRepository
@@ -41,7 +42,7 @@ class QuotaApplication : Application() {
     }
 
     val providerUiRegistry: ProviderUiRegistry by lazy {
-        ProviderUiRegistry.fromModules(providerModules)
+        ProviderRegistryAssembly.providerUiRegistry(providerModules)
     }
 
     val subscriptionRepository: SubscriptionRepository by lazy {
@@ -58,7 +59,9 @@ class QuotaApplication : Application() {
         SubscriptionRegistry(
             repository = subscriptionRepository,
             providerCatalog = providerCatalog,
-            cardProjectorRegistry = SubscriptionCardProjectorRegistry.fromModules(providerModules),
+            cardProjectorRegistry = ProviderRegistryAssembly.subscriptionCardProjectorRegistry(
+                providerModules
+            ),
             syncCoordinator = subscriptionSyncCoordinator
         )
     }
@@ -72,7 +75,7 @@ class QuotaApplication : Application() {
     }
 
     val providerQuotaDetailProjectorRegistry: ProviderQuotaDetailProjectorRegistry by lazy {
-        ProviderQuotaDetailProjectorRegistry.fromModules(providerModules)
+        ProviderRegistryAssembly.providerQuotaDetailProjectorRegistry(providerModules)
     }
 
     val uiPreferencesRepository: UiPreferencesRepository by lazy {

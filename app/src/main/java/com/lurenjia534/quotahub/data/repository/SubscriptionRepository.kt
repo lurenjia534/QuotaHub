@@ -19,6 +19,8 @@ import com.lurenjia534.quotahub.data.model.toSubscription
 import com.lurenjia534.quotahub.data.provider.CapturedQuotaSnapshot
 import com.lurenjia534.quotahub.data.provider.ProviderCatalog
 import com.lurenjia534.quotahub.data.provider.ProviderDescriptor
+import com.lurenjia534.quotahub.data.provider.toProviderFailureOrNull
+import com.lurenjia534.quotahub.data.provider.toSyncState
 import com.lurenjia534.quotahub.data.provider.ProviderReplayPayload
 import com.lurenjia534.quotahub.data.provider.SecretBundle
 import com.lurenjia534.quotahub.data.provider.SubscriptionGatewayStore
@@ -439,6 +441,9 @@ private fun QuotaSnapshotEntity.toReplayPayload(): ProviderReplayPayload? {
 }
 
 private fun Throwable.toSyncFailureState(): SyncState {
+    toProviderFailureOrNull()?.let { failure ->
+        return failure.toSyncState()
+    }
     return if (
         this is CredentialUnavailableException ||
         (this is HttpException && (code() == 401 || code() == 403))

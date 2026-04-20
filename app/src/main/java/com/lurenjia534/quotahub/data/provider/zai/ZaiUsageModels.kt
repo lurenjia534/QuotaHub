@@ -9,6 +9,7 @@ import com.lurenjia534.quotahub.data.model.QuotaWindow
 import com.lurenjia534.quotahub.data.model.ResourceRole
 import com.lurenjia534.quotahub.data.model.ResourceType
 import com.lurenjia534.quotahub.data.model.WindowScope
+import com.lurenjia534.quotahub.data.provider.monitor.requireMonitorQuotaData
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.time.Instant
@@ -416,15 +417,13 @@ private fun pluralizedDuration(
 }
 
 private fun <T> ZaiApiEnvelope<T>.requireData(endpointName: String): T {
-    require(success != false) {
-        msg ?: "Request to $endpointName failed"
-    }
-    require(code == null || code == 200) {
-        msg ?: "Unexpected response code $code from $endpointName"
-    }
-    return requireNotNull(data) {
-        "Missing data in $endpointName response"
-    }
+    return requireMonitorQuotaData(
+        endpointName = endpointName,
+        success = success,
+        code = code,
+        responseMessage = msg,
+        data = data
+    )
 }
 
 private fun ZaiToolUsageData.summarizedToolUsage(vararg keys: String): Long {

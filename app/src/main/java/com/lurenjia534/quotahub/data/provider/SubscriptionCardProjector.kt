@@ -1,7 +1,4 @@
 package com.lurenjia534.quotahub.data.provider
-
-import com.lurenjia534.quotahub.bootstrap.provider.ProviderModule
-import com.lurenjia534.quotahub.bootstrap.provider.requireValidProviderModules
 import com.lurenjia534.quotahub.data.model.QuotaResource
 import com.lurenjia534.quotahub.data.model.QuotaRisk
 import com.lurenjia534.quotahub.data.model.QuotaSnapshot
@@ -38,17 +35,6 @@ class SubscriptionCardProjectorRegistry(
         snapshot: QuotaSnapshot
     ): SubscriptionCardProjection {
         return (projectors[subscription.provider.id] ?: fallback).project(subscription, snapshot)
-    }
-
-    companion object {
-        fun fromModules(modules: List<ProviderModule>): SubscriptionCardProjectorRegistry {
-            val validatedModules = requireValidProviderModules(modules)
-            return SubscriptionCardProjectorRegistry(
-                projectors = validatedModules.associate { module ->
-                    module.provider.descriptor.id to module.cardProjector
-                }
-            )
-        }
     }
 }
 

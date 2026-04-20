@@ -2,7 +2,9 @@ package com.lurenjia534.quotahub.data.provider.zhipu
 
 import com.lurenjia534.quotahub.data.model.ResourceType
 import com.lurenjia534.quotahub.data.model.WindowScope
+import com.lurenjia534.quotahub.data.provider.ProviderFailure
 import com.lurenjia534.quotahub.data.provider.ProviderReplayPayload
+import com.lurenjia534.quotahub.data.provider.ProviderSyncException
 import com.lurenjia534.quotahub.data.provider.SecretBundle
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -112,6 +114,8 @@ class ZhipuCodingPlanProviderTest {
         )
 
         assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull() is ProviderSyncException)
+        assertTrue((result.exceptionOrNull() as ProviderSyncException).failure is ProviderFailure.SchemaChanged)
         assertEquals("Missing data in model usage response", result.exceptionOrNull()?.message)
     }
 
@@ -141,6 +145,8 @@ class ZhipuCodingPlanProviderTest {
         )
 
         assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull() is ProviderSyncException)
+        assertTrue((result.exceptionOrNull() as ProviderSyncException).failure is ProviderFailure.Transient)
         assertEquals("server exploded", result.exceptionOrNull()?.message)
     }
 

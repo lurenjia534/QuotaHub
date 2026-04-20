@@ -82,6 +82,19 @@ class ProviderModuleValidationTest {
         )
     }
 
+    @Test
+    fun providerRegistryAssembly_buildsRegistriesFromModules() {
+        val modules = ProviderModules.all
+
+        val uiRegistry = ProviderRegistryAssembly.providerUiRegistry(modules)
+        val cardRegistry = ProviderRegistryAssembly.subscriptionCardProjectorRegistry(modules)
+        val detailRegistry = ProviderRegistryAssembly.providerQuotaDetailProjectorRegistry(modules)
+
+        assertEquals("chatgpt.com", uiRegistry.require("codex").subtitle)
+        assertTrue(cardRegistry.projectorsForTest().containsKey("zai"))
+        assertTrue(detailRegistry.projectorsForTest().containsKey("zhipu"))
+    }
+
     private fun module(providerId: String): ProviderModule {
         return ProviderModule(
             provider = FakeProvider(providerId),
