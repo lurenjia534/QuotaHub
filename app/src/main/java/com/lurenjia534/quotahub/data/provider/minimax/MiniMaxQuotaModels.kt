@@ -1,9 +1,12 @@
 package com.lurenjia534.quotahub.data.provider.minimax
 
 import com.lurenjia534.quotahub.data.model.QuotaResource
+import com.lurenjia534.quotahub.data.model.QuotaBuckets
 import com.lurenjia534.quotahub.data.model.QuotaSnapshot
 import com.lurenjia534.quotahub.data.model.QuotaUnit
+import com.lurenjia534.quotahub.data.model.QuotaWindowLabels
 import com.lurenjia534.quotahub.data.model.QuotaWindow
+import com.lurenjia534.quotahub.data.model.ResourceRole
 import com.lurenjia534.quotahub.data.model.ResourceType
 import com.lurenjia534.quotahub.data.model.WindowScope
 import kotlinx.serialization.SerialName
@@ -61,11 +64,18 @@ fun MiniMaxQuotaResponse.toQuotaSnapshot(
                 key = quota.modelName,
                 title = quota.modelName,
                 type = ResourceType.Model,
+                role = if (quota.modelName in MiniMaxWeeklyPlanAnchorResourceKeys) {
+                    ResourceRole.Anchor
+                } else {
+                    ResourceRole.Limit
+                },
+                bucket = QuotaBuckets.ModelCalls,
                 windows = buildList {
                     add(
                         QuotaWindow(
                             windowKey = INTERVAL_WINDOW_KEY,
                             scope = WindowScope.Interval,
+                            label = QuotaWindowLabels.Interval,
                             total = quota.currentIntervalTotalCount.toLong(),
                             used = quota.intervalUsedCount.toLong(),
                             remaining = quota.intervalRemainingCount.toLong(),
@@ -80,6 +90,7 @@ fun MiniMaxQuotaResponse.toQuotaSnapshot(
                             QuotaWindow(
                                 windowKey = WEEKLY_WINDOW_KEY,
                                 scope = WindowScope.Weekly,
+                                label = QuotaWindowLabels.Weekly,
                                 total = quota.currentWeeklyTotalCount.toLong(),
                                 used = quota.weeklyUsedCount.toLong(),
                                 remaining = quota.weeklyRemainingCount.toLong(),
@@ -138,3 +149,9 @@ val MiniMaxModelQuota.weeklyResetAtEpochMillis: Long?
 
 private const val INTERVAL_WINDOW_KEY = "interval"
 private const val WEEKLY_WINDOW_KEY = "weekly"
+
+internal val MiniMaxWeeklyPlanAnchorResourceKeys = setOf(
+    "MiniMax-M*",
+    "coding-plan-vlm",
+    "coding-plan-search"
+)

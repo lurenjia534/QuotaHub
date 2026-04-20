@@ -162,7 +162,7 @@ class SubscriptionRepository(
     override suspend fun markSubscriptionSyncSuccess(subscriptionId: Long, fetchedAt: Long) {
         updateSyncStatus(subscriptionId) { current ->
             SubscriptionSyncStatus.active(
-                fetchedAt = fetchedAt,
+                fetchedAt = maxOf(current.lastSuccessAt ?: fetchedAt, fetchedAt),
                 previous = current
             )
         }
@@ -200,6 +200,10 @@ class SubscriptionRepository(
         )
 
         database.withTransaction {
+            val currentMetadata = quotaSnapshotDao.getQuotaSnapshotMetadata(subscriptionId)
+            if (currentMetadata != null && currentMetadata.fetchedAt > snapshot.fetchedAt) {
+                return@withTransaction
+            }
             quotaSnapshotDao.clearQuotaSnapshot(subscriptionId)
             ensureSubscriptionExists(subscriptionId)
             quotaSnapshotDao.upsertQuotaSnapshot(entities.snapshot)

@@ -1,12 +1,13 @@
 package com.lurenjia534.quotahub.data.provider
 
 import com.lurenjia534.quotahub.data.model.Subscription
+import com.lurenjia534.quotahub.sync.SubscriptionSyncCoordinator
 import kotlinx.coroutines.flow.combine
 
 class RepositoryBackedSubscriptionGateway(
     private val subscriptionData: Subscription,
-    private val provider: CodingPlanProvider,
-    private val repository: SubscriptionGatewayStore
+    private val repository: SubscriptionGatewayStore,
+    private val syncCoordinator: SubscriptionSyncCoordinator
 ) : SubscriptionGateway {
     override val subscription: Subscription = subscriptionData
 
@@ -21,57 +22,11 @@ class RepositoryBackedSubscriptionGateway(
     }
 
     override suspend fun refresh(): Result<Unit> {
-        repository.markSubscriptionSyncing(subscriptionData.id)
-        val currentSubscription = repository.getSubscriptionForRefresh(subscriptionData.id).getOrElse { error ->
-            repository.markSubscriptionSyncFailure(subscriptionData.id, error)
-            return Result.failure(error)
-        }
-        val credentials = repository.readCredentials(subscriptionData.id).getOrElse { error ->
-            repository.markSubscriptionSyncFailure(subscriptionData.id, error)
-            return Result.failure(error)
-        }
-        return provider.fetchSnapshot(
-            subscription = currentSubscription,
-            credentials = credentials
-        ).fold(
-            onSuccess = { capturedSnapshot ->
-                runCatching {
-                    repository.cacheQuotaSnapshot(subscriptionData.id, capturedSnapshot)
-                    repository.markSubscriptionSyncSuccess(
-                        subscriptionId = subscriptionData.id,
-                        fetchedAt = capturedSnapshot.snapshot.fetchedAt
-                    )
-                }.onFailure { error ->
-                    repository.markSubscriptionSyncFailure(subscriptionData.id, error)
-                }
-            },
-            onFailure = { error ->
-                repository.markSubscriptionSyncFailure(subscriptionData.id, error)
-                Result.failure(error)
-            }
-        )
+        return syncCoordinator.refresh(subscriptionData.id)
     }
 
     override suspend fun updateCredentials(credentials: SecretBundle): Result<Unit> {
-        repository.markSubscriptionSyncing(subscriptionData.id)
-        return provider.validate(credentials).fold(
-            onSuccess = { capturedSnapshot ->
-                runCatching {
-                    repository.updateSubscriptionCredentials(subscriptionData.id, credentials)
-                    repository.cacheQuotaSnapshot(subscriptionData.id, capturedSnapshot)
-                    repository.markSubscriptionSyncSuccess(
-                        subscriptionId = subscriptionData.id,
-                        fetchedAt = capturedSnapshot.snapshot.fetchedAt
-                    )
-                }.onFailure { error ->
-                    repository.markSubscriptionSyncFailure(subscriptionData.id, error)
-                }
-            },
-            onFailure = { error ->
-                repository.markSubscriptionSyncFailure(subscriptionData.id, error)
-                Result.failure(error)
-            }
-        )
+        return syncCoordinator.reauthenticate(subscriptionData.id, credentials)
     }
 
     override suspend fun rename(customTitle: String?): Result<Unit> {

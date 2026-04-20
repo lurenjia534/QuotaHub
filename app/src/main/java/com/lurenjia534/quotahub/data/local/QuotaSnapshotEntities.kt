@@ -8,6 +8,7 @@ import com.lurenjia534.quotahub.data.model.QuotaResource
 import com.lurenjia534.quotahub.data.model.QuotaSnapshot
 import com.lurenjia534.quotahub.data.model.QuotaUnit
 import com.lurenjia534.quotahub.data.model.QuotaWindow
+import com.lurenjia534.quotahub.data.model.ResourceRole
 import com.lurenjia534.quotahub.data.model.ResourceType
 import com.lurenjia534.quotahub.data.model.WindowScope
 
@@ -50,6 +51,8 @@ data class QuotaResourceEntity(
     val resourceKey: String,
     val title: String,
     val type: String,
+    val role: String?,
+    val bucket: String?,
     val displayOrder: Int
 )
 
@@ -71,6 +74,7 @@ data class QuotaWindowEntity(
     val resourceKey: String,
     val windowKey: String,
     val scope: String,
+    val label: String?,
     val displayOrder: Int,
     val total: Long?,
     val used: Long?,
@@ -87,9 +91,12 @@ data class QuotaSnapshotRow(
     val resourceKey: String?,
     val title: String?,
     val resourceType: String?,
+    val resourceRole: String?,
+    val resourceBucket: String?,
     val resourceDisplayOrder: Int?,
     val windowKey: String?,
     val scope: String?,
+    val windowLabel: String?,
     val windowDisplayOrder: Int?,
     val total: Long?,
     val used: Long?,
@@ -125,6 +132,8 @@ fun QuotaSnapshot.toEntities(
             resourceKey = resource.key,
             title = resource.title,
             type = resource.type.name,
+            role = resource.role?.name,
+            bucket = resource.bucket,
             displayOrder = resourceIndex
         )
     }
@@ -135,6 +144,7 @@ fun QuotaSnapshot.toEntities(
                 resourceKey = resource.key,
                 windowKey = window.windowKey,
                 scope = window.scope.name,
+                label = window.label,
                 displayOrder = windowIndex,
                 total = window.total,
                 used = window.used,
@@ -167,6 +177,8 @@ fun List<QuotaSnapshotRow>.toQuotaSnapshot(): QuotaSnapshot {
                 key = resourceKey,
                 title = row.title ?: resourceKey,
                 type = row.resourceType.toResourceType(),
+                role = row.resourceRole.toResourceRole(),
+                bucket = row.resourceBucket,
                 displayOrder = row.resourceDisplayOrder ?: Int.MAX_VALUE
             )
         }
@@ -176,6 +188,7 @@ fun List<QuotaSnapshotRow>.toQuotaSnapshot(): QuotaSnapshot {
                 window = QuotaWindow(
                     windowKey = row.windowKey ?: row.scope.orEmpty(),
                     scope = row.scope.toWindowScope(),
+                    label = row.windowLabel,
                     total = row.total,
                     used = row.used,
                     remaining = row.remaining,
@@ -197,6 +210,8 @@ fun List<QuotaSnapshotRow>.toQuotaSnapshot(): QuotaSnapshot {
                     key = resource.key,
                     title = resource.title,
                     type = resource.type,
+                    role = resource.role,
+                    bucket = resource.bucket,
                     windows = resource.windows
                         .sortedBy { it.displayOrder }
                         .map { it.window }
@@ -209,6 +224,8 @@ private data class LocalResourceAccumulator(
     val key: String,
     val title: String,
     val type: ResourceType,
+    val role: ResourceRole?,
+    val bucket: String?,
     val displayOrder: Int,
     val windows: MutableList<LocalWindowAccumulator> = mutableListOf()
 )
@@ -221,6 +238,12 @@ private data class LocalWindowAccumulator(
 private fun String?.toResourceType(): ResourceType {
     return runCatching { ResourceType.valueOf(this ?: ResourceType.Model.name) }
         .getOrDefault(ResourceType.Model)
+}
+
+private fun String?.toResourceRole(): ResourceRole? {
+    return this?.let {
+        runCatching { ResourceRole.valueOf(it) }.getOrNull()
+    }
 }
 
 private fun String?.toWindowScope(): WindowScope {

@@ -1,9 +1,12 @@
 package com.lurenjia534.quotahub.data.provider.zhipu
 
 import com.lurenjia534.quotahub.data.model.QuotaResource
+import com.lurenjia534.quotahub.data.model.QuotaBuckets
 import com.lurenjia534.quotahub.data.model.QuotaSnapshot
 import com.lurenjia534.quotahub.data.model.QuotaUnit
+import com.lurenjia534.quotahub.data.model.QuotaWindowLabels
 import com.lurenjia534.quotahub.data.model.QuotaWindow
+import com.lurenjia534.quotahub.data.model.ResourceRole
 import com.lurenjia534.quotahub.data.model.ResourceType
 import com.lurenjia534.quotahub.data.model.WindowScope
 import kotlinx.serialization.SerialName
@@ -173,10 +176,13 @@ private fun ZhipuModelUsageData.toModelResources(
                 key = "model:${summary.modelName}",
                 title = summary.modelName,
                 type = ResourceType.Model,
+                role = ResourceRole.Sampled,
+                bucket = QuotaBuckets.Tokens,
                 windows = listOf(
                     QuotaWindow(
                         windowKey = "sampled",
                         scope = WindowScope.Rolling,
+                        label = QuotaWindowLabels.Sampled,
                         total = null,
                         used = summary.totalTokens,
                         remaining = null,
@@ -228,10 +234,13 @@ private fun ZhipuToolUsageData.toSampledToolResources(
                 key = "tool-sampled:${metric.key}",
                 title = metric.title,
                 type = ResourceType.Feature,
+                role = ResourceRole.Sampled,
+                bucket = QuotaBuckets.Mcp,
                 windows = listOf(
                     QuotaWindow(
                         windowKey = "sampled",
                         scope = WindowScope.Rolling,
+                        label = QuotaWindowLabels.Sampled,
                         total = null,
                         used = metric.usage,
                         remaining = null,
@@ -258,10 +267,13 @@ private fun ZhipuQuotaLimit.toLimitResource(
         key = "limit:${normalizedType.lowercase()}",
         title = "${normalizedType.limitDisplayTitle()} (${windowLabel()})",
         type = ResourceType.Plan,
+        role = ResourceRole.Limit,
+        bucket = bucket(),
         windows = listOf(
             QuotaWindow(
                 windowKey = "limit-$index",
                 scope = windowScope(),
+                label = windowLabel(),
                 total = 100L,
                 used = usedPercent.toLong(),
                 remaining = remainingPercent.toLong(),
@@ -285,10 +297,13 @@ private fun ZhipuQuotaLimit.toLimitDetailResources(
                 key = "tool-limit:${detail.modelCode}",
                 title = detail.modelCode.toDisplayTitle(),
                 type = ResourceType.Feature,
+                role = ResourceRole.Contributor,
+                bucket = bucket(),
                 windows = listOf(
                     QuotaWindow(
                         windowKey = "current",
                         scope = windowScope(),
+                        label = QuotaWindowLabels.Current,
                         total = null,
                         used = detail.usage,
                         remaining = null,
@@ -338,6 +353,14 @@ private fun ZhipuQuotaLimit.windowScope(): WindowScope {
         UNIT_MONTH -> WindowScope.Monthly
         UNIT_HOUR -> WindowScope.Rolling
         else -> WindowScope.Rolling
+    }
+}
+
+private fun ZhipuQuotaLimit.bucket(): String {
+    return when (type.trim().uppercase()) {
+        "TOKENS_LIMIT" -> QuotaBuckets.Tokens
+        "TIME_LIMIT" -> QuotaBuckets.Mcp
+        else -> type.trim().lowercase()
     }
 }
 

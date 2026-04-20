@@ -3,8 +3,11 @@ package com.lurenjia534.quotahub.data.provider.minimax
 import com.lurenjia534.quotahub.data.model.QuotaResource
 import com.lurenjia534.quotahub.data.model.QuotaRisk
 import com.lurenjia534.quotahub.data.model.QuotaSnapshot
+import com.lurenjia534.quotahub.data.model.QuotaBuckets
 import com.lurenjia534.quotahub.data.model.QuotaUnit
 import com.lurenjia534.quotahub.data.model.QuotaWindow
+import com.lurenjia534.quotahub.data.model.QuotaWindowLabels
+import com.lurenjia534.quotahub.data.model.ResourceRole
 import com.lurenjia534.quotahub.data.model.ResourceType
 import com.lurenjia534.quotahub.data.model.CredentialState
 import com.lurenjia534.quotahub.data.model.Subscription
@@ -118,10 +121,17 @@ class MiniMaxSubscriptionCardProjectorTest {
             key = key,
             title = key,
             type = ResourceType.Model,
+            role = if (key in MiniMaxWeeklyPlanAnchorResourceKeys) {
+                ResourceRole.Anchor
+            } else {
+                ResourceRole.Limit
+            },
+            bucket = QuotaBuckets.ModelCalls,
             windows = listOf(
                 QuotaWindow(
                     windowKey = "interval",
                     scope = WindowScope.Interval,
+                    label = QuotaWindowLabels.Interval,
                     total = intervalRemaining + intervalUsed,
                     used = intervalUsed,
                     remaining = intervalRemaining,
@@ -131,6 +141,7 @@ class MiniMaxSubscriptionCardProjectorTest {
                 QuotaWindow(
                     windowKey = "weekly",
                     scope = WindowScope.Weekly,
+                    label = QuotaWindowLabels.Weekly,
                     total = weeklyRemaining + weeklyUsed,
                     used = weeklyUsed,
                     remaining = weeklyRemaining,

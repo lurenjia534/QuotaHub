@@ -1,9 +1,12 @@
 package com.lurenjia534.quotahub.data.provider.codex
 
 import com.lurenjia534.quotahub.data.model.QuotaResource
+import com.lurenjia534.quotahub.data.model.QuotaBuckets
 import com.lurenjia534.quotahub.data.model.QuotaSnapshot
 import com.lurenjia534.quotahub.data.model.QuotaUnit
 import com.lurenjia534.quotahub.data.model.QuotaWindow
+import com.lurenjia534.quotahub.data.model.QuotaWindowLabels
+import com.lurenjia534.quotahub.data.model.ResourceRole
 import com.lurenjia534.quotahub.data.model.ResourceType
 import com.lurenjia534.quotahub.data.model.WindowScope
 import kotlinx.serialization.SerialName
@@ -115,6 +118,8 @@ private fun CodexRateLimitStatus.toQuotaResource(
         key = key,
         title = title,
         type = type,
+        role = ResourceRole.Limit,
+        bucket = if (type == ResourceType.Plan) QuotaBuckets.Budget else key,
         windows = windows
     )
 }
@@ -126,6 +131,11 @@ private fun CodexRateLimitWindow.toQuotaWindow(windowKey: String): QuotaWindow {
     return QuotaWindow(
         windowKey = windowKey,
         scope = limitWindowSeconds.toWindowScope(),
+        label = if (windowKey == PRIMARY_WINDOW_KEY) {
+            QuotaWindowLabels.Primary
+        } else {
+            QuotaWindowLabels.Secondary
+        },
         total = 100L,
         used = usedValue.toLong(),
         remaining = (100 - usedValue).toLong(),

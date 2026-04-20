@@ -13,7 +13,9 @@ import com.lurenjia534.quotahub.data.security.AndroidKeystoreApiKeyCipher
 import com.lurenjia534.quotahub.data.security.EncryptedCredentialVault
 import com.lurenjia534.quotahub.data.upgrade.QuotaUpgradeCoordinator
 import com.lurenjia534.quotahub.sync.DefaultSubscriptionRefreshPolicy
+import com.lurenjia534.quotahub.sync.DefaultSubscriptionSyncCoordinator
 import com.lurenjia534.quotahub.sync.SubscriptionRefreshPolicy
+import com.lurenjia534.quotahub.sync.SubscriptionSyncCoordinator
 import com.lurenjia534.quotahub.ui.provider.ProviderUiRegistry
 import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaDetailProjectorRegistry
 import kotlinx.coroutines.CoroutineScope
@@ -56,7 +58,8 @@ class QuotaApplication : Application() {
         SubscriptionRegistry(
             repository = subscriptionRepository,
             providerCatalog = providerCatalog,
-            cardProjectorRegistry = SubscriptionCardProjectorRegistry.fromModules(providerModules)
+            cardProjectorRegistry = SubscriptionCardProjectorRegistry.fromModules(providerModules),
+            syncCoordinator = subscriptionSyncCoordinator
         )
     }
 
@@ -78,6 +81,13 @@ class QuotaApplication : Application() {
 
     val subscriptionRefreshPolicy: SubscriptionRefreshPolicy by lazy {
         DefaultSubscriptionRefreshPolicy()
+    }
+
+    val subscriptionSyncCoordinator: SubscriptionSyncCoordinator by lazy {
+        DefaultSubscriptionSyncCoordinator(
+            repository = subscriptionRepository,
+            providerCatalog = providerCatalog
+        )
     }
 
     override fun onCreate() {

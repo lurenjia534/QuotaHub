@@ -5,6 +5,8 @@ import com.lurenjia534.quotahub.data.model.CredentialUnavailableException
 import com.lurenjia534.quotahub.data.model.QuotaSnapshot
 import com.lurenjia534.quotahub.data.model.Subscription
 import com.lurenjia534.quotahub.data.model.SubscriptionSyncStatus
+import com.lurenjia534.quotahub.sync.SubscriptionSyncCoordinator
+import com.lurenjia534.quotahub.sync.SyncCause
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
@@ -25,8 +27,8 @@ class RepositoryBackedSubscriptionGatewayTest {
         val provider = RecordingProvider()
         val gateway = RepositoryBackedSubscriptionGateway(
             subscriptionData = initialSubscription,
-            provider = provider,
-            repository = store
+            repository = store,
+            syncCoordinator = FakeSubscriptionSyncCoordinator(store, provider)
         )
 
         val result = gateway.refresh()
@@ -47,8 +49,8 @@ class RepositoryBackedSubscriptionGatewayTest {
         val provider = RecordingProvider()
         val gateway = RepositoryBackedSubscriptionGateway(
             subscriptionData = initialSubscription,
-            provider = provider,
-            repository = store
+            repository = store,
+            syncCoordinator = FakeSubscriptionSyncCoordinator(store, provider)
         )
 
         val result = gateway.updateCredentials(
@@ -72,8 +74,8 @@ class RepositoryBackedSubscriptionGatewayTest {
         val provider = RecordingProvider()
         val gateway = RepositoryBackedSubscriptionGateway(
             subscriptionData = initialSubscription,
-            provider = provider,
-            repository = store
+            repository = store,
+            syncCoordinator = FakeSubscriptionSyncCoordinator(store, provider)
         )
 
         val result = gateway.refresh()
@@ -213,6 +215,68 @@ class RepositoryBackedSubscriptionGatewayTest {
         }
 
         override suspend fun deleteSubscription(subscriptionId: Long) = Unit
+    }
+
+    private class FakeSubscriptionSyncCoordinator(
+        private val store: FakeSubscriptionGatewayStore,
+        private val provider: RecordingProvider
+    ) : SubscriptionSyncCoordinator {
+        override suspend fun refresh(
+            subscriptionId: Long,
+            cause: SyncCause
+        ): Result<Unit> {
+            store.markSubscriptionSyncing(subscriptionId)
+            val currentSubscription = store.getSubscriptionForRefresh(subscriptionId).getOrElse { error ->
+                store.markSubscriptionSyncFailure(subscriptionId, error)
+                return Result.failure(error)
+            }
+            val credentials = store.readCredentials(subscriptionId).getOrElse { error ->
+                store.markSubscriptionSyncFailure(subscriptionId, error)
+                return Result.failure(error)
+            }
+            return provider.fetchSnapshot(currentSubscription, credentials).fold(
+                onSuccess = { capturedSnapshot ->
+                    runCatching {
+                        store.cacheQuotaSnapshot(subscriptionId, capturedSnapshot)
+                        store.markSubscriptionSyncSuccess(
+                            subscriptionId = subscriptionId,
+                            fetchedAt = capturedSnapshot.snapshot.fetchedAt
+                        )
+                    }.onFailure { error ->
+                        store.markSubscriptionSyncFailure(subscriptionId, error)
+                    }
+                },
+                onFailure = { error ->
+                    store.markSubscriptionSyncFailure(subscriptionId, error)
+                    Result.failure(error)
+                }
+            )
+        }
+
+        override suspend fun reauthenticate(
+            subscriptionId: Long,
+            credentials: SecretBundle
+        ): Result<Unit> {
+            store.markSubscriptionSyncing(subscriptionId)
+            return provider.validate(credentials).fold(
+                onSuccess = { capturedSnapshot ->
+                    runCatching {
+                        store.updateSubscriptionCredentials(subscriptionId, credentials)
+                        store.cacheQuotaSnapshot(subscriptionId, capturedSnapshot)
+                        store.markSubscriptionSyncSuccess(
+                            subscriptionId = subscriptionId,
+                            fetchedAt = capturedSnapshot.snapshot.fetchedAt
+                        )
+                    }.onFailure { error ->
+                        store.markSubscriptionSyncFailure(subscriptionId, error)
+                    }
+                },
+                onFailure = { error ->
+                    store.markSubscriptionSyncFailure(subscriptionId, error)
+                    Result.failure(error)
+                }
+            )
+        }
     }
 
     private companion object {

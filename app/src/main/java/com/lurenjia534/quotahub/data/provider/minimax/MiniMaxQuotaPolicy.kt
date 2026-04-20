@@ -3,12 +3,13 @@ package com.lurenjia534.quotahub.data.provider.minimax
 import com.lurenjia534.quotahub.data.model.QuotaResource
 import com.lurenjia534.quotahub.data.model.QuotaRisk
 import com.lurenjia534.quotahub.data.model.QuotaWindow
+import com.lurenjia534.quotahub.data.model.ResourceRole
 import com.lurenjia534.quotahub.data.model.WindowScope
 import kotlin.math.max
 
 fun List<QuotaResource>.hasMiniMaxPlanLevelWeeklyQuota(): Boolean {
     return any { resource ->
-        resource.key in WeeklyPlanAnchorResourceKeys &&
+        resource.role == ResourceRole.Anchor &&
             (resource.weeklyWindow?.total ?: 0L) > 0L
     }
 }
@@ -94,9 +95,3 @@ private fun QuotaWindow.usageProgress(): Float {
         0f
     }
 }
-
-private val WeeklyPlanAnchorResourceKeys = setOf(
-    "MiniMax-M*",
-    "coding-plan-vlm",
-    "coding-plan-search"
-)

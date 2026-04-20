@@ -3,6 +3,7 @@ package com.lurenjia534.quotahub.data.provider
 import com.lurenjia534.quotahub.data.model.QuotaRisk
 import com.lurenjia534.quotahub.data.model.SubscriptionSyncStatus
 import com.lurenjia534.quotahub.data.repository.SubscriptionRepository
+import com.lurenjia534.quotahub.sync.SubscriptionSyncCoordinator
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -23,7 +24,8 @@ data class SubscriptionCard(
 class SubscriptionRegistry(
     private val repository: SubscriptionRepository,
     private val providerCatalog: ProviderCatalog,
-    private val cardProjectorRegistry: SubscriptionCardProjectorRegistry
+    private val cardProjectorRegistry: SubscriptionCardProjectorRegistry,
+    private val syncCoordinator: SubscriptionSyncCoordinator
 ) {
     val providers: List<ProviderDescriptor>
         get() = providerCatalog.descriptors
@@ -53,12 +55,10 @@ class SubscriptionRegistry(
     }
 
     fun getGateway(subscription: com.lurenjia534.quotahub.data.model.Subscription): SubscriptionGateway {
-        val provider = providerCatalog.provider(subscription.provider)
-            ?: throw IllegalArgumentException("Unsupported provider: ${subscription.provider.id}")
         return RepositoryBackedSubscriptionGateway(
             subscriptionData = subscription,
-            provider = provider,
-            repository = repository
+            repository = repository,
+            syncCoordinator = syncCoordinator
         )
     }
 

@@ -16,6 +16,8 @@ data class QuotaResource(
     val key: String,
     val title: String,
     val type: ResourceType,
+    val role: ResourceRole? = null,
+    val bucket: String? = null,
     val windows: List<QuotaWindow>
 )
 
@@ -28,6 +30,7 @@ enum class ResourceType {
 data class QuotaWindow(
     val windowKey: String,
     val scope: WindowScope,
+    val label: String? = null,
     val total: Long?,
     val used: Long?,
     val remaining: Long?,
@@ -51,4 +54,11 @@ enum class QuotaUnit {
     Credit,
     Minute,
     Percent
+}
+
+enum class ResourceRole {
+    Limit,
+    Contributor,
+    Sampled,
+    Anchor
 }

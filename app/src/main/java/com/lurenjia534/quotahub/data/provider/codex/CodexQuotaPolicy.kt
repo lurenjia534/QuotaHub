@@ -4,7 +4,7 @@ import com.lurenjia534.quotahub.data.model.QuotaResource
 import com.lurenjia534.quotahub.data.model.QuotaRisk
 import com.lurenjia534.quotahub.data.model.QuotaWindow
 import com.lurenjia534.quotahub.data.model.WindowScope
-import com.lurenjia534.quotahub.ui.screens.home.formatTimeRemaining
+import com.lurenjia534.quotahub.format.formatTimeRemaining
 
 internal val QuotaResource.primaryWindow: QuotaWindow?
     get() = windows.firstOrNull()
