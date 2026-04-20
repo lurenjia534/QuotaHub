@@ -21,7 +21,7 @@ import androidx.room.RoomDatabase
  * 设计说明：
  * - 采用单例模式确保数据库实例全局唯一
  * - 使用volatile关键字保证多线程安全
- * - 当前维护从schema v12开始的正式迁移链路
+ * - 当前仍处于WIP阶段，旧schema升级仍允许 destructive migration
  * - quota_upgrade_state 已升级为 provider 维度的 replay ledger
  */
 @Database(
@@ -74,7 +74,7 @@ abstract class QuotaDatabase : RoomDatabase() {
                     QuotaDatabase::class.java,
                     "quota_database"
                 )
-                    .addMigrations(*QuotaDatabaseMigrations.ALL)
+                    .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
                 INSTANCE = instance
                 instance
