@@ -9,7 +9,7 @@ import androidx.room.RoomDatabase
  * QuotaHub应用的主数据库
  *
  * 使用Room框架管理本地数据持久化。
- * 数据库版本11，包含订阅、规范化配额快照、可重放的原始 provider payload，
+ * 数据库版本13，包含订阅、规范化配额快照、可重放的原始 provider payload，
  * 以及升级协调状态表。
  *
  * 数据库表说明：
@@ -21,8 +21,8 @@ import androidx.room.RoomDatabase
  * 设计说明：
  * - 采用单例模式确保数据库实例全局唯一
  * - 使用volatile关键字保证多线程安全
- * - 当前WIP阶段仅维护schema v12
- * - 旧schema在打开时直接重建，不保留历史兼容迁移代码
+ * - 当前维护从schema v12开始的正式迁移链路
+ * - quota_upgrade_state 已升级为 provider 维度的 replay ledger
  */
 @Database(
     entities = [
@@ -32,7 +32,7 @@ import androidx.room.RoomDatabase
         QuotaWindowEntity::class,
         QuotaUpgradeStateEntity::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = false
 )
 abstract class QuotaDatabase : RoomDatabase() {
@@ -52,7 +52,7 @@ abstract class QuotaDatabase : RoomDatabase() {
     abstract fun quotaUpgradeStateDao(): QuotaUpgradeStateDao
 
     companion object {
-        const val CURRENT_VERSION = 12
+        const val CURRENT_VERSION = 13
 
         /** 单例实例，使用volatile保证可见性 */
         @Volatile
@@ -74,7 +74,7 @@ abstract class QuotaDatabase : RoomDatabase() {
                     QuotaDatabase::class.java,
                     "quota_database"
                 )
-                    .fallbackToDestructiveMigration(dropAllTables = true)
+                    .addMigrations(*QuotaDatabaseMigrations.ALL)
                     .build()
                 INSTANCE = instance
                 instance

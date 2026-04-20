@@ -23,11 +23,14 @@ import org.junit.Test
 
 class QuotaUpgradeCoordinatorTest {
     @Test
-    fun runPendingUpgrades_skipsReplayWhenFingerprintAlreadyApplied() = runBlocking {
+    fun runPendingUpgrades_skipsReplayWhenTrackedFingerprintsAlreadyApplied() = runBlocking {
         val stateDao = FakeQuotaUpgradeStateDao(
-            QuotaUpgradeStateEntity(
-                pendingReplay = false,
-                lastAppliedReplayFingerprint = CURRENT_FINGERPRINT
+            listOf(
+                QuotaUpgradeStateEntity(
+                    providerId = "minimax",
+                    pendingReplay = false,
+                    lastAppliedReplayFingerprint = fingerprintFor("minimax", 1)
+                )
             )
         )
         val replayRunner = FakeReplayRunner(
@@ -41,23 +44,31 @@ class QuotaUpgradeCoordinatorTest {
         val coordinator = QuotaUpgradeCoordinator(
             replayRunner = replayRunner,
             upgradeStateDao = stateDao,
-            providerCatalog = providerCatalog()
+            providerCatalog = providerCatalog(
+                ReplayProviderSpec(id = "minimax", normalizerVersion = 1)
+            )
         )
 
         val result = coordinator.runPendingUpgrades()
 
         assertFalse(result.replayTriggered)
         assertEquals(0, replayRunner.callCount)
-        assertEquals(CURRENT_FINGERPRINT, stateDao.state?.lastAppliedReplayFingerprint)
-        assertFalse(stateDao.state?.pendingReplay ?: true)
+        assertEquals(
+            fingerprintFor("minimax", 1),
+            stateDao.state("minimax")?.lastAppliedReplayFingerprint
+        )
+        assertFalse(stateDao.state("minimax")?.pendingReplay ?: true)
     }
 
     @Test
     fun runPendingUpgrades_clearsPendingReplayAfterSuccessfulReplay() = runBlocking {
         val stateDao = FakeQuotaUpgradeStateDao(
-            QuotaUpgradeStateEntity(
-                pendingReplay = true,
-                lastAppliedReplayFingerprint = "minimax:v0"
+            listOf(
+                QuotaUpgradeStateEntity(
+                    providerId = "minimax",
+                    pendingReplay = true,
+                    lastAppliedReplayFingerprint = "minimax:v0"
+                )
             )
         )
         val replayRunner = FakeReplayRunner(
@@ -71,7 +82,9 @@ class QuotaUpgradeCoordinatorTest {
         val coordinator = QuotaUpgradeCoordinator(
             replayRunner = replayRunner,
             upgradeStateDao = stateDao,
-            providerCatalog = providerCatalog()
+            providerCatalog = providerCatalog(
+                ReplayProviderSpec(id = "minimax", normalizerVersion = 1)
+            )
         )
 
         val result = coordinator.runPendingUpgrades()
@@ -79,23 +92,35 @@ class QuotaUpgradeCoordinatorTest {
         assertTrue(result.replayTriggered)
         assertEquals(1, replayRunner.callCount)
         assertNotNull(result.replayBatchResult)
-        assertEquals(CURRENT_FINGERPRINT, stateDao.state?.lastAppliedReplayFingerprint)
-        assertFalse(stateDao.state?.pendingReplay ?: true)
+        assertEquals(
+            fingerprintFor("minimax", 1),
+            stateDao.state("minimax")?.lastAppliedReplayFingerprint
+        )
+        assertFalse(stateDao.state("minimax")?.pendingReplay ?: true)
     }
 
     @Test
-    fun runPendingUpgrades_preservesPreviousFingerprintWhenReplayFails() = runBlocking {
-        val previousFingerprint = "minimax:minimax/raw-quota@v1:1"
+    fun runPendingUpgrades_preservesPreviousFingerprintOnlyForFailingProviders() = runBlocking {
+        val previousMinimaxFingerprint = fingerprintFor("minimax", 1)
+        val previousCodexFingerprint = fingerprintFor("codex", 1)
         val stateDao = FakeQuotaUpgradeStateDao(
-            QuotaUpgradeStateEntity(
-                pendingReplay = false,
-                lastAppliedReplayFingerprint = previousFingerprint
+            listOf(
+                QuotaUpgradeStateEntity(
+                    providerId = "minimax",
+                    pendingReplay = false,
+                    lastAppliedReplayFingerprint = previousMinimaxFingerprint
+                ),
+                QuotaUpgradeStateEntity(
+                    providerId = "codex",
+                    pendingReplay = false,
+                    lastAppliedReplayFingerprint = previousCodexFingerprint
+                )
             )
         )
         val replayRunner = FakeReplayRunner(
             QuotaSnapshotReplayBatchResult(
-                checked = 1,
-                replayed = 0,
+                checked = 2,
+                replayed = 1,
                 skipped = 0,
                 failures = listOf(
                     QuotaSnapshotReplayFailure(
@@ -109,20 +134,39 @@ class QuotaUpgradeCoordinatorTest {
         val coordinator = QuotaUpgradeCoordinator(
             replayRunner = replayRunner,
             upgradeStateDao = stateDao,
-            providerCatalog = providerCatalog(normalizerVersion = 2)
+            providerCatalog = providerCatalog(
+                ReplayProviderSpec(id = "minimax", normalizerVersion = 2),
+                ReplayProviderSpec(id = "codex", normalizerVersion = 2)
+            )
         )
 
         val result = coordinator.runPendingUpgrades()
 
         assertTrue(result.replayTriggered)
         assertEquals(1, replayRunner.callCount)
-        assertEquals(previousFingerprint, stateDao.state?.lastAppliedReplayFingerprint)
-        assertTrue(stateDao.state?.pendingReplay ?: false)
+        assertEquals(
+            previousMinimaxFingerprint,
+            stateDao.state("minimax")?.lastAppliedReplayFingerprint
+        )
+        assertTrue(stateDao.state("minimax")?.pendingReplay ?: false)
+        assertEquals(
+            fingerprintFor("codex", 2),
+            stateDao.state("codex")?.lastAppliedReplayFingerprint
+        )
+        assertFalse(stateDao.state("codex")?.pendingReplay ?: true)
     }
 
     @Test
-    fun runPendingUpgrades_initializesFingerprintWhenStateMissing() = runBlocking {
-        val stateDao = FakeQuotaUpgradeStateDao()
+    fun runPendingUpgrades_triggersReplayWhenTrackedProviderStateMissing() = runBlocking {
+        val stateDao = FakeQuotaUpgradeStateDao(
+            listOf(
+                QuotaUpgradeStateEntity(
+                    providerId = "minimax",
+                    pendingReplay = false,
+                    lastAppliedReplayFingerprint = fingerprintFor("minimax", 1)
+                )
+            )
+        )
         val replayRunner = FakeReplayRunner(
             QuotaSnapshotReplayBatchResult(
                 checked = 0,
@@ -134,26 +178,50 @@ class QuotaUpgradeCoordinatorTest {
         val coordinator = QuotaUpgradeCoordinator(
             replayRunner = replayRunner,
             upgradeStateDao = stateDao,
-            providerCatalog = providerCatalog()
+            providerCatalog = providerCatalog(
+                ReplayProviderSpec(id = "minimax", normalizerVersion = 1),
+                ReplayProviderSpec(id = "codex", normalizerVersion = 1)
+            )
         )
 
         val result = coordinator.runPendingUpgrades()
 
         assertTrue(result.replayTriggered)
         assertEquals(1, replayRunner.callCount)
-        assertEquals(CURRENT_FINGERPRINT, stateDao.state?.lastAppliedReplayFingerprint)
-        assertFalse(stateDao.state?.pendingReplay ?: true)
+        assertEquals(
+            fingerprintFor("minimax", 1),
+            stateDao.state("minimax")?.lastAppliedReplayFingerprint
+        )
+        assertEquals(
+            fingerprintFor("codex", 1),
+            stateDao.state("codex")?.lastAppliedReplayFingerprint
+        )
+        assertFalse(stateDao.state("codex")?.pendingReplay ?: true)
     }
 
     private class FakeQuotaUpgradeStateDao(
-        initialState: QuotaUpgradeStateEntity? = null
+        initialStates: List<QuotaUpgradeStateEntity> = emptyList()
     ) : QuotaUpgradeStateDao {
-        var state: QuotaUpgradeStateEntity? = initialState
+        private val statesByProviderId = initialStates
+            .associateBy { it.providerId }
+            .toMutableMap()
 
-        override suspend fun getState(): QuotaUpgradeStateEntity? = state
+        override suspend fun getStates(): List<QuotaUpgradeStateEntity> {
+            return statesByProviderId.values.sortedBy { it.providerId }
+        }
 
         override suspend fun upsert(state: QuotaUpgradeStateEntity) {
-            this.state = state
+            statesByProviderId[state.providerId] = state
+        }
+
+        override suspend fun upsertAll(states: List<QuotaUpgradeStateEntity>) {
+            for (state in states) {
+                upsert(state)
+            }
+        }
+
+        fun state(providerId: String): QuotaUpgradeStateEntity? {
+            return statesByProviderId[providerId]
         }
     }
 
@@ -189,13 +257,13 @@ class QuotaUpgradeCoordinatorTest {
         }
     }
 
-    private fun providerCatalog(normalizerVersion: Int = 1): ProviderCatalog {
+    private fun providerCatalog(vararg specs: ReplayProviderSpec): ProviderCatalog {
         return ProviderCatalog(
-            providers = listOf(
+            providers = specs.map { spec ->
                 FakeCodingPlanProvider(
                     descriptor = ProviderDescriptor(
-                        id = "minimax",
-                        displayName = "MiniMax",
+                        id = spec.id,
+                        displayName = spec.displayName,
                         credentialFields = listOf(
                             CredentialFieldSpec(
                                 key = "apiKey",
@@ -204,15 +272,22 @@ class QuotaUpgradeCoordinatorTest {
                         )
                     ),
                     replaySupport = ProviderReplaySupport(
-                        payloadFormat = "minimax/raw-quota@v1",
-                        normalizerVersion = normalizerVersion
+                        payloadFormat = spec.payloadFormat,
+                        normalizerVersion = spec.normalizerVersion
                     )
                 )
-            )
+            }
         )
     }
 
-    private companion object {
-        const val CURRENT_FINGERPRINT = "minimax:minimax/raw-quota@v1:1"
+    private data class ReplayProviderSpec(
+        val id: String,
+        val normalizerVersion: Int,
+        val displayName: String = id.replaceFirstChar { it.uppercase() },
+        val payloadFormat: String = "$id/raw-quota@v1"
+    )
+
+    private fun fingerprintFor(providerId: String, normalizerVersion: Int): String {
+        return "$providerId:${providerId}/raw-quota@v1:$normalizerVersion"
     }
 }

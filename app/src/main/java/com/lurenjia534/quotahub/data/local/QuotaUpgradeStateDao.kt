@@ -7,11 +7,12 @@ import androidx.room.Query
 
 @Dao
 interface QuotaUpgradeStateDao {
-    @Query(
-        "SELECT * FROM quota_upgrade_state WHERE singletonId = ${QuotaUpgradeStateEntity.SINGLETON_ID}"
-    )
-    suspend fun getState(): QuotaUpgradeStateEntity?
+    @Query("SELECT * FROM quota_upgrade_state")
+    suspend fun getStates(): List<QuotaUpgradeStateEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(state: QuotaUpgradeStateEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(states: List<QuotaUpgradeStateEntity>)
 }

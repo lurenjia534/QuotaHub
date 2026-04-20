@@ -17,14 +17,14 @@ class ProviderCatalog(
     private val providersById = providers.associateBy { it.descriptor.id }
 
     val descriptors: List<ProviderDescriptor> = providers.map { it.descriptor }
-    val replayContractFingerprint: String = providers
+    val replayContractFingerprintsByProviderId: Map<String, String> = providers
         .mapNotNull { provider ->
             provider.replaySupport?.let { support ->
-                "${provider.descriptor.id}:${support.payloadFormat}:${support.normalizerVersion}"
+                provider.descriptor.id to
+                    "${provider.descriptor.id}:${support.payloadFormat}:${support.normalizerVersion}"
             }
         }
-        .sorted()
-        .joinToString(separator = "|")
+        .toMap()
 
     fun descriptor(providerId: String): ProviderDescriptor? {
         return providersById[providerId]?.descriptor
