@@ -100,4 +100,9 @@ Based on the current source code, these items should be addressed before a produ
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the [Apache License 2.0](LICENSE).
+
+Third-party provider names, logos, and other brand identifiers remain subject
+to their respective owners' rights and are not granted under this repository's
+open-source license. See [NOTICE](NOTICE) and [TRADEMARKS.md](TRADEMARKS.md)
+for the redistribution boundary.
