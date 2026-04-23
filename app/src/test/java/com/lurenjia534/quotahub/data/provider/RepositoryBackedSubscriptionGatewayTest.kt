@@ -6,12 +6,14 @@ import com.lurenjia534.quotahub.data.model.QuotaSnapshot
 import com.lurenjia534.quotahub.data.model.Subscription
 import com.lurenjia534.quotahub.data.model.SubscriptionProvider
 import com.lurenjia534.quotahub.data.model.SubscriptionSyncStatus
+import com.lurenjia534.quotahub.data.model.SyncCause
 import com.lurenjia534.quotahub.sync.SubscriptionSyncCoordinator
-import com.lurenjia534.quotahub.sync.SyncCause
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -87,23 +89,61 @@ class RepositoryBackedSubscriptionGatewayTest {
         assertEquals("keystore unavailable", store.lastFailure?.message)
     }
 
-    private fun subscription(): Subscription {
-        return Subscription(
-            id = 1L,
-            provider = SubscriptionProvider.Supported(
-                ProviderDescriptor(
-                    id = "test-provider",
-                    displayName = "Test Provider",
-                    credentialFields = listOf(
-                        CredentialFieldSpec(
-                            key = API_KEY_FIELD,
-                            label = "API Key"
-                        )
+    @Test
+    fun readOnlyGateway_exposesCachedSnapshotButRejectsMutableOperations() = runBlocking {
+        val unsupportedSubscription = subscription(
+            provider = SubscriptionProvider.Unsupported("legacy-provider"),
+            credentialState = CredentialState.Broken(
+                "legacy-provider is unavailable in the current app build. Update the app or remove this subscription."
+            )
+        )
+        val store = FakeSubscriptionGatewayStore(
+            currentSubscription = unsupportedSubscription,
+            refreshedSubscription = unsupportedSubscription
+        )
+        val gateway = ReadOnlySubscriptionGateway(
+            subscriptionData = unsupportedSubscription,
+            repository = store
+        )
+
+        val snapshot = gateway.snapshot.first()
+        val refreshResult = gateway.refresh()
+        val updateResult = gateway.updateCredentials(
+            SecretBundle.single(API_KEY_FIELD, "rotated-key")
+        )
+        val renameResult = gateway.rename("Renamed")
+        gateway.disconnect()
+
+        assertEquals(unsupportedSubscription, snapshot.subscription)
+        assertFalse(gateway.capabilities.canRefresh)
+        assertFalse(gateway.capabilities.canUpdateCredentials)
+        assertFalse(gateway.capabilities.canRename)
+        assertTrue(refreshResult.isFailure)
+        assertTrue(updateResult.isFailure)
+        assertTrue(renameResult.isFailure)
+        assertEquals(1, store.deleteCalls)
+    }
+
+    private fun subscription(
+        provider: SubscriptionProvider = SubscriptionProvider.Supported(
+            ProviderDescriptor(
+                id = "test-provider",
+                displayName = "Test Provider",
+                credentialFields = listOf(
+                    CredentialFieldSpec(
+                        key = API_KEY_FIELD,
+                        label = "API Key"
                     )
                 )
-            ),
+            )
+        ),
+        credentialState: CredentialState = CredentialState.Available
+    ): Subscription {
+        return Subscription(
+            id = 1L,
+            provider = provider,
             customTitle = null,
-            credentialState = CredentialState.Available,
+            credentialState = credentialState,
             syncStatus = SubscriptionSyncStatus.neverSynced(),
             createdAt = 0L
         )
@@ -167,6 +207,8 @@ class RepositoryBackedSubscriptionGatewayTest {
         val cachedSnapshots = mutableListOf<CapturedQuotaSnapshot>()
         var lastFailure: Throwable? = null
             private set
+        var deleteCalls: Int = 0
+            private set
 
         override fun getSubscription(subscriptionId: Long): Flow<Subscription?> = subscriptionFlow
 
@@ -201,7 +243,7 @@ class RepositoryBackedSubscriptionGatewayTest {
             quotaFlow.value = capturedSnapshot.snapshot
         }
 
-        override suspend fun markSubscriptionSyncing(subscriptionId: Long) {
+        override suspend fun markSubscriptionSyncing(subscriptionId: Long, cause: SyncCause) {
             syncingCalls += 1
         }
 
@@ -217,7 +259,9 @@ class RepositoryBackedSubscriptionGatewayTest {
             return Result.success(Unit)
         }
 
-        override suspend fun deleteSubscription(subscriptionId: Long) = Unit
+        override suspend fun deleteSubscription(subscriptionId: Long) {
+            deleteCalls += 1
+        }
     }
 
     private class FakeSubscriptionSyncCoordinator(
@@ -228,7 +272,7 @@ class RepositoryBackedSubscriptionGatewayTest {
             subscriptionId: Long,
             cause: SyncCause
         ): Result<Unit> {
-            store.markSubscriptionSyncing(subscriptionId)
+            store.markSubscriptionSyncing(subscriptionId, cause)
             val currentSubscription = store.getSubscriptionForRefresh(subscriptionId).getOrElse { error ->
                 store.markSubscriptionSyncFailure(subscriptionId, error)
                 return Result.failure(error)
@@ -260,7 +304,7 @@ class RepositoryBackedSubscriptionGatewayTest {
             subscriptionId: Long,
             credentials: SecretBundle
         ): Result<Unit> {
-            store.markSubscriptionSyncing(subscriptionId)
+            store.markSubscriptionSyncing(subscriptionId, SyncCause.CredentialsUpdated)
             return provider.validate(credentials).fold(
                 onSuccess = { capturedSnapshot ->
                     runCatching {

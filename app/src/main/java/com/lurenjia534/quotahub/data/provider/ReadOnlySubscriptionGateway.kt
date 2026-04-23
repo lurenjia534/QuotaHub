@@ -1,19 +1,17 @@
 package com.lurenjia534.quotahub.data.provider
 
 import com.lurenjia534.quotahub.data.model.Subscription
-import com.lurenjia534.quotahub.sync.SubscriptionSyncCoordinator
 import kotlinx.coroutines.flow.combine
 
-class RepositoryBackedSubscriptionGateway(
+class ReadOnlySubscriptionGateway(
     private val subscriptionData: Subscription,
-    private val repository: SubscriptionGatewayStore,
-    private val syncCoordinator: SubscriptionSyncCoordinator
+    private val repository: SubscriptionGatewayStore
 ) : SubscriptionGateway {
     override val subscription: Subscription = subscriptionData
     override val capabilities: SubscriptionGatewayCapabilities = SubscriptionGatewayCapabilities(
-        canRefresh = true,
-        canUpdateCredentials = true,
-        canRename = true
+        canRefresh = false,
+        canUpdateCredentials = false,
+        canRename = false
     )
 
     override val snapshot = combine(
@@ -27,15 +25,27 @@ class RepositoryBackedSubscriptionGateway(
     }
 
     override suspend fun refresh(): Result<Unit> {
-        return syncCoordinator.refresh(subscriptionData.id)
+        return Result.failure(
+            IllegalStateException(
+                subscriptionData.credentialIssue
+                    ?: "This provider is unavailable in the current app build. Cached quota remains read-only."
+            )
+        )
     }
 
     override suspend fun updateCredentials(credentials: SecretBundle): Result<Unit> {
-        return syncCoordinator.reauthenticate(subscriptionData.id, credentials)
+        return Result.failure(
+            IllegalStateException(
+                subscriptionData.credentialIssue
+                    ?: "This provider is unavailable in the current app build. Cached quota remains read-only."
+            )
+        )
     }
 
     override suspend fun rename(customTitle: String?): Result<Unit> {
-        return repository.updateSubscriptionTitle(subscriptionData.id, customTitle)
+        return Result.failure(
+            IllegalStateException("Read-only subscriptions cannot be renamed while the provider module is unavailable.")
+        )
     }
 
     override suspend fun disconnect() {

@@ -104,12 +104,14 @@ fun ProviderQuotaScreen(
         )
     )
     val uiState by viewModel.uiState.collectAsState()
-    val provider = uiState.subscription.requireSupportedProvider()
-    val providerUi = providerUiRegistry.require(provider)
+    val supportedProvider = uiState.subscription.supportedProvider
+    val providerUi = providerUiRegistry.getOrFallback(uiState.subscription.provider.id)
+    val providerDisplayName = uiState.subscription.provider.displayName
     val pullToRefreshState = rememberPullToRefreshState()
     val scope = rememberCoroutineScope()
     val isRefreshing = uiState.isLoading && uiState.detail.hasData
-    val needsCredentialRepair = uiState.subscription.syncStatus.state == SyncState.AuthFailed
+    val needsCredentialRepair = uiState.canUpdateCredentials &&
+        uiState.subscription.syncStatus.state == SyncState.AuthFailed
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val quotaHaptics = rememberQuotaHaptics(hapticConfirmation)
     var showDisconnectDialog by remember { mutableStateOf(false) }
@@ -245,7 +247,7 @@ fun ProviderQuotaScreen(
         )
     }
 
-    if (uiState.showCredentialDialog) {
+    if (uiState.showCredentialDialog && supportedProvider != null && uiState.canUpdateCredentials) {
         AlertDialog(
             onDismissRequest = {
                 if (!uiState.isSavingCredentials) {
@@ -261,16 +263,16 @@ fun ProviderQuotaScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        text = "Enter a fresh set of ${provider.displayName} credentials. QuotaHub will validate them before replacing the stored secret.",
+                        text = "Enter a fresh set of ${supportedProvider.displayName} credentials. QuotaHub will validate them before replacing the stored secret.",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
-                    provider.credentialFields.forEachIndexed { index, field ->
+                    supportedProvider.credentialFields.forEachIndexed { index, field ->
                         ProviderCredentialInputField(
                             field = field,
                             value = uiState.credentialInputs[field.key].orEmpty(),
-                            isLastField = index == provider.credentialFields.lastIndex,
+                            isLastField = index == supportedProvider.credentialFields.lastIndex,
                             onValueChange = { viewModel.updateCredentialInput(field.key, it) },
                             onSubmit = viewModel::saveCredentials
                         )
@@ -289,7 +291,7 @@ fun ProviderQuotaScreen(
             confirmButton = {
                 TextButton(
                     onClick = viewModel::saveCredentials,
-                    enabled = provider.credentialFields.all {
+                    enabled = supportedProvider.credentialFields.all {
                         !it.isRequired || !uiState.credentialInputs[it.key].isNullOrBlank()
                     } && !uiState.isSavingCredentials
                 ) {
@@ -328,7 +330,7 @@ fun ProviderQuotaScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "${provider.displayName} • ${providerUi.subtitle}",
+                            text = "$providerDisplayName • ${providerUi.subtitle}",
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -352,11 +354,13 @@ fun ProviderQuotaScreen(
                             )
                         }
                     }
-                    IconButton(onClick = viewModel::showRenameDialog) {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = "Edit name"
-                        )
+                    if (uiState.canRename) {
+                        IconButton(onClick = viewModel::showRenameDialog) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Edit name"
+                            )
+                        }
                     }
                     IconButton(onClick = { showDisconnectDialog = true }) {
                         Icon(
@@ -378,7 +382,7 @@ fun ProviderQuotaScreen(
             isRefreshing = isRefreshing,
             onRefresh = requestRefresh,
             state = pullToRefreshState,
-            enabled = uiState.isConnected && !uiState.isBootstrapping,
+            enabled = uiState.canRefresh && uiState.isConnected && !uiState.isBootstrapping,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
@@ -409,24 +413,28 @@ fun ProviderQuotaScreen(
 
                 if (uiState.error != null) {
                     item {
+                        val actionLabel: String? = when {
+                            needsCredentialRepair -> "Update credentials"
+                            uiState.canRefresh -> "Retry"
+                            else -> null
+                        }
+                        val actionHandler: (() -> Unit)? = when {
+                            needsCredentialRepair -> viewModel::showCredentialDialog
+                            uiState.canRefresh -> requestRefresh
+                            else -> null
+                        }
                         AnimatedSection(visible = statusVisible) {
                             DetailErrorStrip(
                                 title = if (needsCredentialRepair) {
                                     "Credentials need attention"
+                                } else if (!uiState.canRefresh) {
+                                    "Read-only snapshot"
                                 } else {
                                     "Refresh failed"
                                 },
                                 message = uiState.error!!,
-                                actionLabel = if (needsCredentialRepair) {
-                                    "Update credentials"
-                                } else {
-                                    "Retry"
-                                },
-                                onAction = if (needsCredentialRepair) {
-                                    viewModel::showCredentialDialog
-                                } else {
-                                    requestRefresh
-                                }
+                                actionLabel = actionLabel,
+                                onAction = actionHandler
                             )
                         }
                     }
@@ -710,8 +718,8 @@ private fun VerticalDivider() {
 private fun DetailErrorStrip(
     title: String,
     message: String,
-    actionLabel: String,
-    onAction: () -> Unit
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null
 ) {
     val colorScheme = MaterialTheme.colorScheme
     Surface(
@@ -748,11 +756,13 @@ private fun DetailErrorStrip(
                     )
                 )
             }
-            TextButton(onClick = onAction) {
-                Text(
-                    text = actionLabel,
-                    color = colorScheme.onErrorContainer
-                )
+            if (actionLabel != null && onAction != null) {
+                TextButton(onClick = onAction) {
+                    Text(
+                        text = actionLabel,
+                        color = colorScheme.onErrorContainer
+                    )
+                }
             }
         }
     }

@@ -21,7 +21,15 @@ class ProviderCatalog(
         .mapNotNull { provider ->
             provider.replaySupport?.let { support ->
                 provider.descriptor.id to
-                    "${provider.descriptor.id}:${support.payloadFormat}:${support.normalizerVersion}"
+                    buildString {
+                        append(provider.descriptor.id)
+                        append(":")
+                        append(support.currentPayloadFormat)
+                        append(":")
+                        append(support.supportedPayloadFormats.sorted().joinToString(","))
+                        append(":")
+                        append(support.normalizerVersion)
+                    }
             }
         }
         .toMap()

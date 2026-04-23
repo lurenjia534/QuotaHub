@@ -38,7 +38,7 @@ class CodexCodingPlanProvider(
     )
 
     override val replaySupport: ProviderReplaySupport = ProviderReplaySupport(
-        payloadFormat = RAW_PAYLOAD_FORMAT,
+        currentPayloadFormat = RAW_PAYLOAD_FORMAT,
         normalizerVersion = NORMALIZER_VERSION
     )
 

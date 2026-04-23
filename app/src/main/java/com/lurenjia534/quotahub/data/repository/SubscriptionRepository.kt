@@ -14,17 +14,19 @@ import com.lurenjia534.quotahub.data.model.CredentialUnavailableException
 import com.lurenjia534.quotahub.data.model.QuotaSnapshot
 import com.lurenjia534.quotahub.data.model.Subscription
 import com.lurenjia534.quotahub.data.model.SubscriptionProvider
+import com.lurenjia534.quotahub.data.model.SyncCause
+import com.lurenjia534.quotahub.data.model.SyncFailureKind
 import com.lurenjia534.quotahub.data.model.SubscriptionSyncStatus
 import com.lurenjia534.quotahub.data.model.SyncState
 import com.lurenjia534.quotahub.data.model.toSubscription
 import com.lurenjia534.quotahub.data.provider.CapturedQuotaSnapshot
 import com.lurenjia534.quotahub.data.provider.ProviderCatalog
 import com.lurenjia534.quotahub.data.provider.ProviderDescriptor
-import com.lurenjia534.quotahub.data.provider.toProviderFailureOrNull
-import com.lurenjia534.quotahub.data.provider.toSyncState
+import com.lurenjia534.quotahub.data.provider.ProviderFailure
 import com.lurenjia534.quotahub.data.provider.ProviderReplayPayload
 import com.lurenjia534.quotahub.data.provider.SecretBundle
 import com.lurenjia534.quotahub.data.provider.SubscriptionGatewayStore
+import com.lurenjia534.quotahub.data.provider.toProviderFailureOrNull
 import com.lurenjia534.quotahub.data.security.CredentialVault
 import com.lurenjia534.quotahub.data.security.VaultCredentialState
 import com.lurenjia534.quotahub.data.upgrade.QuotaSnapshotReplayRunner
@@ -111,8 +113,12 @@ class SubscriptionRepository(
             syncState = syncStatus.state.toPersistedState().name,
             lastSuccessAt = syncStatus.lastSuccessAt,
             lastFailureAt = syncStatus.lastFailureAt,
+            lastFailureKind = syncStatus.lastFailureKind?.name,
             lastError = syncStatus.lastError,
-            syncStartedAt = syncStatus.syncStartedAt
+            retryAfterUntil = syncStatus.retryAfterUntil,
+            nextEligibleSyncAt = syncStatus.nextEligibleSyncAt,
+            syncStartedAt = syncStatus.syncStartedAt,
+            lastSyncCause = syncStatus.lastSyncCause?.name
         )
         return subscriptionDao.insertSubscription(entity)
     }
@@ -163,9 +169,12 @@ class SubscriptionRepository(
         subscriptionDao.deleteSubscriptionById(subscriptionId)
     }
 
-    override suspend fun markSubscriptionSyncing(subscriptionId: Long) {
+    override suspend fun markSubscriptionSyncing(subscriptionId: Long, cause: SyncCause) {
         updateSyncStatus(subscriptionId) { current ->
-            SubscriptionSyncStatus.syncing(current)
+            SubscriptionSyncStatus.syncing(
+                previous = current,
+                cause = cause
+            )
         }
     }
 
@@ -180,11 +189,19 @@ class SubscriptionRepository(
 
     override suspend fun markSubscriptionSyncFailure(subscriptionId: Long, error: Throwable) {
         updateSyncStatus(subscriptionId) { current ->
+            val failedAt = System.currentTimeMillis()
+            val failure = error.toPersistedSyncFailure(
+                failedAt = failedAt,
+                cause = current.lastSyncCause ?: SyncCause.ManualRefresh
+            )
             SubscriptionSyncStatus.failed(
-                state = error.toSyncFailureState(),
-                failedAt = System.currentTimeMillis(),
-                errorMessage = error.message,
-                previous = current
+                state = failure.state,
+                failedAt = failedAt,
+                errorMessage = failure.message,
+                previous = current,
+                failureKind = failure.kind,
+                retryAfterUntil = failure.retryAfterUntil,
+                nextEligibleSyncAt = failure.nextEligibleSyncAt
             )
         }
     }
@@ -272,8 +289,16 @@ class SubscriptionRepository(
             }
 
             checked += 1
-            if (!provider.canReplay(replayPayload) || !provider.requiresReplay(replayPayload)) {
+            if (!provider.requiresReplay(replayPayload)) {
                 skipped += 1
+                continue
+            }
+            if (!provider.canReplay(replayPayload)) {
+                failures += QuotaSnapshotReplayFailure(
+                    subscriptionId = subscriptionEntity.id,
+                    providerId = subscriptionEntity.providerId,
+                    reason = provider.replayIncompatibilityReason(replayPayload)
+                )
                 continue
             }
 
@@ -378,8 +403,12 @@ class SubscriptionRepository(
                 syncState = updatedStatus.state.toPersistedState().name,
                 lastSuccessAt = updatedStatus.lastSuccessAt,
                 lastFailureAt = updatedStatus.lastFailureAt,
+                lastFailureKind = updatedStatus.lastFailureKind?.name,
                 lastError = updatedStatus.lastError,
-                syncStartedAt = updatedStatus.syncStartedAt
+                retryAfterUntil = updatedStatus.retryAfterUntil,
+                nextEligibleSyncAt = updatedStatus.nextEligibleSyncAt,
+                syncStartedAt = updatedStatus.syncStartedAt,
+                lastSyncCause = updatedStatus.lastSyncCause?.name
             )
         )
     }
@@ -392,6 +421,12 @@ class SubscriptionRepository(
 private fun SubscriptionEntity.toSyncStatus(now: Long = System.currentTimeMillis()): SubscriptionSyncStatus {
     val persistedState = runCatching { SyncState.valueOf(syncState) }
         .getOrDefault(SyncState.NeverSynced)
+    val persistedFailureKind = lastFailureKind?.let { raw ->
+        runCatching { SyncFailureKind.valueOf(raw) }.getOrNull()
+    }
+    val persistedSyncCause = lastSyncCause?.let { raw ->
+        runCatching { SyncCause.valueOf(raw) }.getOrNull()
+    }
     val syncingTimedOut = persistedState == SyncState.Syncing &&
         (syncStartedAt == null || now - syncStartedAt > SyncTimeoutMillis)
     val effectiveFailureAt = if (syncingTimedOut) {
@@ -403,6 +438,23 @@ private fun SubscriptionEntity.toSyncStatus(now: Long = System.currentTimeMillis
         lastError ?: InterruptedSyncMessage
     } else {
         lastError
+    }
+    val effectiveFailureKind = if (syncingTimedOut) {
+        SyncFailureKind.Unknown
+    } else {
+        persistedFailureKind
+    }
+    val effectiveRetryAfterUntil = if (syncingTimedOut) {
+        null
+    } else {
+        retryAfterUntil
+    }
+    val effectiveNextEligibleSyncAt = if (syncingTimedOut) {
+        effectiveFailureAt?.let { failureAt ->
+            failureAt + (persistedSyncCause ?: SyncCause.AutoRefresh).defaultRetryBackoffMillis()
+        }
+    } else {
+        nextEligibleSyncAt
     }
     val effectiveState = when {
         syncingTimedOut &&
@@ -423,7 +475,11 @@ private fun SubscriptionEntity.toSyncStatus(now: Long = System.currentTimeMillis
         lastSuccessAt = lastSuccessAt,
         lastFailureAt = effectiveFailureAt,
         lastError = effectiveError,
-        syncStartedAt = if (effectiveState == SyncState.Syncing) syncStartedAt else null
+        syncStartedAt = if (effectiveState == SyncState.Syncing) syncStartedAt else null,
+        lastFailureKind = effectiveFailureKind,
+        retryAfterUntil = effectiveRetryAfterUntil,
+        nextEligibleSyncAt = effectiveNextEligibleSyncAt,
+        lastSyncCause = persistedSyncCause
     )
 }
 
@@ -442,7 +498,10 @@ private fun SubscriptionSyncStatus.withCredentialState(
     }
     return copy(
         state = if (forceAuthFailed) SyncState.AuthFailed else SyncState.SyncError,
-        lastError = issue ?: lastError
+        lastError = issue ?: lastError,
+        lastFailureKind = if (forceAuthFailed) SyncFailureKind.Auth else lastFailureKind,
+        retryAfterUntil = null,
+        nextEligibleSyncAt = null
     )
 }
 
@@ -457,20 +516,101 @@ private fun QuotaSnapshotEntity.toReplayPayload(): ProviderReplayPayload? {
     )
 }
 
-private fun Throwable.toSyncFailureState(): SyncState {
+private data class PersistedSyncFailure(
+    val state: SyncState,
+    val kind: SyncFailureKind,
+    val message: String?,
+    val retryAfterUntil: Long? = null,
+    val nextEligibleSyncAt: Long? = null
+)
+
+private fun Throwable.toPersistedSyncFailure(
+    failedAt: Long,
+    cause: SyncCause
+): PersistedSyncFailure {
     toProviderFailureOrNull()?.let { failure ->
-        return failure.toSyncState()
+        return failure.toPersistedSyncFailure(
+            failedAt = failedAt,
+            cause = cause
+        )
     }
+
     return if (
         this is CredentialUnavailableException ||
         (this is HttpException && (code() == 401 || code() == 403))
     ) {
-        SyncState.AuthFailed
+        PersistedSyncFailure(
+            state = SyncState.AuthFailed,
+            kind = SyncFailureKind.Auth,
+            message = message
+        )
     } else {
-        SyncState.SyncError
+        PersistedSyncFailure(
+            state = SyncState.SyncError,
+            kind = SyncFailureKind.Unknown,
+            message = message,
+            nextEligibleSyncAt = failedAt + cause.defaultRetryBackoffMillis()
+        )
     }
 }
 
 private const val StaleAfterMillis = 24 * 60 * 60 * 1000L
 private const val SyncTimeoutMillis = 2 * 60 * 1000L
 private const val InterruptedSyncMessage = "Previous sync was interrupted before completion."
+private const val ManualRetryBackoffMillis = 30 * 1000L
+private const val AutoRetryBackoffMillis = 2 * 60 * 1000L
+
+private fun ProviderFailure.toPersistedSyncFailure(
+    failedAt: Long,
+    cause: SyncCause
+): PersistedSyncFailure {
+    return when (this) {
+        is ProviderFailure.Auth -> PersistedSyncFailure(
+            state = SyncState.AuthFailed,
+            kind = SyncFailureKind.Auth,
+            message = userMessage
+        )
+        is ProviderFailure.RateLimited -> {
+            val retryAfterUntil = retryAfterMillis?.let { duration ->
+                failedAt + duration.coerceAtLeast(0L)
+            }
+            PersistedSyncFailure(
+                state = SyncState.SyncError,
+                kind = SyncFailureKind.RateLimited,
+                message = userMessage,
+                retryAfterUntil = retryAfterUntil,
+                nextEligibleSyncAt = retryAfterUntil ?: (failedAt + cause.defaultRetryBackoffMillis())
+            )
+        }
+        is ProviderFailure.Transient -> PersistedSyncFailure(
+            state = SyncState.SyncError,
+            kind = SyncFailureKind.Transient,
+            message = userMessage,
+            nextEligibleSyncAt = failedAt + cause.defaultRetryBackoffMillis()
+        )
+        is ProviderFailure.SchemaChanged -> PersistedSyncFailure(
+            state = SyncState.SyncError,
+            kind = SyncFailureKind.SchemaChanged,
+            message = userMessage
+        )
+        is ProviderFailure.Validation -> PersistedSyncFailure(
+            state = SyncState.SyncError,
+            kind = SyncFailureKind.Validation,
+            message = userMessage
+        )
+        is ProviderFailure.Unknown -> PersistedSyncFailure(
+            state = SyncState.SyncError,
+            kind = SyncFailureKind.Unknown,
+            message = userMessage,
+            nextEligibleSyncAt = failedAt + cause.defaultRetryBackoffMillis()
+        )
+    }
+}
+
+private fun SyncCause.defaultRetryBackoffMillis(): Long {
+    return when (this) {
+        SyncCause.ManualRefresh,
+        SyncCause.CredentialsUpdated -> ManualRetryBackoffMillis
+        SyncCause.AutoRefresh -> AutoRetryBackoffMillis
+    }
+}

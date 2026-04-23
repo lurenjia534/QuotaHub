@@ -3,6 +3,8 @@ package com.lurenjia534.quotahub.sync
 import com.lurenjia534.quotahub.data.model.CredentialState
 import com.lurenjia534.quotahub.data.model.Subscription
 import com.lurenjia534.quotahub.data.model.SubscriptionProvider
+import com.lurenjia534.quotahub.data.model.SyncCause
+import com.lurenjia534.quotahub.data.model.SyncFailureKind
 import com.lurenjia534.quotahub.data.model.SubscriptionSyncStatus
 import com.lurenjia534.quotahub.data.model.SyncState
 import com.lurenjia534.quotahub.data.provider.CredentialFieldSpec
@@ -65,6 +67,66 @@ class SubscriptionRefreshPolicyTest {
     }
 
     @Test
+    fun shouldAutoRefreshOnDetailOpen_respectsNextEligibleRetryWindow() {
+        assertFalse(
+            policy.shouldAutoRefreshOnDetailOpen(
+                subscription(
+                    syncStatus = SubscriptionSyncStatus(
+                        state = SyncState.SyncError,
+                        lastFailureAt = 1_000L,
+                        lastFailureKind = SyncFailureKind.RateLimited,
+                        nextEligibleSyncAt = 5_000L,
+                        lastSyncCause = SyncCause.AutoRefresh
+                    )
+                ),
+                now = 4_999L
+            )
+        )
+        assertTrue(
+            policy.shouldAutoRefreshOnDetailOpen(
+                subscription(
+                    syncStatus = SubscriptionSyncStatus(
+                        state = SyncState.SyncError,
+                        lastFailureAt = 1_000L,
+                        lastFailureKind = SyncFailureKind.RateLimited,
+                        nextEligibleSyncAt = 5_000L,
+                        lastSyncCause = SyncCause.AutoRefresh
+                    )
+                ),
+                now = 5_000L
+            )
+        )
+    }
+
+    @Test
+    fun shouldAutoRefreshOnDetailOpen_pausesSchemaAndValidationFailures() {
+        assertFalse(
+            policy.shouldAutoRefreshOnDetailOpen(
+                subscription(
+                    syncStatus = SubscriptionSyncStatus(
+                        state = SyncState.SyncError,
+                        lastFailureAt = 1L,
+                        lastFailureKind = SyncFailureKind.SchemaChanged
+                    )
+                ),
+                now = 500_000L
+            )
+        )
+        assertFalse(
+            policy.shouldAutoRefreshOnDetailOpen(
+                subscription(
+                    syncStatus = SubscriptionSyncStatus(
+                        state = SyncState.SyncError,
+                        lastFailureAt = 1L,
+                        lastFailureKind = SyncFailureKind.Validation
+                    )
+                ),
+                now = 500_000L
+            )
+        )
+    }
+
+    @Test
     fun shouldAutoRefreshOnDetailOpen_skipsAuthFailuresAndInFlightSyncs() {
         assertFalse(
             policy.shouldAutoRefreshOnDetailOpen(
@@ -83,6 +145,7 @@ class SubscriptionRefreshPolicyTest {
                 subscription(
                     syncStatus = SubscriptionSyncStatus.syncing(
                         previous = SubscriptionSyncStatus.active(fetchedAt = 1L),
+                        cause = SyncCause.ManualRefresh,
                         startedAt = 2L
                     )
                 ),

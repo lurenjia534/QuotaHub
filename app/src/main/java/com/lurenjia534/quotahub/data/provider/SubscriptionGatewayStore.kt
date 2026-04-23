@@ -2,6 +2,7 @@ package com.lurenjia534.quotahub.data.provider
 
 import com.lurenjia534.quotahub.data.model.QuotaSnapshot
 import com.lurenjia534.quotahub.data.model.Subscription
+import com.lurenjia534.quotahub.data.model.SyncCause
 import kotlinx.coroutines.flow.Flow
 
 interface SubscriptionGatewayStore {
@@ -23,7 +24,7 @@ interface SubscriptionGatewayStore {
         capturedSnapshot: CapturedQuotaSnapshot
     )
 
-    suspend fun markSubscriptionSyncing(subscriptionId: Long)
+    suspend fun markSubscriptionSyncing(subscriptionId: Long, cause: SyncCause)
 
     suspend fun markSubscriptionSyncSuccess(subscriptionId: Long, fetchedAt: Long)
 

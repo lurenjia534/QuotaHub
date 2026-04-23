@@ -18,6 +18,12 @@ data class SubscriptionSnapshot(
     val quotaSnapshot: QuotaSnapshot = QuotaSnapshot.empty()
 )
 
+data class SubscriptionGatewayCapabilities(
+    val canRefresh: Boolean,
+    val canUpdateCredentials: Boolean,
+    val canRename: Boolean
+)
+
 /**
  * 订阅网关接口
  *
@@ -36,6 +42,8 @@ interface SubscriptionGateway {
      * 获取关联的订阅信息
      */
     val subscription: Subscription
+
+    val capabilities: SubscriptionGatewayCapabilities
 
     /**
      * 获取订阅快照流

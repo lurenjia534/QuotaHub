@@ -1,17 +1,12 @@
 package com.lurenjia534.quotahub.sync
 
+import com.lurenjia534.quotahub.data.model.SyncCause
 import com.lurenjia534.quotahub.data.provider.ProviderCatalog
 import com.lurenjia534.quotahub.data.provider.SecretBundle
 import com.lurenjia534.quotahub.data.repository.SubscriptionRepository
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-
-enum class SyncCause {
-    ManualRefresh,
-    AutoRefresh,
-    CredentialsUpdated
-}
 
 interface SubscriptionSyncCoordinator {
     suspend fun refresh(
@@ -33,7 +28,7 @@ class DefaultSubscriptionSyncCoordinator(
         cause: SyncCause
     ): Result<Unit> {
         return mutexFor(subscriptionId).withLock {
-            repository.markSubscriptionSyncing(subscriptionId)
+            repository.markSubscriptionSyncing(subscriptionId, cause)
             val currentSubscription = repository.getSubscriptionForRefresh(subscriptionId)
                 .getOrElse { error ->
                     repository.markSubscriptionSyncFailure(subscriptionId, error)
@@ -74,7 +69,7 @@ class DefaultSubscriptionSyncCoordinator(
         credentials: SecretBundle
     ): Result<Unit> {
         return mutexFor(subscriptionId).withLock {
-            repository.markSubscriptionSyncing(subscriptionId)
+            repository.markSubscriptionSyncing(subscriptionId, SyncCause.CredentialsUpdated)
             val currentSubscription = repository.getSubscriptionOnce(subscriptionId)
                 ?: return@withLock fail(
                     subscriptionId,

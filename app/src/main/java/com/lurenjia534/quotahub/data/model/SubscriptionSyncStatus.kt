@@ -1,5 +1,20 @@
 package com.lurenjia534.quotahub.data.model
 
+enum class SyncCause {
+    ManualRefresh,
+    AutoRefresh,
+    CredentialsUpdated
+}
+
+enum class SyncFailureKind {
+    Auth,
+    RateLimited,
+    Transient,
+    SchemaChanged,
+    Validation,
+    Unknown
+}
+
 enum class SyncState {
     NeverSynced,
     Syncing,
@@ -14,7 +29,11 @@ data class SubscriptionSyncStatus(
     val lastSuccessAt: Long? = null,
     val lastFailureAt: Long? = null,
     val lastError: String? = null,
-    val syncStartedAt: Long? = null
+    val syncStartedAt: Long? = null,
+    val lastFailureKind: SyncFailureKind? = null,
+    val retryAfterUntil: Long? = null,
+    val nextEligibleSyncAt: Long? = null,
+    val lastSyncCause: SyncCause? = null
 ) {
     val isConnected: Boolean
         get() = state != SyncState.AuthFailed
@@ -26,13 +45,18 @@ data class SubscriptionSyncStatus(
 
         fun syncing(
             previous: SubscriptionSyncStatus,
+            cause: SyncCause,
             startedAt: Long = System.currentTimeMillis()
         ): SubscriptionSyncStatus = SubscriptionSyncStatus(
             state = SyncState.Syncing,
             lastSuccessAt = previous.lastSuccessAt,
             lastFailureAt = previous.lastFailureAt,
             lastError = null,
-            syncStartedAt = startedAt
+            syncStartedAt = startedAt,
+            lastFailureKind = previous.lastFailureKind,
+            retryAfterUntil = previous.retryAfterUntil,
+            nextEligibleSyncAt = previous.nextEligibleSyncAt,
+            lastSyncCause = cause
         )
 
         fun active(
@@ -43,20 +67,31 @@ data class SubscriptionSyncStatus(
             lastSuccessAt = fetchedAt,
             lastFailureAt = previous?.lastFailureAt,
             lastError = null,
-            syncStartedAt = null
+            syncStartedAt = null,
+            lastFailureKind = previous?.lastFailureKind,
+            retryAfterUntil = null,
+            nextEligibleSyncAt = null,
+            lastSyncCause = previous?.lastSyncCause
         )
 
         fun failed(
             state: SyncState,
             failedAt: Long,
             errorMessage: String?,
-            previous: SubscriptionSyncStatus
+            previous: SubscriptionSyncStatus,
+            failureKind: SyncFailureKind? = null,
+            retryAfterUntil: Long? = null,
+            nextEligibleSyncAt: Long? = null
         ): SubscriptionSyncStatus = SubscriptionSyncStatus(
             state = state,
             lastSuccessAt = previous.lastSuccessAt,
             lastFailureAt = failedAt,
             lastError = errorMessage,
-            syncStartedAt = null
+            syncStartedAt = null,
+            lastFailureKind = failureKind,
+            retryAfterUntil = retryAfterUntil,
+            nextEligibleSyncAt = nextEligibleSyncAt,
+            lastSyncCause = previous.lastSyncCause
         )
     }
 }

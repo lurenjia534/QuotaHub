@@ -17,12 +17,23 @@ interface CodingPlanProvider {
 
     fun canReplay(payload: ProviderReplayPayload): Boolean {
         val support = replaySupport ?: return false
-        return payload.payloadFormat == support.payloadFormat
+        return support.supportsFormat(payload.payloadFormat)
     }
 
     fun requiresReplay(payload: ProviderReplayPayload): Boolean {
         val support = replaySupport ?: return false
-        return canReplay(payload) && payload.normalizerVersion < support.normalizerVersion
+        return payload.normalizerVersion < support.normalizerVersion ||
+            payload.payloadFormat != support.currentPayloadFormat
+    }
+
+    fun replayIncompatibilityReason(payload: ProviderReplayPayload): String {
+        val support = replaySupport ?: return "Replay is unsupported for provider ${descriptor.id}."
+        return buildString {
+            append("Unsupported replay payload format: ${payload.payloadFormat}.")
+            append(" Supported formats: ")
+            append(support.supportedPayloadFormats.sorted().joinToString())
+            append(".")
+        }
     }
 
     fun replay(payload: ProviderReplayPayload): Result<CapturedQuotaSnapshot>

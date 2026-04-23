@@ -142,12 +142,13 @@ class HomeHubViewModel(
 
     private fun SubscriptionCard.toCardUiModel(): SubscriptionCardUiModel {
         val providerUi = providerUiRegistry.getOrFallback(subscription.provider.id)
-        val canOpenDetail = subscription.isProviderSupported
+        val canOpenDetail = true
+        val isReadOnlyDetail = !subscription.isProviderSupported
         return SubscriptionCardUiModel(
             subscriptionId = subscription.id,
             providerId = subscription.provider.id,
             displayTitle = subscription.displayTitle,
-            subtitle = if (canOpenDetail) {
+            subtitle = if (!isReadOnlyDetail) {
                 "${subscription.provider.displayName} • ${providerUi.subtitle}"
             } else {
                 "${subscription.provider.displayName} • Provider unavailable in this app build"
@@ -158,14 +159,14 @@ class HomeHubViewModel(
             resourceCount = resourceCount,
             nextResetAt = nextResetAt,
             risk = risk,
-            syncState = if (canOpenDetail) subscription.syncStatus.state else SyncState.SyncError,
-            syncLabel = if (canOpenDetail) subscription.syncStatus.label() else "Unavailable",
-            syncDescription = if (canOpenDetail) {
+            syncState = if (!isReadOnlyDetail) subscription.syncStatus.state else SyncState.SyncError,
+            syncLabel = if (!isReadOnlyDetail) subscription.syncStatus.label() else "Unavailable",
+            syncDescription = if (!isReadOnlyDetail) {
                 subscription.syncStatus.description()
             } else {
                 "Update the app or remove this subscription. Cached quota remains visible."
             },
-            isConnected = canOpenDetail && subscription.syncStatus.isConnected,
+            isConnected = !isReadOnlyDetail && subscription.syncStatus.isConnected,
             canOpenDetail = canOpenDetail
         )
     }

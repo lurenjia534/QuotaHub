@@ -62,7 +62,7 @@ class MonitorQuotaProviderFamily<TBundle>(
     )
 
     override val replaySupport: ProviderReplaySupport = ProviderReplaySupport(
-        payloadFormat = brand.rawPayloadFormat,
+        currentPayloadFormat = brand.rawPayloadFormat,
         normalizerVersion = brand.normalizerVersion
     )
 

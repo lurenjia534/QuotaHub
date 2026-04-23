@@ -23,6 +23,9 @@ data class ProviderQuotaUiState(
     val error: String? = null,
     val credentialError: String? = null,
     val isConnected: Boolean = true,
+    val canRefresh: Boolean = true,
+    val canUpdateCredentials: Boolean = true,
+    val canRename: Boolean = true,
     val showRenameDialog: Boolean = false,
     val showCredentialDialog: Boolean = false,
     val titleInput: String = "",
@@ -35,7 +38,12 @@ class ProviderQuotaViewModel(
     private val refreshPolicy: SubscriptionRefreshPolicy
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(
-        ProviderQuotaUiState(subscription = subscriptionGateway.subscription)
+        ProviderQuotaUiState(
+            subscription = subscriptionGateway.subscription,
+            canRefresh = subscriptionGateway.capabilities.canRefresh,
+            canUpdateCredentials = subscriptionGateway.capabilities.canUpdateCredentials,
+            canRename = subscriptionGateway.capabilities.canRename
+        )
     )
     val uiState: StateFlow<ProviderQuotaUiState> = _uiState.asStateFlow()
 
@@ -56,13 +64,18 @@ class ProviderQuotaViewModel(
                 } else {
                     null
                 },
-                detail = detailProjectorRegistry.project(
-                    subscription = snapshot.subscription,
-                    snapshot = snapshot.quotaSnapshot
+                    detail = detailProjectorRegistry.project(
+                        subscription = snapshot.subscription,
+                        snapshot = snapshot.quotaSnapshot
+                    ),
+                    canRefresh = subscriptionGateway.capabilities.canRefresh,
+                    canUpdateCredentials = subscriptionGateway.capabilities.canUpdateCredentials,
+                    canRename = subscriptionGateway.capabilities.canRename
                 )
-            )
 
-            if (refreshPolicy.shouldAutoRefreshOnDetailOpen(snapshot.subscription)) {
+            if (subscriptionGateway.capabilities.canRefresh &&
+                refreshPolicy.shouldAutoRefreshOnDetailOpen(snapshot.subscription)
+            ) {
                 refresh()
             }
         }
@@ -83,6 +96,9 @@ class ProviderQuotaViewModel(
                         subscription = snapshot.subscription,
                         snapshot = snapshot.quotaSnapshot
                     ),
+                    canRefresh = subscriptionGateway.capabilities.canRefresh,
+                    canUpdateCredentials = subscriptionGateway.capabilities.canUpdateCredentials,
+                    canRename = subscriptionGateway.capabilities.canRename,
                     titleInput = if (_uiState.value.showRenameDialog) {
                         _uiState.value.titleInput
                     } else {
@@ -91,8 +107,9 @@ class ProviderQuotaViewModel(
                     credentialInputs = if (_uiState.value.showCredentialDialog) {
                         _uiState.value.credentialInputs
                     } else {
-                        snapshot.subscription.requireSupportedProvider().credentialFields
-                            .associate { it.key to "" }
+                        snapshot.subscription.supportedProvider?.credentialFields
+                            ?.associate { it.key to "" }
+                            ?: emptyMap()
                     }
                 )
             }
@@ -100,6 +117,9 @@ class ProviderQuotaViewModel(
     }
 
     fun showRenameDialog() {
+        if (!_uiState.value.canRename) {
+            return
+        }
         _uiState.value = _uiState.value.copy(
             showRenameDialog = true,
             titleInput = _uiState.value.subscription.customTitle.orEmpty(),
@@ -115,7 +135,10 @@ class ProviderQuotaViewModel(
     }
 
     fun showCredentialDialog() {
-        val provider = _uiState.value.subscription.requireSupportedProvider()
+        val provider = _uiState.value.subscription.supportedProvider ?: return
+        if (!_uiState.value.canUpdateCredentials) {
+            return
+        }
         _uiState.value = _uiState.value.copy(
             showCredentialDialog = true,
             credentialInputs = provider.credentialFields.associate { it.key to "" },
@@ -125,10 +148,10 @@ class ProviderQuotaViewModel(
     }
 
     fun hideCredentialDialog() {
-        val provider = _uiState.value.subscription.requireSupportedProvider()
+        val provider = _uiState.value.subscription.supportedProvider
         _uiState.value = _uiState.value.copy(
             showCredentialDialog = false,
-            credentialInputs = provider.credentialFields.associate { it.key to "" },
+            credentialInputs = provider?.credentialFields?.associate { it.key to "" } ?: emptyMap(),
             credentialError = null
         )
     }
@@ -144,6 +167,9 @@ class ProviderQuotaViewModel(
     }
 
     fun renameSubscription() {
+        if (!_uiState.value.canRename) {
+            return
+        }
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSavingTitle = true, error = null)
             subscriptionGateway.rename(_uiState.value.titleInput).fold(
@@ -164,7 +190,10 @@ class ProviderQuotaViewModel(
     }
 
     fun saveCredentials() {
-        val provider = _uiState.value.subscription.requireSupportedProvider()
+        val provider = _uiState.value.subscription.supportedProvider ?: return
+        if (!_uiState.value.canUpdateCredentials) {
+            return
+        }
         val missingField = provider.credentialFields.firstOrNull { field ->
             field.isRequired && _uiState.value.credentialInputs[field.key].isNullOrBlank()
         }
@@ -203,6 +232,9 @@ class ProviderQuotaViewModel(
     }
 
     fun refresh() {
+        if (!_uiState.value.canRefresh) {
+            return
+        }
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             subscriptionGateway.refresh().fold(

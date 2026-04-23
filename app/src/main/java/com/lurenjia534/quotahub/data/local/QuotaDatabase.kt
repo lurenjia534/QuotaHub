@@ -4,12 +4,14 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
  * QuotaHub应用的主数据库
  *
  * 使用Room框架管理本地数据持久化。
- * 数据库版本13，包含订阅、规范化配额快照、可重放的原始 provider payload，
+ * 数据库版本14，包含订阅、规范化配额快照、可重放的原始 provider payload，
  * 以及升级协调状态表。
  *
  * 数据库表说明：
@@ -21,7 +23,7 @@ import androidx.room.RoomDatabase
  * 设计说明：
  * - 采用单例模式确保数据库实例全局唯一
  * - 使用volatile关键字保证多线程安全
- * - 当前仍处于WIP阶段，旧schema升级仍允许 destructive migration
+ * - 从v14开始使用显式 Room migration，避免真实订阅和缓存被 destructive migration 清空
  * - quota_upgrade_state 已升级为 provider 维度的 replay ledger
  */
 @Database(
@@ -32,8 +34,8 @@ import androidx.room.RoomDatabase
         QuotaWindowEntity::class,
         QuotaUpgradeStateEntity::class
     ],
-    version = 13,
-    exportSchema = false
+    version = 14,
+    exportSchema = true
 )
 abstract class QuotaDatabase : RoomDatabase() {
     /**
@@ -52,7 +54,28 @@ abstract class QuotaDatabase : RoomDatabase() {
     abstract fun quotaUpgradeStateDao(): QuotaUpgradeStateDao
 
     companion object {
-        const val CURRENT_VERSION = 13
+        const val CURRENT_VERSION = 14
+
+        val MIGRATION_13_14: Migration = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE subscription ADD COLUMN lastFailureKind TEXT"
+                )
+                db.execSQL(
+                    "ALTER TABLE subscription ADD COLUMN retryAfterUntil INTEGER"
+                )
+                db.execSQL(
+                    "ALTER TABLE subscription ADD COLUMN nextEligibleSyncAt INTEGER"
+                )
+                db.execSQL(
+                    "ALTER TABLE subscription ADD COLUMN lastSyncCause TEXT"
+                )
+            }
+        }
+
+        val ALL_MIGRATIONS: Array<Migration> = arrayOf(
+            MIGRATION_13_14
+        )
 
         /** 单例实例，使用volatile保证可见性 */
         @Volatile
@@ -74,7 +97,7 @@ abstract class QuotaDatabase : RoomDatabase() {
                     QuotaDatabase::class.java,
                     "quota_database"
                 )
-                    .fallbackToDestructiveMigration(dropAllTables = true)
+                    .addMigrations(*ALL_MIGRATIONS)
                     .build()
                 INSTANCE = instance
                 instance

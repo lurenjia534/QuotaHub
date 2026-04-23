@@ -199,6 +199,81 @@ class QuotaUpgradeCoordinatorTest {
         assertFalse(stateDao.state("codex")?.pendingReplay ?: true)
     }
 
+    @Test
+    fun replayContract_acceptsLegacyFormatsWithinSupportedCompatibilityChain() {
+        val provider = FakeCodingPlanProvider(
+            descriptor = ProviderDescriptor(
+                id = "minimax",
+                displayName = "MiniMax",
+                credentialFields = listOf(
+                    CredentialFieldSpec(
+                        key = "apiKey",
+                        label = "API Key"
+                    )
+                )
+            ),
+            replaySupport = ProviderReplaySupport(
+                currentPayloadFormat = "minimax/raw-quota@v2",
+                supportedPayloadFormats = setOf(
+                    "minimax/raw-quota@v1",
+                    "minimax/raw-quota@v2"
+                ),
+                normalizerVersion = 2
+            )
+        )
+        val legacyPayload = ProviderReplayPayload(
+            fetchedAt = 1L,
+            payloadFormat = "minimax/raw-quota@v1",
+            rawPayloadJson = "{}",
+            normalizerVersion = 2
+        )
+
+        assertTrue(provider.canReplay(legacyPayload))
+        assertTrue(provider.requiresReplay(legacyPayload))
+    }
+
+    @Test
+    fun runPendingUpgrades_doesNotMarkLedgerSuccessfulWhenReplayFailsForOldPayloadFormat() = runBlocking {
+        val previousFingerprint = fingerprintFor("minimax", 1)
+        val stateDao = FakeQuotaUpgradeStateDao(
+            listOf(
+                QuotaUpgradeStateEntity(
+                    providerId = "minimax",
+                    pendingReplay = false,
+                    lastAppliedReplayFingerprint = previousFingerprint
+                )
+            )
+        )
+        val replayRunner = FakeReplayRunner(
+            QuotaSnapshotReplayBatchResult(
+                checked = 1,
+                replayed = 0,
+                skipped = 0,
+                failures = listOf(
+                    QuotaSnapshotReplayFailure(
+                        subscriptionId = 1L,
+                        providerId = "minimax",
+                        reason = "Unsupported replay payload format: minimax/raw-quota@v0. Supported formats: minimax/raw-quota@v1."
+                    )
+                )
+            )
+        )
+        val coordinator = QuotaUpgradeCoordinator(
+            replayRunner = replayRunner,
+            upgradeStateDao = stateDao,
+            providerCatalog = providerCatalog(
+                ReplayProviderSpec(id = "minimax", normalizerVersion = 2)
+            )
+        )
+
+        val result = coordinator.runPendingUpgrades()
+
+        assertTrue(result.replayTriggered)
+        assertEquals(1, replayRunner.callCount)
+        assertEquals(previousFingerprint, stateDao.state("minimax")?.lastAppliedReplayFingerprint)
+        assertTrue(stateDao.state("minimax")?.pendingReplay ?: false)
+    }
+
     private class FakeQuotaUpgradeStateDao(
         initialStates: List<QuotaUpgradeStateEntity> = emptyList()
     ) : QuotaUpgradeStateDao {
@@ -272,7 +347,8 @@ class QuotaUpgradeCoordinatorTest {
                         )
                     ),
                     replaySupport = ProviderReplaySupport(
-                        payloadFormat = spec.payloadFormat,
+                        currentPayloadFormat = spec.payloadFormat,
+                        supportedPayloadFormats = spec.supportedPayloadFormats,
                         normalizerVersion = spec.normalizerVersion
                     )
                 )
@@ -284,10 +360,11 @@ class QuotaUpgradeCoordinatorTest {
         val id: String,
         val normalizerVersion: Int,
         val displayName: String = id.replaceFirstChar { it.uppercase() },
-        val payloadFormat: String = "$id/raw-quota@v1"
+        val payloadFormat: String = "$id/raw-quota@v1",
+        val supportedPayloadFormats: Set<String> = setOf(payloadFormat)
     )
 
     private fun fingerprintFor(providerId: String, normalizerVersion: Int): String {
-        return "$providerId:${providerId}/raw-quota@v1:$normalizerVersion"
+        return "$providerId:${providerId}/raw-quota@v1:${providerId}/raw-quota@v1:$normalizerVersion"
     }
 }

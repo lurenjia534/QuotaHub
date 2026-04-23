@@ -10,9 +10,20 @@ data class ProviderReplayPayload(
 )
 
 data class ProviderReplaySupport(
-    val payloadFormat: String,
+    val currentPayloadFormat: String,
+    val supportedPayloadFormats: Set<String> = setOf(currentPayloadFormat),
     val normalizerVersion: Int
-)
+) {
+    init {
+        require(currentPayloadFormat in supportedPayloadFormats) {
+            "currentPayloadFormat must be included in supportedPayloadFormats"
+        }
+    }
+
+    fun supportsFormat(payloadFormat: String): Boolean {
+        return payloadFormat in supportedPayloadFormats
+    }
+}
 
 data class CapturedQuotaSnapshot(
     val snapshot: QuotaSnapshot,

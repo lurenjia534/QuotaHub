@@ -1,6 +1,7 @@
 package com.lurenjia534.quotahub.sync
 
 import com.lurenjia534.quotahub.data.model.Subscription
+import com.lurenjia534.quotahub.data.model.SyncFailureKind
 import com.lurenjia534.quotahub.data.model.SyncState
 
 interface SubscriptionRefreshPolicy {
@@ -32,6 +33,14 @@ class DefaultSubscriptionRefreshPolicy : SubscriptionRefreshPolicy {
             }
 
             SyncState.SyncError -> {
+                when (subscription.syncStatus.lastFailureKind) {
+                    SyncFailureKind.SchemaChanged,
+                    SyncFailureKind.Validation -> return false
+                    else -> Unit
+                }
+                subscription.syncStatus.nextEligibleSyncAt?.let { nextEligibleSyncAt ->
+                    return now >= nextEligibleSyncAt
+                }
                 val lastFailureAt = subscription.syncStatus.lastFailureAt ?: return true
                 now - lastFailureAt >= FailureRetryBackoffMillis
             }

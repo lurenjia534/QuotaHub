@@ -38,10 +38,18 @@ data class SubscriptionEntity(
     val lastSuccessAt: Long? = null,
     /** 最近一次同步失败时间 */
     val lastFailureAt: Long? = null,
+    /** 最近一次同步失败类别 */
+    val lastFailureKind: String? = null,
     /** 最近一次同步错误信息 */
     val lastError: String? = null,
+    /** provider 指定的 retry-after 截止时间 */
+    val retryAfterUntil: Long? = null,
+    /** 自动刷新最早允许再次尝试的时间 */
+    val nextEligibleSyncAt: Long? = null,
     /** 最近一次同步开始时间，用于回收中断的 Syncing 状态 */
     val syncStartedAt: Long? = null,
+    /** 最近一次同步触发原因 */
+    val lastSyncCause: String? = null,
     /** 订阅创建时间，用于排序和显示 */
     val createdAt: Long = System.currentTimeMillis()
 )

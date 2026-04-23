@@ -11,7 +11,10 @@ import com.lurenjia534.quotahub.data.local.SubscriptionEntity
 import com.lurenjia534.quotahub.data.local.QuotaWindowEntity
 import com.lurenjia534.quotahub.data.model.CredentialState
 import com.lurenjia534.quotahub.data.model.CredentialUnavailableException
+import com.lurenjia534.quotahub.data.model.QuotaSnapshot
 import com.lurenjia534.quotahub.data.model.Subscription
+import com.lurenjia534.quotahub.data.model.SyncCause
+import com.lurenjia534.quotahub.data.model.SyncFailureKind
 import com.lurenjia534.quotahub.data.model.SyncState
 import com.lurenjia534.quotahub.data.provider.CapturedQuotaSnapshot
 import com.lurenjia534.quotahub.data.provider.CodingPlanProvider
@@ -20,6 +23,7 @@ import com.lurenjia534.quotahub.data.provider.ProviderCatalog
 import com.lurenjia534.quotahub.data.provider.ProviderDescriptor
 import com.lurenjia534.quotahub.data.provider.ProviderFailure
 import com.lurenjia534.quotahub.data.provider.ProviderReplayPayload
+import com.lurenjia534.quotahub.data.provider.ProviderReplaySupport
 import com.lurenjia534.quotahub.data.provider.ProviderSyncException
 import com.lurenjia534.quotahub.data.provider.SecretBundle
 import com.lurenjia534.quotahub.data.security.ApiKeyCipher
@@ -289,6 +293,7 @@ class SubscriptionRepositoryTest {
             customTitle = null,
             credentials = SecretBundle.single("apiKey", "live-secret")
         )
+        repository.markSubscriptionSyncing(subscriptionId, SyncCause.ManualRefresh)
 
         repository.markSubscriptionSyncFailure(
             subscriptionId = subscriptionId,
@@ -301,6 +306,8 @@ class SubscriptionRepositoryTest {
 
         assertEquals(SyncState.AuthFailed, subscription?.syncStatus?.state)
         assertEquals("token expired", subscription?.syncStatus?.lastError)
+        assertEquals(SyncFailureKind.Auth, subscription?.syncStatus?.lastFailureKind)
+        assertEquals(SyncCause.ManualRefresh, subscription?.syncStatus?.lastSyncCause)
     }
 
     @Test
@@ -319,6 +326,7 @@ class SubscriptionRepositoryTest {
             customTitle = null,
             credentials = SecretBundle.single("apiKey", "live-secret")
         )
+        repository.markSubscriptionSyncing(subscriptionId, SyncCause.AutoRefresh)
 
         repository.markSubscriptionSyncFailure(
             subscriptionId = subscriptionId,
@@ -331,9 +339,91 @@ class SubscriptionRepositoryTest {
         )
 
         val subscription = repository.getSubscriptionOnce(subscriptionId)
+        val syncStatus = requireNotNull(subscription).syncStatus
+
+        assertEquals(SyncState.SyncError, syncStatus.state)
+        assertEquals("rate limited", syncStatus.lastError)
+        assertEquals(SyncFailureKind.RateLimited, syncStatus.lastFailureKind)
+        assertEquals(SyncCause.AutoRefresh, syncStatus.lastSyncCause)
+        assertEquals(30_000L, syncStatus.retryAfterUntil?.minus(syncStatus.lastFailureAt!!))
+        assertEquals(syncStatus.retryAfterUntil, syncStatus.nextEligibleSyncAt)
+    }
+
+    @Test
+    fun markSubscriptionSyncFailure_pausesAutomaticRetryForSchemaChangedFailures() = runBlocking {
+        val subscriptionDao = FakeSubscriptionDao(initialEntities = emptyList())
+        val repository = SubscriptionRepository(
+            database = FakeQuotaDatabase(subscriptionDao),
+            subscriptionDao = subscriptionDao,
+            quotaSnapshotDao = NoOpQuotaSnapshotDao(),
+            providerCatalog = providerCatalog(),
+            credentialVault = EncryptedCredentialVault(PassthroughCipher())
+        )
+
+        val subscriptionId = repository.createSubscription(
+            provider = providerCatalog().descriptors.single(),
+            customTitle = null,
+            credentials = SecretBundle.single("apiKey", "live-secret")
+        )
+        repository.markSubscriptionSyncing(subscriptionId, SyncCause.AutoRefresh)
+
+        repository.markSubscriptionSyncFailure(
+            subscriptionId = subscriptionId,
+            error = ProviderSyncException(
+                ProviderFailure.SchemaChanged("payload changed")
+            )
+        )
+
+        val subscription = repository.getSubscriptionOnce(subscriptionId)
 
         assertEquals(SyncState.SyncError, subscription?.syncStatus?.state)
-        assertEquals("rate limited", subscription?.syncStatus?.lastError)
+        assertEquals(SyncFailureKind.SchemaChanged, subscription?.syncStatus?.lastFailureKind)
+        assertEquals(null, subscription?.syncStatus?.nextEligibleSyncAt)
+    }
+
+    @Test
+    fun replayStoredQuotaSnapshotsNeedingUpgrade_recordsFailureWhenOldPayloadFormatIsUnsupported() = runBlocking {
+        val quotaSnapshotDao = FakeQuotaSnapshotDao(
+            initialMetadata = listOf(
+                QuotaSnapshotEntity(
+                    subscriptionId = 7L,
+                    fetchedAt = 100L,
+                    rawPayloadJson = """{"quota":1}""",
+                    rawPayloadFormat = "test-provider/raw-quota@v0",
+                    normalizerVersion = 2
+                )
+            )
+        )
+        val subscriptionDao = FakeSubscriptionDao(
+            initialEntities = listOf(
+                SubscriptionEntity(
+                    id = 7L,
+                    providerId = TEST_PROVIDER_ID,
+                    customTitle = "Legacy replay",
+                    apiKey = "encrypted-payload"
+                )
+            )
+        )
+        val repository = SubscriptionRepository(
+            database = FakeQuotaDatabase(subscriptionDao, quotaSnapshotDao),
+            subscriptionDao = subscriptionDao,
+            quotaSnapshotDao = quotaSnapshotDao,
+            providerCatalog = replayingProviderCatalog(
+                currentPayloadFormat = "test-provider/raw-quota@v1",
+                supportedPayloadFormats = setOf("test-provider/raw-quota@v1")
+            ),
+            credentialVault = EncryptedCredentialVault(PassthroughCipher())
+        )
+
+        val result = repository.replayStoredQuotaSnapshotsNeedingUpgrade()
+
+        assertEquals(1, result.checked)
+        assertEquals(0, result.replayed)
+        assertEquals(0, result.skipped)
+        assertEquals(1, result.failures.size)
+        assertTrue(
+            result.failures.single().reason.contains("Unsupported replay payload format")
+        )
     }
 
     private fun providerCatalog(): ProviderCatalog {
@@ -404,6 +494,67 @@ class SubscriptionRepositoryTest {
 
                     override fun replay(payload: ProviderReplayPayload): Result<CapturedQuotaSnapshot> {
                         return Result.failure(NotImplementedError())
+                    }
+                }
+            )
+        )
+    }
+
+    private fun replayingProviderCatalog(
+        currentPayloadFormat: String,
+        supportedPayloadFormats: Set<String>
+    ): ProviderCatalog {
+        return ProviderCatalog(
+            providers = listOf(
+                object : CodingPlanProvider {
+                    override val descriptor: ProviderDescriptor = ProviderDescriptor(
+                        id = TEST_PROVIDER_ID,
+                        displayName = "Test Provider",
+                        credentialFields = listOf(
+                            CredentialFieldSpec(
+                                key = "apiKey",
+                                label = "API Key"
+                            )
+                        )
+                    )
+
+                    override val replaySupport: ProviderReplaySupport = ProviderReplaySupport(
+                        currentPayloadFormat = currentPayloadFormat,
+                        supportedPayloadFormats = supportedPayloadFormats,
+                        normalizerVersion = 2
+                    )
+
+                    override suspend fun validate(credentials: SecretBundle): Result<CapturedQuotaSnapshot> {
+                        return Result.failure(NotImplementedError())
+                    }
+
+                    override suspend fun fetchSnapshot(
+                        subscription: Subscription,
+                        credentials: SecretBundle
+                    ): Result<CapturedQuotaSnapshot> {
+                        return Result.failure(NotImplementedError())
+                    }
+
+                    override fun replay(payload: ProviderReplayPayload): Result<CapturedQuotaSnapshot> {
+                        return if (payload.payloadFormat in supportedPayloadFormats) {
+                            Result.success(
+                                CapturedQuotaSnapshot(
+                                    snapshot = QuotaSnapshot.empty(),
+                                    replayPayload = payload.copy(
+                                        payloadFormat = currentPayloadFormat,
+                                        normalizerVersion = 2
+                                    )
+                                )
+                            )
+                        } else {
+                            Result.failure(
+                                ProviderSyncException(
+                                    ProviderFailure.SchemaChanged(
+                                        "Unsupported replay payload format: ${payload.payloadFormat}"
+                                    )
+                                )
+                            )
+                        }
                     }
                 }
             )
@@ -499,12 +650,43 @@ class SubscriptionRepositoryTest {
         override suspend fun clearQuotaSnapshot(subscriptionId: Long): Int = 0
     }
 
+    private class FakeQuotaSnapshotDao(
+        initialMetadata: List<QuotaSnapshotEntity> = emptyList()
+    ) : QuotaSnapshotDao {
+        private val metadataBySubscriptionId = initialMetadata.associateBy { it.subscriptionId }.toMutableMap()
+
+        override fun observeQuotaSnapshotRows(subscriptionId: Long): Flow<List<QuotaSnapshotRow>> {
+            return MutableStateFlow(emptyList())
+        }
+
+        override suspend fun getQuotaSnapshotMetadata(subscriptionId: Long): QuotaSnapshotEntity? {
+            return metadataBySubscriptionId[subscriptionId]
+        }
+
+        override suspend fun getAllQuotaSnapshotMetadata(): List<QuotaSnapshotEntity> {
+            return metadataBySubscriptionId.values.sortedBy { it.subscriptionId }
+        }
+
+        override suspend fun upsertQuotaSnapshot(snapshot: QuotaSnapshotEntity) {
+            metadataBySubscriptionId[snapshot.subscriptionId] = snapshot
+        }
+
+        override suspend fun upsertQuotaResources(resources: List<QuotaResourceEntity>) = Unit
+
+        override suspend fun upsertQuotaWindows(windows: List<QuotaWindowEntity>) = Unit
+
+        override suspend fun clearQuotaSnapshot(subscriptionId: Long): Int {
+            return if (metadataBySubscriptionId.remove(subscriptionId) != null) 1 else 0
+        }
+    }
+
     private class FakeQuotaDatabase(
-        private val subscriptionDao: SubscriptionDao
+        private val subscriptionDao: SubscriptionDao,
+        private val quotaSnapshotDao: QuotaSnapshotDao = NoOpQuotaSnapshotDao()
     ) : QuotaDatabase() {
         override fun subscriptionDao(): SubscriptionDao = subscriptionDao
 
-        override fun quotaSnapshotDao(): QuotaSnapshotDao = NoOpQuotaSnapshotDao()
+        override fun quotaSnapshotDao(): QuotaSnapshotDao = quotaSnapshotDao
 
         override fun quotaUpgradeStateDao(): QuotaUpgradeStateDao {
             throw NotImplementedError("unused in repository tests")
