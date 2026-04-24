@@ -2,11 +2,14 @@ package com.lurenjia534.quotahub.ui.screens.home
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -28,12 +32,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DataUsage
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -54,10 +56,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -130,20 +134,34 @@ fun HomeScreen(
         }
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    val colorScheme = MaterialTheme.colorScheme
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        colorScheme.surfaceContainerLowest,
+                        colorScheme.primaryContainer.copy(alpha = 0.12f),
+                        colorScheme.surfaceContainerLowest
+                    )
+                )
+            )
+    ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
-                start = 20.dp,
-                top = 20.dp,
-                end = 20.dp,
-                bottom = 32.dp + bottomContentPadding
+                start = 18.dp,
+                top = 18.dp,
+                end = 18.dp,
+                bottom = 34.dp + bottomContentPadding
             ),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             item {
                 AnimatedSection(visible = boardVisible) {
-                    HomeOperationsBoard(
+                    HomeRadarSurface(
                         connectedCount = connectedCount,
                         providerCount = providerCount,
                         trackedResources = trackedResources,
@@ -169,7 +187,7 @@ fun HomeScreen(
 
             item {
                 AnimatedSection(visible = statusVisible) {
-                    HomeSectionHeader(
+                    HomeLaneHeader(
                         title = if (hasSubscriptions) "Subscription queue" else "Subscriptions",
                         subtitle = if (hasSubscriptions) {
                             "Active sources ordered for fast scanning. Open any row for resource-level quota detail."
@@ -191,7 +209,7 @@ fun HomeScreen(
                     items = subscriptionCards,
                     key = { it.subscriptionId }
                 ) { subscriptionCard ->
-                    SubscriptionQueueRow(
+                    SubscriptionSignalLane(
                         subscriptionCard = subscriptionCard,
                         highEmphasisMetrics = highEmphasisMetrics,
                         onClick = { onSubscriptionClick(subscriptionCard.subscriptionId) }
@@ -272,7 +290,7 @@ private fun AnimatedSection(
 }
 
 @Composable
-private fun HomeOperationsBoard(
+private fun HomeRadarSurface(
     connectedCount: Int,
     providerCount: Int,
     trackedResources: Int,
@@ -285,18 +303,23 @@ private fun HomeOperationsBoard(
     val colorScheme = MaterialTheme.colorScheme
     val accentColor by animateColorAsState(
         targetValue = when {
-            connectedCount == 0 -> colorScheme.secondaryContainer
-            dominantSyncState == SyncState.AuthFailed -> colorScheme.errorContainer
-            dominantSyncState == SyncState.SyncError -> colorScheme.errorContainer
-            dominantSyncState == SyncState.Stale -> colorScheme.tertiaryContainer
-            dominantSyncState == SyncState.Syncing -> colorScheme.secondaryContainer
-            dominantSyncState == SyncState.NeverSynced -> colorScheme.secondaryContainer
-            dominantRisk == QuotaRisk.Critical -> colorScheme.errorContainer
-            dominantRisk == QuotaRisk.Watch -> colorScheme.tertiaryContainer
-            else -> colorScheme.primaryContainer
+            connectedCount == 0 -> colorScheme.onSurfaceVariant
+            dominantSyncState == SyncState.AuthFailed -> colorScheme.error
+            dominantSyncState == SyncState.SyncError -> colorScheme.error
+            dominantSyncState == SyncState.Stale -> colorScheme.tertiary
+            dominantSyncState == SyncState.Syncing -> colorScheme.primary
+            dominantSyncState == SyncState.NeverSynced -> colorScheme.secondary
+            dominantRisk == QuotaRisk.Critical -> colorScheme.error
+            dominantRisk == QuotaRisk.Watch -> colorScheme.tertiary
+            else -> colorScheme.primary
         },
         animationSpec = spring(stiffness = 420f, dampingRatio = 0.9f),
-        label = "boardAccent"
+        label = "radarAccent"
+    )
+    val scanScale by animateFloatAsState(
+        targetValue = if (isBootstrapping || dominantSyncState == SyncState.Syncing) 1.04f else 1f,
+        animationSpec = spring(stiffness = 320f, dampingRatio = 0.78f),
+        label = "radarScanScale"
     )
 
     val stateLabel = when {
@@ -322,258 +345,338 @@ private fun HomeOperationsBoard(
         else -> "Tracked sources are connected and current quota data is readable at a glance."
     }
 
-    Surface(
-        color = colorScheme.surfaceContainerHigh,
-        shape = RoundedCornerShape(34.dp),
-        tonalElevation = 2.dp
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            accentColor.copy(alpha = 0.34f),
-                            colorScheme.surfaceContainerHigh
-                        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = "QuotaHub",
+                    style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Black)
+                )
+                Text(
+                    text = "Quota radar",
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        color = colorScheme.onSurfaceVariant
                     )
                 )
-                .padding(22.dp)
+            }
+            Surface(
+                color = accentColor.copy(alpha = 0.16f),
+                contentColor = accentColor,
+                shape = CircleShape,
+                border = BorderStroke(1.dp, accentColor.copy(alpha = 0.32f))
+            ) {
+                Text(
+                    text = if (connectedCount == 0) "Idle" else "Live",
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp)
+                )
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(
-                            text = "QuotaHub",
-                            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
-                        )
-                        Text(
-                            text = "Operational overview",
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                color = colorScheme.onSurfaceVariant
-                            )
-                        )
-                    }
-                }
+            RadarDial(
+                trackedResources = trackedResources,
+                accentColor = accentColor,
+                highEmphasisMetrics = highEmphasisMetrics,
+                scanScale = scanScale
+            )
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Column(
-                        modifier = Modifier.weight(1.3f),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(
-                            text = "Tracked resources",
-                            style = MaterialTheme.typography.labelLarge.copy(
-                                color = colorScheme.onSurfaceVariant
-                            )
-                        )
-                        QuotaMetricText(
-                            text = formatCount(trackedResources),
-                            emphasized = highEmphasisMetrics,
-                            level = MetricEmphasisLevel.Hero
-                        )
-                        Text(
-                            text = stateDescription,
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                color = colorScheme.onSurfaceVariant
-                            )
-                        )
-                    }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                RadarReadout(
+                    label = "Sources",
+                    value = formatCount(connectedCount),
+                    accentColor = accentColor,
+                    highEmphasisMetrics = highEmphasisMetrics
+                )
+                RadarReadout(
+                    label = "Providers",
+                    value = formatCount(providerCount),
+                    accentColor = colorScheme.secondary,
+                    highEmphasisMetrics = highEmphasisMetrics
+                )
+                RadarReadout(
+                    label = "Next reset",
+                    value = nextRefreshWindow?.let(::formatTimeUntil) ?: "Waiting",
+                    accentColor = colorScheme.tertiary,
+                    highEmphasisMetrics = highEmphasisMetrics
+                )
+            }
+        }
 
-                    Surface(
-                        modifier = Modifier.weight(1f),
-                        color = colorScheme.surface.copy(alpha = 0.84f),
-                        shape = RoundedCornerShape(24.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            MiniBoardMetric(
-                                label = "Sources",
-                                value = formatCount(connectedCount),
-                                highEmphasisMetrics = highEmphasisMetrics
-                            )
-                            HorizontalDivider(
-                                color = colorScheme.outlineVariant.copy(alpha = 0.6f)
-                            )
-                            MiniBoardMetric(
-                                label = "Providers",
-                                value = formatCount(providerCount),
-                                highEmphasisMetrics = highEmphasisMetrics
-                            )
-                        }
-                    }
-                }
+        RadarStatusBand(
+            label = stateLabel,
+            description = stateDescription,
+            accentColor = accentColor
+        )
 
-                Surface(
-                    color = colorScheme.surface.copy(alpha = 0.8f),
-                    shape = RoundedCornerShape(24.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        OverviewStripMetric(
-                            modifier = Modifier.weight(1f),
-                            label = "Status",
-                            value = stateLabel,
-                            highEmphasisMetrics = highEmphasisMetrics,
-                            valueColor = colorScheme.onSurface
-                        )
-                        StripDivider()
-                        OverviewStripMetric(
-                            modifier = Modifier.weight(1f),
-                            label = "Next reset",
-                            value = nextRefreshWindow?.let(::formatTimeUntil) ?: "Waiting",
-                            highEmphasisMetrics = highEmphasisMetrics,
-                            valueColor = colorScheme.onSurface
-                        )
-                        StripDivider()
-                        OverviewStripMetric(
-                            modifier = Modifier.weight(1f),
-                            label = "Sources",
-                            value = if (connectedCount == 0) "Pending" else "Live",
-                            highEmphasisMetrics = highEmphasisMetrics,
-                            valueColor = colorScheme.onSurface
-                        )
-                    }
-                }
-
-                if (isBootstrapping) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        QuotaLoadingIndicator(modifier = Modifier.size(28.dp))
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = "Loading cached snapshots and provider state",
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                color = colorScheme.onSurfaceVariant
-                            )
-                        )
-                    }
-                }
+        if (isBootstrapping) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                QuotaLoadingIndicator(modifier = Modifier.size(28.dp))
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "Loading cached snapshots and provider state",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        color = colorScheme.onSurfaceVariant
+                    )
+                )
             }
         }
     }
 }
 
 @Composable
-private fun MiniBoardMetric(
+private fun RadarDial(
+    trackedResources: Int,
+    accentColor: Color,
+    highEmphasisMetrics: Boolean,
+    scanScale: Float
+) {
+    val colorScheme = MaterialTheme.colorScheme
+
+    Box(
+        modifier = Modifier.size(172.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            modifier = Modifier.size(172.dp),
+            color = accentColor.copy(alpha = 0.06f),
+            shape = CircleShape,
+            border = BorderStroke(1.dp, accentColor.copy(alpha = 0.18f))
+        ) {}
+        Surface(
+            modifier = Modifier.size(132.dp),
+            color = accentColor.copy(alpha = 0.10f),
+            shape = CircleShape,
+            border = BorderStroke(1.dp, accentColor.copy(alpha = 0.26f))
+        ) {}
+        Surface(
+            modifier = Modifier
+                .size(96.dp)
+                .graphicsLayer {
+                    scaleX = scanScale
+                    scaleY = scanScale
+                },
+            color = colorScheme.surfaceContainerHigh,
+            shape = CircleShape,
+            border = BorderStroke(2.dp, accentColor.copy(alpha = 0.72f)),
+            tonalElevation = 2.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                QuotaMetricText(
+                    text = formatCount(trackedResources),
+                    emphasized = highEmphasisMetrics,
+                    level = MetricEmphasisLevel.Hero,
+                    color = accentColor
+                )
+                Text(
+                    text = "resources",
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        color = colorScheme.onSurfaceVariant
+                    )
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RadarReadout(
     label: String,
     value: String,
+    accentColor: Color,
     highEmphasisMetrics: Boolean
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium.copy(
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        )
-        QuotaMetricText(
-            text = value,
-            emphasized = highEmphasisMetrics,
-            level = MetricEmphasisLevel.Standard
-        )
-    }
-}
+    val colorScheme = MaterialTheme.colorScheme
 
-@Composable
-private fun OverviewStripMetric(
-    label: String,
-    value: String,
-    highEmphasisMetrics: Boolean,
-    valueColor: Color,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium.copy(
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+        Surface(
+            color = accentColor,
+            shape = CircleShape,
+            modifier = Modifier.size(9.dp)
+        ) {}
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium.copy(
+                    color = colorScheme.onSurfaceVariant
+                )
             )
-        )
-        QuotaMetricText(
-            text = value,
-            emphasized = highEmphasisMetrics,
-            level = MetricEmphasisLevel.Standard,
-            color = valueColor
-        )
+            QuotaMetricText(
+                text = value,
+                emphasized = highEmphasisMetrics,
+                level = MetricEmphasisLevel.Standard,
+                color = colorScheme.onSurface
+            )
+        }
     }
 }
 
 @Composable
-private fun StripDivider() {
-    Box(
-        modifier = Modifier
-            .width(1.dp)
-            .height(34.dp)
-            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-    )
+private fun RadarStatusBand(
+    label: String,
+    description: String,
+    accentColor: Color
+) {
+    val colorScheme = MaterialTheme.colorScheme
+
+    Surface(
+        color = colorScheme.surfaceContainerHigh.copy(alpha = 0.78f),
+        shape = CircleShape,
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.18f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                color = accentColor.copy(alpha = 0.18f),
+                shape = CircleShape,
+                modifier = Modifier.size(34.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Surface(
+                        color = accentColor,
+                        shape = CircleShape,
+                        modifier = Modifier.size(10.dp)
+                    ) {}
+                }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)
+                )
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = colorScheme.onSurfaceVariant
+                    )
+                )
+            }
+        }
+    }
 }
 
 @Composable
-private fun HomeSectionHeader(
+private fun HomeLaneHeader(
     title: String,
     subtitle: String
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold)
-        )
-        Text(
-            text = subtitle,
-            style = MaterialTheme.typography.bodyMedium.copy(
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Surface(
+            color = MaterialTheme.colorScheme.primary,
+            shape = CircleShape,
+            modifier = Modifier
+                .padding(top = 5.dp)
+                .size(10.dp)
+        ) {}
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
             )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            )
+        }
+    }
+}
+
+@Composable
+private fun SignalGlyph(
+    color: Color,
+    content: @Composable () -> Unit
+) {
+    Surface(
+        color = color.copy(alpha = 0.16f),
+        shape = CircleShape,
+        border = BorderStroke(1.dp, color.copy(alpha = 0.24f)),
+        modifier = Modifier.size(52.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            content()
+        }
+    }
+}
+
+@Composable
+private fun SignalChip(
+    label: String,
+    color: Color
+) {
+    Surface(
+        color = color.copy(alpha = 0.14f),
+        contentColor = color,
+        shape = CircleShape,
+        border = BorderStroke(1.dp, color.copy(alpha = 0.18f))
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
         )
     }
 }
 
 @Composable
 private fun HomeLoadingRow() {
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        shape = RoundedCornerShape(28.dp)
+    val colorScheme = MaterialTheme.colorScheme
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Surface(
+            color = colorScheme.primary.copy(alpha = 0.12f),
+            shape = CircleShape,
+            border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.20f)),
+            modifier = Modifier.size(52.dp)
         ) {
-            QuotaLoadingIndicator(modifier = Modifier.size(30.dp))
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = "Preparing subscription queue",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
-                )
-                Text(
-                    text = "Reading local data and provider refresh windows before rendering the queue.",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                )
+            Box(contentAlignment = Alignment.Center) {
+                QuotaLoadingIndicator(modifier = Modifier.size(30.dp))
             }
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = "Preparing subscription queue",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+            )
+            Text(
+                text = "Reading local data and provider refresh windows before rendering the queue.",
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    color = colorScheme.onSurfaceVariant
+                )
+            )
         }
     }
 }
@@ -586,7 +689,7 @@ private fun HomeErrorStrip(
     val colorScheme = MaterialTheme.colorScheme
     Surface(
         color = colorScheme.errorContainer,
-        shape = RoundedCornerShape(26.dp)
+        shape = CircleShape
     ) {
         Row(
             modifier = Modifier
@@ -629,7 +732,7 @@ private fun HomeErrorStrip(
 }
 
 @Composable
-private fun SubscriptionQueueRow(
+private fun SubscriptionSignalLane(
     subscriptionCard: SubscriptionCardUiModel,
     highEmphasisMetrics: Boolean,
     onClick: () -> Unit
@@ -638,47 +741,58 @@ private fun SubscriptionQueueRow(
     val risk = subscriptionCard.risk
     val stateColor by animateColorAsState(
         targetValue = when (risk) {
-            QuotaRisk.Critical -> colorScheme.errorContainer
-            QuotaRisk.Watch -> colorScheme.tertiaryContainer
-            QuotaRisk.Healthy -> colorScheme.secondaryContainer
+            QuotaRisk.Critical -> colorScheme.error
+            QuotaRisk.Watch -> colorScheme.tertiary
+            QuotaRisk.Healthy -> colorScheme.primary
         },
         animationSpec = spring(stiffness = 420f, dampingRatio = 0.9f),
-        label = "subscriptionStateColor"
+        label = "subscriptionLaneColor"
     )
 
-    Surface(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(
                 enabled = subscriptionCard.canOpenDetail,
                 onClick = onClick
             ),
-        color = colorScheme.surfaceContainerLow,
-        shape = RoundedCornerShape(30.dp),
-        tonalElevation = 1.dp
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.Top
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            SignalGlyph(color = stateColor) {
+                Icon(
+                    painter = painterResource(subscriptionCard.providerIconRes),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(31.dp)
+                        .padding(2.dp),
+                    tint = Color.Unspecified
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .width(2.dp)
+                    .height(86.dp)
+                    .background(
+                        color = stateColor.copy(alpha = 0.30f),
+                        shape = CircleShape
+                    )
+            )
+        }
+
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
             ) {
-                Surface(
-                    color = stateColor,
-                    shape = RoundedCornerShape(18.dp)
-                ) {
-                    Icon(
-                        painter = painterResource(subscriptionCard.providerIconRes),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(48.dp)
-                            .padding(10.dp),
-                        tint = Color.Unspecified
-                    )
-                }
-                Spacer(modifier = Modifier.width(14.dp))
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -694,32 +808,21 @@ private fun SubscriptionQueueRow(
                         )
                     )
                 }
-                Column(
-                    horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        text = "Next reset",
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            color = colorScheme.onSurfaceVariant
-                        )
-                    )
-                    QuotaMetricText(
-                        text = subscriptionCard.nextResetAt?.let(::formatTimeUntil) ?: "Manual",
-                        emphasized = highEmphasisMetrics,
-                        level = MetricEmphasisLevel.Standard,
-                        color = colorScheme.onSurface
-                    )
-                }
+                Spacer(modifier = Modifier.width(10.dp))
+                SignalChip(
+                    label = when (risk) {
+                        QuotaRisk.Critical -> "Critical"
+                        QuotaRisk.Watch -> "Watch"
+                        QuotaRisk.Healthy -> "Healthy"
+                    },
+                    color = stateColor
+                )
             }
-
-            HorizontalDivider(
-                color = colorScheme.outlineVariant.copy(alpha = 0.6f)
-            )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 QueueMetric(
                     modifier = Modifier.weight(1f),
@@ -735,23 +838,30 @@ private fun SubscriptionQueueRow(
                 )
                 QueueMetric(
                     modifier = Modifier.weight(1f),
-                    label = "Sync",
-                    value = subscriptionCard.syncLabel,
-                    highEmphasisMetrics = highEmphasisMetrics,
-                    valueColor = syncStateColor(subscriptionCard.syncState)
+                    label = "Next reset",
+                    value = subscriptionCard.nextResetAt?.let(::formatTimeUntil) ?: "Manual",
+                    highEmphasisMetrics = highEmphasisMetrics
                 )
             }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                QueueMetric(
+                    modifier = Modifier.weight(1f),
+                    label = "Sync",
+                    value = subscriptionCard.syncLabel,
+                    highEmphasisMetrics = highEmphasisMetrics,
+                    valueColor = syncStateColor(subscriptionCard.syncState)
+                )
                 Text(
                     text = subscriptionCard.syncDescription,
                     style = MaterialTheme.typography.bodySmall.copy(
                         color = colorScheme.onSurfaceVariant
-                    )
+                    ),
+                    modifier = Modifier.weight(1.25f)
                 )
                 if (subscriptionCard.canOpenDetail) {
                     Icon(
@@ -829,54 +939,43 @@ private fun List<SubscriptionCardUiModel>.dominantSyncState(): SyncState {
 private fun HomeEmptyState(
     onAddClick: () -> Unit
 ) {
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        shape = RoundedCornerShape(30.dp)
+    val colorScheme = MaterialTheme.colorScheme
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 18.dp),
-            verticalAlignment = Alignment.CenterVertically
+        SignalGlyph(color = colorScheme.secondary) {
+            Icon(
+                imageVector = Icons.Filled.DataUsage,
+                contentDescription = null,
+                tint = colorScheme.secondary
+            )
+        }
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Surface(
-                color = MaterialTheme.colorScheme.secondaryContainer,
-                shape = CircleShape,
-                modifier = Modifier.size(52.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Filled.DataUsage,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.width(14.dp))
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = "No quota sources yet",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+            Text(
+                text = "No quota sources yet",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+            )
+            Text(
+                text = "Connect a provider to start building the subscription queue and quota overview.",
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    color = colorScheme.onSurfaceVariant
                 )
-                Text(
-                    text = "Connect a provider to start building the subscription queue and quota overview.",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                )
-            }
-            FilledTonalButton(
-                onClick = onAddClick,
-                shape = RoundedCornerShape(18.dp)
-            ) {
-                Text(
-                    text = "Connect",
-                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
-                )
-            }
+            )
+        }
+        FilledTonalButton(
+            onClick = onAddClick,
+            shape = CircleShape
+        ) {
+            Text(
+                text = "Connect",
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+            )
         }
     }
 }
@@ -888,40 +987,30 @@ private fun ProviderAccessSection(
     connectedProviderIds: Set<String>,
     onProviderClick: (ProviderDescriptor) -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        HomeSectionHeader(
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        HomeLaneHeader(
             title = "Provider access",
-            subtitle = "Keep connection entry points visible on the home surface instead of hiding them behind menus."
+            subtitle = "Connect a new source or add another account for an existing provider."
         )
 
-        Surface(
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
-            shape = RoundedCornerShape(30.dp),
-            tonalElevation = 1.dp
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Column {
-                providers.forEachIndexed { index, provider ->
-                    ProviderAccessRow(
-                        provider = provider,
-                        providerUiRegistry = providerUiRegistry,
-                        isConnected = connectedProviderIds.contains(provider.id),
-                        onProviderClick = onProviderClick
-                    )
-
-                    if (index < providers.lastIndex) {
-                        HorizontalDivider(
-                            modifier = Modifier.padding(start = 80.dp, end = 18.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-                        )
-                    }
-                }
+            providers.forEach { provider ->
+                ProviderAccessNode(
+                    provider = provider,
+                    providerUiRegistry = providerUiRegistry,
+                    isConnected = connectedProviderIds.contains(provider.id),
+                    onProviderClick = onProviderClick
+                )
             }
         }
     }
 }
 
 @Composable
-private fun ProviderAccessRow(
+private fun ProviderAccessNode(
     provider: ProviderDescriptor,
     providerUiRegistry: ProviderUiRegistry,
     isConnected: Boolean,
@@ -930,52 +1019,76 @@ private fun ProviderAccessRow(
     val colorScheme = MaterialTheme.colorScheme
     val providerUi = providerUiRegistry.require(provider)
     val statusColor by animateColorAsState(
-        targetValue = if (isConnected) colorScheme.secondaryContainer else colorScheme.surface,
+        targetValue = if (isConnected) colorScheme.primary else colorScheme.onSurfaceVariant,
         animationSpec = spring(stiffness = 420f, dampingRatio = 0.9f),
         label = "providerStatusColor"
     )
 
-    Row(
+    Surface(
         modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onProviderClick(provider) }
-            .padding(horizontal = 18.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .width(232.dp)
+            .height(224.dp)
+            .clickable { onProviderClick(provider) },
+        color = colorScheme.surfaceContainerLow.copy(alpha = 0.86f),
+        shape = RoundedCornerShape(30.dp),
+        border = BorderStroke(1.dp, statusColor.copy(alpha = 0.20f)),
+        tonalElevation = if (isConnected) 1.dp else 0.dp
     ) {
-        Surface(
-            color = statusColor,
-            shape = RoundedCornerShape(18.dp)
-        ) {
-            Icon(
-                painter = painterResource(providerUi.iconRes),
-                contentDescription = null,
-                modifier = Modifier
-                    .size(46.dp)
-                    .padding(10.dp),
-                tint = Color.Unspecified
-            )
-        }
-        Spacer(modifier = Modifier.width(14.dp))
         Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SignalGlyph(color = statusColor) {
+                    Icon(
+                        painter = painterResource(providerUi.iconRes),
+                        contentDescription = null,
+                        modifier = Modifier.size(30.dp),
+                        tint = Color.Unspecified
+                    )
+                }
+                SignalChip(
+                    label = if (isConnected) "Linked" else "Open",
+                    color = statusColor
+                )
+            }
             Text(
                 text = provider.displayName,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = providerUi.detailDescription,
-                style = MaterialTheme.typography.bodyMedium.copy(
+                style = MaterialTheme.typography.bodySmall.copy(
                     color = colorScheme.onSurfaceVariant
+                ),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (isConnected) "Add another" else "Connect",
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        color = statusColor,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 )
-            )
-        }
-        TextButton(onClick = { onProviderClick(provider) }) {
-            Text(
-                text = if (isConnected) "Add another" else "Connect",
-                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
-            )
+                Icon(
+                    imageVector = Icons.Filled.ChevronRight,
+                    contentDescription = null,
+                    tint = statusColor
+                )
+            }
         }
     }
 }
