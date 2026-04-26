@@ -65,6 +65,15 @@ class ProviderModuleValidationTest {
     }
 
     @Test
+    fun providerModules_includeKimiProvider() {
+        assertTrue(
+            ProviderModules.all.any { module ->
+                module.provider.descriptor.id == "kimi"
+            }
+        )
+    }
+
+    @Test
     fun providerModules_includeZhipuProvider() {
         assertTrue(
             ProviderModules.all.any { module ->

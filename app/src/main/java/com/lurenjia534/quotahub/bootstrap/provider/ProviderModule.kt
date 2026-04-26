@@ -6,6 +6,9 @@ import com.lurenjia534.quotahub.data.provider.SubscriptionCardProjector
 import com.lurenjia534.quotahub.data.provider.codex.CodexCodingPlanProvider
 import com.lurenjia534.quotahub.data.provider.codex.CodexProviderQuotaDetailProjector
 import com.lurenjia534.quotahub.data.provider.codex.CodexSubscriptionCardProjector
+import com.lurenjia534.quotahub.data.provider.kimi.KimiCodingPlanProvider
+import com.lurenjia534.quotahub.data.provider.kimi.KimiProviderQuotaDetailProjector
+import com.lurenjia534.quotahub.data.provider.kimi.KimiSubscriptionCardProjector
 import com.lurenjia534.quotahub.data.provider.minimax.MiniMaxCodingPlanProvider
 import com.lurenjia534.quotahub.data.provider.minimax.MiniMaxProviderQuotaDetailProjector
 import com.lurenjia534.quotahub.data.provider.minimax.MiniMaxSubscriptionCardProjector
@@ -48,6 +51,17 @@ object ProviderModules {
                 ),
                 cardProjector = CodexSubscriptionCardProjector(),
                 detailProjector = CodexProviderQuotaDetailProjector()
+            ),
+            ProviderModule(
+                provider = KimiCodingPlanProvider(),
+                uiMetadata = ProviderUiMetadata(
+                    subtitle = "api.kimi.com",
+                    iconRes = R.drawable.kimi_color,
+                    connectDescription = "Connect to Kimi Coding Plan usage",
+                    detailDescription = "Monitor your Kimi coding quota and reset windows"
+                ),
+                cardProjector = KimiSubscriptionCardProjector(),
+                detailProjector = KimiProviderQuotaDetailProjector()
             ),
             ProviderModule(
                 provider = MiniMaxCodingPlanProvider(),

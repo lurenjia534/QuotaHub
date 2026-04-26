@@ -20,6 +20,7 @@ Unless a file explicitly states otherwise:
 The repository currently includes compatibility references for services such as:
 
 - OpenAI Codex
+- Kimi
 - MiniMax
 - Z.ai
 - Zhipu BigModel
@@ -27,6 +28,7 @@ The repository currently includes compatibility references for services such as:
 Related drawable assets currently include:
 
 - `app/src/main/res/drawable/codex_color.xml`
+- `app/src/main/res/drawable/kimi_color.xml`
 - `app/src/main/res/drawable/minimax_color.xml`
 - `app/src/main/res/drawable/zai_color.xml`
 - `app/src/main/res/drawable/zhipu_color.xml`
