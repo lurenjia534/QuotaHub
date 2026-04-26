@@ -56,7 +56,7 @@ object ProviderModules {
                 provider = KimiCodingPlanProvider(),
                 uiMetadata = ProviderUiMetadata(
                     subtitle = "api.kimi.com",
-                    iconRes = R.drawable.kimi_color,
+                    iconRes = R.drawable.kimi,
                     connectDescription = "Connect to Kimi Coding Plan usage",
                     detailDescription = "Monitor your Kimi coding quota and reset windows"
                 ),
