@@ -2,6 +2,14 @@
 
 QuotaHub is an Android quota dashboard built with Jetpack Compose. It is designed to help users track remaining AI subscription quotas, inspect model-level limits, and monitor upcoming reset windows from a single app. The current codebase integrates multiple providers, including `OpenAI Codex`, `Kimi Coding Plan`, `MiniMax Coding Plan`, `Z.ai`, and `Zhipu BigModel`.
 
+<p align="center">
+  <img src="docs/screenshots/quota-hub-home.png" alt="QuotaHub home screen" width="19%">
+  <img src="docs/screenshots/quota-hub-detail.png" alt="QuotaHub quota detail screen" width="19%">
+  <img src="docs/screenshots/quota-hub-add-provider.png" alt="QuotaHub add provider screen" width="19%">
+  <img src="docs/screenshots/quota-hub-settings.png" alt="QuotaHub settings screen" width="19%">
+  <img src="docs/screenshots/quota-hub-kimi.png" alt="QuotaHub Kimi quota screen" width="19%">
+</p>
+
 ## Current Features
 
 - Add Codex, Kimi, MiniMax, Z.ai, or Zhipu subscriptions from the app and validate credentials before saving them.
