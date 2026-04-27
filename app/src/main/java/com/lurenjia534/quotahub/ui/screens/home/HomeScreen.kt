@@ -11,10 +11,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,7 +24,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -37,6 +41,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -54,6 +59,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -149,95 +155,69 @@ fun HomeScreen(
                 )
             )
     ) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding(),
-            contentPadding = PaddingValues(
-                start = 18.dp,
-                top = 18.dp,
-                end = 18.dp,
-                bottom = 34.dp + bottomContentPadding
-            ),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
-            item {
-                AnimatedSection(visible = boardVisible) {
-                    HomeRadarSurface(
-                        connectedCount = connectedCount,
-                        providerCount = providerCount,
-                        trackedResources = trackedResources,
-                        nextRefreshWindow = nextRefreshWindow,
-                        highEmphasisMetrics = highEmphasisMetrics,
-                        dominantRisk = dominantRisk,
-                        dominantSyncState = dominantSyncState,
-                        isBootstrapping = uiState.isBootstrapping
-                    )
-                }
-            }
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val isLandscapeOverview = maxWidth > maxHeight && maxWidth >= 640.dp
 
-            if (uiState.error != null && !uiState.showCredentialDialog) {
-                item {
-                    AnimatedSection(visible = statusVisible) {
-                        HomeErrorStrip(
-                            message = uiState.error!!,
-                            onDismiss = viewModel::clearError
-                        )
+            if (isLandscapeOverview) {
+                LandscapeHomeContent(
+                    subscriptionCards = subscriptionCards,
+                    providers = subscriptionRegistry.providers,
+                    providerUiRegistry = providerUiRegistry,
+                    connectedProviderIds = connectedProviderIds,
+                    connectedCount = connectedCount,
+                    providerCount = providerCount,
+                    trackedResources = trackedResources,
+                    nextRefreshWindow = nextRefreshWindow,
+                    highEmphasisMetrics = highEmphasisMetrics,
+                    dominantRisk = dominantRisk,
+                    dominantSyncState = dominantSyncState,
+                    isBootstrapping = uiState.isBootstrapping,
+                    error = uiState.error,
+                    showCredentialDialog = uiState.showCredentialDialog,
+                    hasSubscriptions = hasSubscriptions,
+                    bottomContentPadding = bottomContentPadding,
+                    boardVisible = boardVisible,
+                    statusVisible = statusVisible,
+                    queueVisible = queueVisible,
+                    providerVisible = providerVisible,
+                    onDismissError = viewModel::clearError,
+                    onSubscriptionClick = onSubscriptionClick,
+                    onAddClick = { showBottomSheet = true },
+                    onProviderClick = { provider ->
+                        viewModel.clearError()
+                        viewModel.showCredentialDialog(provider)
                     }
-                }
-            }
-
-            item {
-                AnimatedSection(visible = statusVisible) {
-                    HomeLaneHeader(
-                        title = if (hasSubscriptions) "Subscription queue" else "Subscriptions",
-                        subtitle = if (hasSubscriptions) {
-                            "Active sources ordered for fast scanning. Open any row for resource-level quota detail."
-                        } else {
-                            "No sources connected yet. Add a provider to start caching quota snapshots."
-                        }
-                    )
-                }
-            }
-
-            if (uiState.isBootstrapping) {
-                item {
-                    AnimatedSection(visible = queueVisible) {
-                        HomeLoadingRow()
-                    }
-                }
-            } else if (hasSubscriptions) {
-                items(
-                    items = subscriptionCards,
-                    key = { it.subscriptionId }
-                ) { subscriptionCard ->
-                    SubscriptionSignalLane(
-                        subscriptionCard = subscriptionCard,
-                        highEmphasisMetrics = highEmphasisMetrics,
-                        onClick = { onSubscriptionClick(subscriptionCard.subscriptionId) }
-                    )
-                }
+                )
             } else {
-                item {
-                    AnimatedSection(visible = queueVisible) {
-                        HomeEmptyState(onAddClick = { showBottomSheet = true })
+                PortraitHomeContent(
+                    subscriptionCards = subscriptionCards,
+                    providers = subscriptionRegistry.providers,
+                    providerUiRegistry = providerUiRegistry,
+                    connectedProviderIds = connectedProviderIds,
+                    connectedCount = connectedCount,
+                    providerCount = providerCount,
+                    trackedResources = trackedResources,
+                    nextRefreshWindow = nextRefreshWindow,
+                    highEmphasisMetrics = highEmphasisMetrics,
+                    dominantRisk = dominantRisk,
+                    dominantSyncState = dominantSyncState,
+                    isBootstrapping = uiState.isBootstrapping,
+                    error = uiState.error,
+                    showCredentialDialog = uiState.showCredentialDialog,
+                    hasSubscriptions = hasSubscriptions,
+                    bottomContentPadding = bottomContentPadding,
+                    boardVisible = boardVisible,
+                    statusVisible = statusVisible,
+                    queueVisible = queueVisible,
+                    providerVisible = providerVisible,
+                    onDismissError = viewModel::clearError,
+                    onSubscriptionClick = onSubscriptionClick,
+                    onAddClick = { showBottomSheet = true },
+                    onProviderClick = { provider ->
+                        viewModel.clearError()
+                        viewModel.showCredentialDialog(provider)
                     }
-                }
-            }
-
-            item {
-                AnimatedSection(visible = providerVisible) {
-                    ProviderAccessSection(
-                        providers = subscriptionRegistry.providers,
-                        providerUiRegistry = providerUiRegistry,
-                        subscriptionCards = subscriptionCards,
-                        connectedProviderIds = connectedProviderIds,
-                        onProviderClick = { provider ->
-                            viewModel.clearError()
-                            viewModel.showCredentialDialog(provider)
-                        }
-                    )
-                }
+                )
             }
         }
 
@@ -270,6 +250,248 @@ fun HomeScreen(
                 },
                 onConfirm = viewModel::saveSelectedProviderCredential
             )
+        }
+    }
+}
+
+@Composable
+private fun PortraitHomeContent(
+    subscriptionCards: List<SubscriptionCardUiModel>,
+    providers: List<ProviderDescriptor>,
+    providerUiRegistry: ProviderUiRegistry,
+    connectedProviderIds: Set<String>,
+    connectedCount: Int,
+    providerCount: Int,
+    trackedResources: Int,
+    nextRefreshWindow: Long?,
+    highEmphasisMetrics: Boolean,
+    dominantRisk: QuotaRisk,
+    dominantSyncState: SyncState,
+    isBootstrapping: Boolean,
+    error: String?,
+    showCredentialDialog: Boolean,
+    hasSubscriptions: Boolean,
+    bottomContentPadding: Dp,
+    boardVisible: Boolean,
+    statusVisible: Boolean,
+    queueVisible: Boolean,
+    providerVisible: Boolean,
+    onDismissError: () -> Unit,
+    onSubscriptionClick: (Long) -> Unit,
+    onAddClick: () -> Unit,
+    onProviderClick: (ProviderDescriptor) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding(),
+        contentPadding = PaddingValues(
+            start = 18.dp,
+            top = 18.dp,
+            end = 18.dp,
+            bottom = 34.dp + bottomContentPadding
+        ),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        item {
+            AnimatedSection(visible = boardVisible) {
+                HomeRadarSurface(
+                    connectedCount = connectedCount,
+                    providerCount = providerCount,
+                    trackedResources = trackedResources,
+                    nextRefreshWindow = nextRefreshWindow,
+                    highEmphasisMetrics = highEmphasisMetrics,
+                    dominantRisk = dominantRisk,
+                    dominantSyncState = dominantSyncState,
+                    isBootstrapping = isBootstrapping
+                )
+            }
+        }
+
+        if (error != null && !showCredentialDialog) {
+            item {
+                AnimatedSection(visible = statusVisible) {
+                    HomeErrorStrip(
+                        message = error,
+                        onDismiss = onDismissError
+                    )
+                }
+            }
+        }
+
+        item {
+            AnimatedSection(visible = statusVisible) {
+                HomeLaneHeader(
+                    title = if (hasSubscriptions) "Subscription queue" else "Subscriptions",
+                    subtitle = if (hasSubscriptions) {
+                        "Active sources ordered for fast scanning. Open any row for resource-level quota detail."
+                    } else {
+                        "No sources connected yet. Add a provider to start caching quota snapshots."
+                    }
+                )
+            }
+        }
+
+        if (isBootstrapping) {
+            item {
+                AnimatedSection(visible = queueVisible) {
+                    HomeLoadingRow()
+                }
+            }
+        } else if (hasSubscriptions) {
+            items(
+                items = subscriptionCards,
+                key = { it.subscriptionId }
+            ) { subscriptionCard ->
+                SubscriptionSignalLane(
+                    subscriptionCard = subscriptionCard,
+                    highEmphasisMetrics = highEmphasisMetrics,
+                    onClick = { onSubscriptionClick(subscriptionCard.subscriptionId) }
+                )
+            }
+        } else {
+            item {
+                AnimatedSection(visible = queueVisible) {
+                    HomeEmptyState(onAddClick = onAddClick)
+                }
+            }
+        }
+
+        item {
+            AnimatedSection(visible = providerVisible) {
+                ProviderAccessSection(
+                    providers = providers,
+                    providerUiRegistry = providerUiRegistry,
+                    subscriptionCards = subscriptionCards,
+                    connectedProviderIds = connectedProviderIds,
+                    onProviderClick = onProviderClick
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LandscapeHomeContent(
+    subscriptionCards: List<SubscriptionCardUiModel>,
+    providers: List<ProviderDescriptor>,
+    providerUiRegistry: ProviderUiRegistry,
+    connectedProviderIds: Set<String>,
+    connectedCount: Int,
+    providerCount: Int,
+    trackedResources: Int,
+    nextRefreshWindow: Long?,
+    highEmphasisMetrics: Boolean,
+    dominantRisk: QuotaRisk,
+    dominantSyncState: SyncState,
+    isBootstrapping: Boolean,
+    error: String?,
+    showCredentialDialog: Boolean,
+    hasSubscriptions: Boolean,
+    bottomContentPadding: Dp,
+    boardVisible: Boolean,
+    statusVisible: Boolean,
+    queueVisible: Boolean,
+    providerVisible: Boolean,
+    onDismissError: () -> Unit,
+    onSubscriptionClick: (Long) -> Unit,
+    onAddClick: () -> Unit,
+    onProviderClick: (ProviderDescriptor) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding(),
+        contentPadding = PaddingValues(
+            start = 20.dp,
+            top = 14.dp,
+            end = 20.dp,
+            bottom = 24.dp + bottomContentPadding
+        ),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(292.dp),
+                horizontalArrangement = Arrangement.spacedBy(18.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(0.78f)
+                        .fillMaxHeight()
+                ) {
+                    AnimatedSection(visible = boardVisible) {
+                        CompactHomeRadarSurface(
+                            connectedCount = connectedCount,
+                            providerCount = providerCount,
+                            trackedResources = trackedResources,
+                            nextRefreshWindow = nextRefreshWindow,
+                            highEmphasisMetrics = highEmphasisMetrics,
+                            dominantRisk = dominantRisk,
+                            dominantSyncState = dominantSyncState,
+                            isBootstrapping = isBootstrapping
+                        )
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .weight(1.22f)
+                        .fillMaxHeight()
+                ) {
+                    AnimatedSection(visible = queueVisible) {
+                        Surface(
+                            modifier = Modifier.fillMaxSize(),
+                            color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.78f),
+                            shape = RoundedCornerShape(
+                                topStart = 34.dp,
+                                topEnd = 22.dp,
+                                bottomStart = 22.dp,
+                                bottomEnd = 38.dp
+                            ),
+                            border = BorderStroke(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.24f)
+                            ),
+                            tonalElevation = 1.dp
+                        ) {
+                            AccountCreditsOverview(
+                                subscriptionCards = subscriptionCards,
+                                highEmphasisMetrics = highEmphasisMetrics,
+                                isBootstrapping = isBootstrapping,
+                                hasSubscriptions = hasSubscriptions,
+                                onSubscriptionClick = onSubscriptionClick,
+                                onAddClick = onAddClick
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        if (error != null && !showCredentialDialog) {
+            item {
+                AnimatedSection(visible = statusVisible) {
+                    HomeErrorStrip(
+                        message = error,
+                        onDismiss = onDismissError
+                    )
+                }
+            }
+        }
+
+        item {
+            AnimatedSection(visible = providerVisible) {
+                ProviderAccessSection(
+                    providers = providers,
+                    providerUiRegistry = providerUiRegistry,
+                    subscriptionCards = subscriptionCards,
+                    connectedProviderIds = connectedProviderIds,
+                    onProviderClick = onProviderClick
+                )
+            }
         }
     }
 }
@@ -442,6 +664,333 @@ private fun HomeRadarSurface(
 }
 
 @Composable
+private fun CompactHomeRadarSurface(
+    connectedCount: Int,
+    providerCount: Int,
+    trackedResources: Int,
+    nextRefreshWindow: Long?,
+    highEmphasisMetrics: Boolean,
+    dominantRisk: QuotaRisk,
+    dominantSyncState: SyncState,
+    isBootstrapping: Boolean
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    val accentColor by animateColorAsState(
+        targetValue = when {
+            connectedCount == 0 -> colorScheme.onSurfaceVariant
+            dominantSyncState == SyncState.AuthFailed -> colorScheme.error
+            dominantSyncState == SyncState.SyncError -> colorScheme.error
+            dominantSyncState == SyncState.Stale -> colorScheme.tertiary
+            dominantSyncState == SyncState.Syncing -> colorScheme.primary
+            dominantSyncState == SyncState.NeverSynced -> colorScheme.secondary
+            dominantRisk == QuotaRisk.Critical -> colorScheme.error
+            dominantRisk == QuotaRisk.Watch -> colorScheme.tertiary
+            else -> colorScheme.primary
+        },
+        animationSpec = spring(stiffness = 420f, dampingRatio = 0.9f),
+        label = "compactRadarAccent"
+    )
+    val scanScale by animateFloatAsState(
+        targetValue = if (isBootstrapping || dominantSyncState == SyncState.Syncing) 1.04f else 1f,
+        animationSpec = spring(stiffness = 320f, dampingRatio = 0.78f),
+        label = "compactRadarScanScale"
+    )
+
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = colorScheme.surfaceContainerLow.copy(alpha = 0.78f),
+        shape = RoundedCornerShape(
+            topStart = 34.dp,
+            topEnd = 22.dp,
+            bottomStart = 22.dp,
+            bottomEnd = 38.dp
+        ),
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.20f)),
+        tonalElevation = 1.dp
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = "QuotaHub",
+                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black)
+                    )
+                    Text(
+                        text = "Live quota radar",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = colorScheme.onSurfaceVariant
+                        )
+                    )
+                }
+                Surface(
+                    color = accentColor.copy(alpha = 0.16f),
+                    contentColor = accentColor,
+                    shape = CircleShape,
+                    border = BorderStroke(1.dp, accentColor.copy(alpha = 0.30f))
+                ) {
+                    Text(
+                        text = if (connectedCount == 0) "Idle" else "Live",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CompactRadarDial(
+                    trackedResources = trackedResources,
+                    accentColor = accentColor,
+                    highEmphasisMetrics = highEmphasisMetrics,
+                    scanScale = scanScale
+                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    RadarReadout(
+                        label = "Sources",
+                        value = formatCount(connectedCount),
+                        accentColor = accentColor,
+                        highEmphasisMetrics = highEmphasisMetrics
+                    )
+                    RadarReadout(
+                        label = "Providers",
+                        value = formatCount(providerCount),
+                        accentColor = colorScheme.secondary,
+                        highEmphasisMetrics = highEmphasisMetrics
+                    )
+                    RadarReadout(
+                        label = "Next reset",
+                        value = nextRefreshWindow?.let(::formatTimeUntil) ?: "Waiting",
+                        accentColor = colorScheme.tertiary,
+                        highEmphasisMetrics = highEmphasisMetrics
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccountCreditsOverview(
+    subscriptionCards: List<SubscriptionCardUiModel>,
+    highEmphasisMetrics: Boolean,
+    isBootstrapping: Boolean,
+    hasSubscriptions: Boolean,
+    onSubscriptionClick: (Long) -> Unit,
+    onAddClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Text(
+                text = "Credits overview",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+            )
+            Text(
+                text = "All accounts side by side for landscape scanning.",
+                style = MaterialTheme.typography.bodySmall.copy(
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            )
+        }
+
+        when {
+            isBootstrapping -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    HomeLoadingRow()
+                }
+            }
+            hasSubscriptions -> {
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentPadding = PaddingValues(horizontal = 18.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    items(
+                        items = subscriptionCards,
+                        key = { it.subscriptionId }
+                    ) { subscriptionCard ->
+                        AccountCreditTile(
+                            subscriptionCard = subscriptionCard,
+                            highEmphasisMetrics = highEmphasisMetrics,
+                            onClick = { onSubscriptionClick(subscriptionCard.subscriptionId) }
+                        )
+                    }
+                }
+            }
+            else -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(horizontal = 18.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    HomeEmptyState(onAddClick = onAddClick)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccountCreditTile(
+    subscriptionCard: SubscriptionCardUiModel,
+    highEmphasisMetrics: Boolean,
+    onClick: () -> Unit
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    val stateColor by animateColorAsState(
+        targetValue = when (subscriptionCard.risk) {
+            QuotaRisk.Critical -> colorScheme.error
+            QuotaRisk.Watch -> colorScheme.tertiary
+            QuotaRisk.Healthy -> colorScheme.primary
+        },
+        animationSpec = spring(stiffness = 420f, dampingRatio = 0.9f),
+        label = "creditTileColor"
+    )
+    val progressPercent = subscriptionCard.primaryMetric.value.percentValueOrNull()
+
+    Surface(
+        modifier = Modifier
+            .widthIn(min = 178.dp, max = 220.dp)
+            .fillMaxHeight()
+            .clickable(
+                enabled = subscriptionCard.canOpenDetail,
+                onClick = onClick
+            ),
+        color = stateColor.copy(alpha = 0.08f),
+        contentColor = colorScheme.onSurface,
+        shape = RoundedCornerShape(
+            topStart = 26.dp,
+            topEnd = 18.dp,
+            bottomStart = 18.dp,
+            bottomEnd = 30.dp
+        ),
+        border = BorderStroke(1.dp, stateColor.copy(alpha = 0.22f))
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                SignalGlyph(color = stateColor) {
+                    Icon(
+                        painter = painterResource(subscriptionCard.providerIconRes),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(29.dp)
+                            .padding(2.dp),
+                        tint = Color.Unspecified
+                    )
+                }
+                SignalChip(
+                    label = when (subscriptionCard.risk) {
+                        QuotaRisk.Critical -> "Critical"
+                        QuotaRisk.Watch -> "Watch"
+                        QuotaRisk.Healthy -> "Healthy"
+                    },
+                    color = stateColor
+                )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = subscriptionCard.displayTitle,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = subscriptionCard.subtitle,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = colorScheme.onSurfaceVariant
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                QuotaMetricText(
+                    text = subscriptionCard.primaryMetric.value,
+                    emphasized = highEmphasisMetrics,
+                    level = MetricEmphasisLevel.Hero,
+                    color = stateColor
+                )
+                Text(
+                    text = subscriptionCard.primaryMetric.label,
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        color = colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.SemiBold
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (progressPercent != null) {
+                    LinearProgressIndicator(
+                        progress = { progressPercent / 100f },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(10.dp)
+                            .clip(CircleShape),
+                        color = stateColor,
+                        trackColor = stateColor.copy(alpha = 0.16f)
+                    )
+                } else {
+                    Surface(
+                        color = stateColor.copy(alpha = 0.13f),
+                        contentColor = stateColor,
+                        shape = CircleShape
+                    ) {
+                        Text(
+                            text = subscriptionCard.secondaryMetric?.let {
+                                "${it.value} ${it.label.lowercase()}"
+                            } ?: "${formatCount(subscriptionCard.resourceCount)} resources",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun RadarDial(
     trackedResources: Int,
     accentColor: Color,
@@ -492,6 +1041,65 @@ private fun RadarDial(
                 Text(
                     text = "resources",
                     style = MaterialTheme.typography.labelMedium.copy(
+                        color = colorScheme.onSurfaceVariant
+                    )
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactRadarDial(
+    trackedResources: Int,
+    accentColor: Color,
+    highEmphasisMetrics: Boolean,
+    scanScale: Float
+) {
+    val colorScheme = MaterialTheme.colorScheme
+
+    Box(
+        modifier = Modifier.size(126.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            modifier = Modifier.size(126.dp),
+            color = accentColor.copy(alpha = 0.06f),
+            shape = CircleShape,
+            border = BorderStroke(1.dp, accentColor.copy(alpha = 0.18f))
+        ) {}
+        Surface(
+            modifier = Modifier.size(94.dp),
+            color = accentColor.copy(alpha = 0.10f),
+            shape = CircleShape,
+            border = BorderStroke(1.dp, accentColor.copy(alpha = 0.26f))
+        ) {}
+        Surface(
+            modifier = Modifier
+                .size(72.dp)
+                .graphicsLayer {
+                    scaleX = scanScale
+                    scaleY = scanScale
+                },
+            color = colorScheme.surfaceContainerHigh,
+            shape = CircleShape,
+            border = BorderStroke(2.dp, accentColor.copy(alpha = 0.72f)),
+            tonalElevation = 2.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                QuotaMetricText(
+                    text = formatCount(trackedResources),
+                    emphasized = highEmphasisMetrics,
+                    level = MetricEmphasisLevel.Standard,
+                    color = accentColor
+                )
+                Text(
+                    text = "items",
+                    style = MaterialTheme.typography.labelSmall.copy(
                         color = colorScheme.onSurfaceVariant
                     )
                 )
@@ -1168,6 +1776,13 @@ private fun SyncState.providerAccessLabel(): String {
         SyncState.NeverSynced -> "not synced"
         SyncState.Active -> "active"
     }
+}
+
+private fun String.percentValueOrNull(): Float? {
+    return trim()
+        .removeSuffix("%")
+        .toFloatOrNull()
+        ?.coerceIn(0f, 100f)
 }
 
 @Composable
