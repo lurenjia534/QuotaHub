@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -19,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.keepScreenOn
 import androidx.compose.ui.unit.dp
 import com.lurenjia534.quotahub.data.preferences.UiPreferencesRepository
 import androidx.core.view.WindowCompat
@@ -106,48 +108,57 @@ fun QuotaApp(
             containerColor = Color.Transparent,
             contentWindowInsets = WindowInsets(0.dp)
         ) { innerPadding ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            ) {
-                QuotaNavHost(
-                    navController = navController,
-                    subscriptionRegistry = subscriptionRegistry,
-                    providerQuotaDetailProjectorRegistry = providerQuotaDetailProjectorRegistry,
-                    providerUiRegistry = providerUiRegistry,
-                    subscriptionRefreshPolicy = subscriptionRefreshPolicy,
-                    highEmphasisMetrics = uiPreferences.highEmphasisMetrics,
-                    hapticConfirmation = uiPreferences.hapticConfirmation,
-                    onHighEmphasisMetricsChange = uiPreferencesRepository::setHighEmphasisMetrics,
-                    onHapticConfirmationChange = uiPreferencesRepository::setHapticConfirmation,
-                    bottomContentPadding = if (showBottomNavigation) FloatingBottomNavClearance else 0.dp,
-                    addSubscriptionRequestKey = addSubscriptionRequestKey,
-                    modifier = Modifier.fillMaxSize()
-                )
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val appContentModifier = if (maxWidth > maxHeight) {
+                    Modifier
+                        .fillMaxSize()
+                        .keepScreenOn()
+                        .padding(innerPadding)
+                } else {
+                    Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                }
 
-                if (showBottomNavigation) {
-                    QuotaNavigationBar(
+                Box(modifier = appContentModifier) {
+                    QuotaNavHost(
                         navController = navController,
-                        items = navigationItems,
-                        onActionClick = { action ->
-                            when (action) {
-                                BottomNavAction.AddSubscription -> {
-                                    addSubscriptionRequestKey += 1
-                                    if (currentRoute != Screen.Home.route) {
-                                        navController.navigate(Screen.Home.route) {
-                                            popUpTo(navController.graph.startDestinationId) {
-                                                saveState = true
+                        subscriptionRegistry = subscriptionRegistry,
+                        providerQuotaDetailProjectorRegistry = providerQuotaDetailProjectorRegistry,
+                        providerUiRegistry = providerUiRegistry,
+                        subscriptionRefreshPolicy = subscriptionRefreshPolicy,
+                        highEmphasisMetrics = uiPreferences.highEmphasisMetrics,
+                        hapticConfirmation = uiPreferences.hapticConfirmation,
+                        onHighEmphasisMetricsChange = uiPreferencesRepository::setHighEmphasisMetrics,
+                        onHapticConfirmationChange = uiPreferencesRepository::setHapticConfirmation,
+                        bottomContentPadding = if (showBottomNavigation) FloatingBottomNavClearance else 0.dp,
+                        addSubscriptionRequestKey = addSubscriptionRequestKey,
+                        modifier = Modifier.fillMaxSize()
+                    )
+
+                    if (showBottomNavigation) {
+                        QuotaNavigationBar(
+                            navController = navController,
+                            items = navigationItems,
+                            onActionClick = { action ->
+                                when (action) {
+                                    BottomNavAction.AddSubscription -> {
+                                        addSubscriptionRequestKey += 1
+                                        if (currentRoute != Screen.Home.route) {
+                                            navController.navigate(Screen.Home.route) {
+                                                popUpTo(navController.graph.startDestinationId) {
+                                                    saveState = true
+                                                }
+                                                launchSingleTop = true
+                                                restoreState = true
                                             }
-                                            launchSingleTop = true
-                                            restoreState = true
                                         }
                                     }
                                 }
-                            }
-                        },
-                        modifier = Modifier.align(Alignment.BottomCenter)
-                    )
+                            },
+                            modifier = Modifier.align(Alignment.BottomCenter)
+                        )
+                    }
                 }
             }
         }
