@@ -362,27 +362,6 @@ private fun SettingsControlHeader(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Surface(
-                    color = colorScheme.surfaceContainerHigh,
-                    shape = expressiveSettingsShape(1),
-                    border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.14f))
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.AutoAwesome,
-                            contentDescription = null,
-                            tint = colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Control console",
-                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
-                        )
-                    }
-                }
                 Text(
                     text = "Settings",
                     style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Black),
