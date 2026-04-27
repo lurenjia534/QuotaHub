@@ -9,7 +9,6 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,7 +23,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -36,6 +34,7 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -228,6 +227,7 @@ fun HomeScreen(
                     ProviderAccessSection(
                         providers = subscriptionRegistry.providers,
                         providerUiRegistry = providerUiRegistry,
+                        subscriptionCards = subscriptionCards,
                         connectedProviderIds = connectedProviderIds,
                         onProviderClick = { provider ->
                             viewModel.clearError()
@@ -984,112 +984,186 @@ private fun HomeEmptyState(
 private fun ProviderAccessSection(
     providers: List<ProviderDescriptor>,
     providerUiRegistry: ProviderUiRegistry,
+    subscriptionCards: List<SubscriptionCardUiModel>,
     connectedProviderIds: Set<String>,
     onProviderClick: (ProviderDescriptor) -> Unit
 ) {
+    val colorScheme = MaterialTheme.colorScheme
+
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         HomeLaneHeader(
             title = "Provider access",
-            subtitle = "Connect a new source or add another account for an existing provider."
+            subtitle = "Manage provider connections and additional accounts."
         )
 
-        Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = colorScheme.surfaceContainerLow.copy(alpha = 0.74f),
+            shape = RoundedCornerShape(
+                topStart = 30.dp,
+                topEnd = 18.dp,
+                bottomStart = 18.dp,
+                bottomEnd = 34.dp
+            ),
+            border = BorderStroke(
+                width = 1.dp,
+                color = colorScheme.outlineVariant.copy(alpha = 0.26f)
+            ),
+            tonalElevation = 1.dp
         ) {
-            providers.forEach { provider ->
-                ProviderAccessNode(
-                    provider = provider,
-                    providerUiRegistry = providerUiRegistry,
-                    isConnected = connectedProviderIds.contains(provider.id),
-                    onProviderClick = onProviderClick
-                )
+            Column(modifier = Modifier.padding(vertical = 6.dp)) {
+                providers.forEachIndexed { index, provider ->
+                    ProviderAccessRow(
+                        provider = provider,
+                        providerUiRegistry = providerUiRegistry,
+                        providerCards = subscriptionCards.filter { it.providerId == provider.id },
+                        isConnected = connectedProviderIds.contains(provider.id),
+                        onProviderClick = onProviderClick
+                    )
+                    if (index < providers.lastIndex) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 76.dp, end = 18.dp),
+                            color = colorScheme.outlineVariant.copy(alpha = 0.20f)
+                        )
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun ProviderAccessNode(
+private fun ProviderAccessRow(
     provider: ProviderDescriptor,
     providerUiRegistry: ProviderUiRegistry,
+    providerCards: List<SubscriptionCardUiModel>,
     isConnected: Boolean,
     onProviderClick: (ProviderDescriptor) -> Unit
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val providerUi = providerUiRegistry.require(provider)
+    val targetStatusColor = providerCards.providerAccessColor()
     val statusColor by animateColorAsState(
-        targetValue = if (isConnected) colorScheme.primary else colorScheme.onSurfaceVariant,
+        targetValue = targetStatusColor,
         animationSpec = spring(stiffness = 420f, dampingRatio = 0.9f),
         label = "providerStatusColor"
     )
+    val statusLabel = providerCards.providerStatusLabel(isConnected)
+    val summary = providerCards.providerAccessSummary()
 
-    Surface(
+    Row(
         modifier = Modifier
-            .width(232.dp)
-            .height(224.dp)
-            .clickable { onProviderClick(provider) },
-        color = colorScheme.surfaceContainerLow.copy(alpha = 0.86f),
-        shape = RoundedCornerShape(30.dp),
-        border = BorderStroke(1.dp, statusColor.copy(alpha = 0.20f)),
-        tonalElevation = if (isConnected) 1.dp else 0.dp
+            .fillMaxWidth()
+            .clickable { onProviderClick(provider) }
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+        Surface(
+            color = statusColor.copy(alpha = 0.13f),
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(1.dp, statusColor.copy(alpha = 0.22f)),
+            modifier = Modifier.size(50.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                SignalGlyph(color = statusColor) {
-                    Icon(
-                        painter = painterResource(providerUi.iconRes),
-                        contentDescription = null,
-                        modifier = Modifier.size(30.dp),
-                        tint = Color.Unspecified
-                    )
-                }
-                SignalChip(
-                    label = if (isConnected) "Linked" else "Open",
-                    color = statusColor
-                )
-            }
-            Text(
-                text = provider.displayName,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = providerUi.detailDescription,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    color = colorScheme.onSurfaceVariant
-                ),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.weight(1f))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = if (isConnected) "Add another" else "Connect",
-                    style = MaterialTheme.typography.labelLarge.copy(
-                        color = statusColor,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                )
+            Box(contentAlignment = Alignment.Center) {
                 Icon(
-                    imageVector = Icons.Filled.ChevronRight,
+                    painter = painterResource(providerUi.iconRes),
                     contentDescription = null,
-                    tint = statusColor
+                    modifier = Modifier.size(28.dp),
+                    tint = Color.Unspecified
                 )
             }
         }
+
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = provider.displayName,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = summary,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    color = colorScheme.onSurfaceVariant
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        ProviderAccessPill(
+            label = statusLabel,
+            color = statusColor
+        )
+        Icon(
+            imageVector = Icons.Filled.ChevronRight,
+            contentDescription = null,
+            tint = colorScheme.onSurfaceVariant.copy(alpha = 0.70f)
+        )
+    }
+}
+
+@Composable
+private fun ProviderAccessPill(
+    label: String,
+    color: Color
+) {
+    Surface(
+        color = color.copy(alpha = 0.08f),
+        contentColor = color,
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+            maxLines = 1,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+        )
+    }
+}
+
+@Composable
+private fun List<SubscriptionCardUiModel>.providerAccessColor(): Color {
+    val colorScheme = MaterialTheme.colorScheme
+    return when {
+        isEmpty() -> colorScheme.onSurfaceVariant
+        any { it.syncState == SyncState.AuthFailed || it.syncState == SyncState.SyncError } -> colorScheme.error
+        any { it.risk == QuotaRisk.Critical } -> colorScheme.error
+        any { it.risk == QuotaRisk.Watch || it.syncState == SyncState.Stale } -> colorScheme.tertiary
+        else -> colorScheme.primary
+    }
+}
+
+private fun List<SubscriptionCardUiModel>.providerStatusLabel(isConnected: Boolean): String {
+    return when {
+        size > 1 -> "$size linked"
+        isConnected -> "Linked"
+        else -> "Open"
+    }
+}
+
+private fun List<SubscriptionCardUiModel>.providerAccessSummary(): String {
+    if (isEmpty()) return "Ready to connect"
+
+    val accountText = if (size == 1) "1 account" else "$size accounts"
+    val resourceCount = sumOf { it.resourceCount }
+    val resourceText = if (resourceCount == 1) "1 resource" else "$resourceCount resources"
+    val syncText = dominantSyncState().providerAccessLabel()
+    return "$accountText / $resourceText / $syncText"
+}
+
+private fun SyncState.providerAccessLabel(): String {
+    return when (this) {
+        SyncState.AuthFailed -> "auth attention"
+        SyncState.SyncError -> "sync error"
+        SyncState.Stale -> "stale"
+        SyncState.Syncing -> "syncing"
+        SyncState.NeverSynced -> "not synced"
+        SyncState.Active -> "active"
     }
 }
 
