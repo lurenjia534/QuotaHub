@@ -21,25 +21,6 @@ QuotaHub is an Android quota dashboard built with Jetpack Compose. It is designe
 - Room
 - Retrofit + OkHttp + Kotlinx Serialization
 
-## Project Structure
-
-```text
-app/src/main/java/com/lurenjia534/quotahub
-├── data
-│   ├── local          # Room entities, DAOs, and database
-│   ├── model          # Domain models and quota calculation helpers
-│   ├── preferences    # Local UI preferences
-│   ├── provider       # Provider gateways and registry
-│   └── repository     # Local/remote data coordination
-├── ui
-│   ├── components     # Shared Compose components
-│   ├── navigation     # Routes and bottom navigation
-│   ├── screens        # Home / Detail / Settings screens
-│   └── theme          # Theme, colors, and typography
-├── MainActivity.kt
-└── QuotaApplication.kt
-```
-
 ## Requirements
 
 - A recent stable Android Studio version
@@ -68,12 +49,214 @@ After launching the app:
 
 ## Architecture Overview
 
-The app currently follows a straightforward layered structure:
+The app is organized around one provider registry, one repository-backed quota
+store, and provider modules that supply API clients plus UI projection logic.
 
-- `HomeHubViewModel` and `ProviderQuotaViewModel` drive screen state.
-- `SubscriptionRegistry` acts as the application-level entry point for providers and subscription snapshots.
-- `SubscriptionRepository` coordinates Room persistence, encrypted credentials, and normalized quota snapshot caching.
-- `ProviderModule` wires each provider into a shared registry with provider-specific API clients, card projectors, and detail projectors.
+```mermaid
+flowchart LR
+    subgraph App["Application composition"]
+        MainActivity["MainActivity"]
+        QuotaApplication["QuotaApplication"]
+        ProviderModules["ProviderModules.all"]
+        Assembly["ProviderRegistryAssembly"]
+        ProviderCatalog["ProviderCatalog"]
+        ProviderUiRegistry["ProviderUiRegistry"]
+        CardRegistry["SubscriptionCardProjectorRegistry"]
+        DetailRegistry["ProviderQuotaDetailProjectorRegistry"]
+        RefreshPolicy["DefaultSubscriptionRefreshPolicy"]
+        SyncCoordinator["DefaultSubscriptionSyncCoordinator"]
+        UpgradeCoordinator["QuotaUpgradeCoordinator"]
+    end
+
+    subgraph UI["Compose UI"]
+        QuotaApp["QuotaApp"]
+        NavHost["QuotaNavHost"]
+        HomeScreen["HomeScreen"]
+        DetailScreen["ProviderQuotaScreen"]
+        SettingsScreen["SettingsScreen"]
+        BottomNav["QuotaNavigationBar"]
+        HomeVM["HomeHubViewModel"]
+        DetailVM["ProviderQuotaViewModel"]
+        PreferencesRepo["UiPreferencesRepository"]
+    end
+
+    subgraph SubscriptionLayer["Subscription runtime"]
+        Registry["SubscriptionRegistry"]
+        Gateway["SubscriptionGateway"]
+        WriteGateway["RepositoryBackedSubscriptionGateway"]
+        ReadOnlyGateway["ReadOnlySubscriptionGateway"]
+        GatewayStore["SubscriptionGatewayStore"]
+    end
+
+    subgraph RepositoryLayer["Repository and sync"]
+        Repository["SubscriptionRepository"]
+        ReplayRunner["QuotaSnapshotReplayRunner"]
+        CredentialVault["EncryptedCredentialVault"]
+        ApiKeyCipher["AndroidKeystoreApiKeyCipher"]
+        FailureMapping["ProviderFailure to SyncState mapping"]
+    end
+
+    subgraph Persistence["Local persistence"]
+        Database[("QuotaDatabase")]
+        SubscriptionDao["SubscriptionDao"]
+        SnapshotDao["QuotaSnapshotDao"]
+        UpgradeStateDao["QuotaUpgradeStateDao"]
+        SubscriptionTable["subscription"]
+        SnapshotTable["quota_snapshot"]
+        ResourceTable["quota_resource"]
+        WindowTable["quota_window"]
+        UpgradeStateTable["quota_upgrade_state"]
+        SharedPrefs["SharedPreferences"]
+    end
+
+    subgraph ProviderContract["Provider contract"]
+        ProviderDescriptor["ProviderDescriptor"]
+        CredentialFields["CredentialFieldSpec"]
+        SecretBundle["SecretBundle"]
+        CodingProvider["CodingPlanProvider"]
+        CapturedSnapshot["CapturedQuotaSnapshot"]
+        ReplayPayload["ProviderReplayPayload"]
+        CardProjector["SubscriptionCardProjector"]
+        DetailProjector["ProviderQuotaDetailProjector"]
+    end
+
+    subgraph DomainModel["Normalized domain model"]
+        Subscription["Subscription"]
+        SyncStatus["SubscriptionSyncStatus"]
+        QuotaSnapshot["QuotaSnapshot"]
+        QuotaResource["QuotaResource"]
+        QuotaWindow["QuotaWindow"]
+        QuotaRisk["QuotaRisk"]
+    end
+
+    subgraph ProviderImplementations["Provider implementations"]
+        Codex["Codex provider module"]
+        Kimi["Kimi provider module"]
+        MiniMax["MiniMax provider module"]
+        MonitorFamily["MonitorQuotaProviderFamily"]
+        Zai["Z.ai provider module"]
+        Zhipu["Zhipu provider module"]
+    end
+
+    subgraph Network["Remote APIs"]
+        CodexApi["chatgpt.com quota endpoints"]
+        KimiApi["api.kimi.com coding usage"]
+        MiniMaxApi["minimaxi.com coding plan remains"]
+        ZaiApi["z.ai monitor usage endpoints"]
+        ZhipuApi["bigmodel.cn monitor usage endpoints"]
+    end
+
+    MainActivity --> QuotaApplication
+    MainActivity --> QuotaApp
+    QuotaApplication --> ProviderModules
+    QuotaApplication --> Repository
+    QuotaApplication --> Registry
+    QuotaApplication --> SyncCoordinator
+    QuotaApplication --> UpgradeCoordinator
+    QuotaApplication --> PreferencesRepo
+    ProviderModules --> Assembly
+    Assembly --> ProviderCatalog
+    Assembly --> ProviderUiRegistry
+    Assembly --> CardRegistry
+    Assembly --> DetailRegistry
+    ProviderModules --> Codex
+    ProviderModules --> Kimi
+    ProviderModules --> MiniMax
+    ProviderModules --> Zai
+    ProviderModules --> Zhipu
+
+    QuotaApp --> NavHost
+    QuotaApp --> BottomNav
+    QuotaApp --> PreferencesRepo
+    NavHost --> HomeScreen
+    NavHost --> DetailScreen
+    NavHost --> SettingsScreen
+    HomeScreen --> HomeVM
+    DetailScreen --> DetailVM
+    SettingsScreen --> PreferencesRepo
+    HomeVM --> Registry
+    HomeVM --> ProviderUiRegistry
+    DetailVM --> Gateway
+    DetailVM --> DetailRegistry
+    DetailVM --> RefreshPolicy
+
+    Registry --> Repository
+    Registry --> ProviderCatalog
+    Registry --> CardRegistry
+    Registry --> SyncCoordinator
+    Registry --> WriteGateway
+    Registry --> ReadOnlyGateway
+    WriteGateway --> Gateway
+    ReadOnlyGateway --> Gateway
+    WriteGateway --> GatewayStore
+    ReadOnlyGateway --> GatewayStore
+    GatewayStore --> Repository
+
+    SyncCoordinator --> Repository
+    SyncCoordinator --> ProviderCatalog
+    SyncCoordinator --> CodingProvider
+    UpgradeCoordinator --> ReplayRunner
+    UpgradeCoordinator --> UpgradeStateDao
+    UpgradeCoordinator --> ProviderCatalog
+    ReplayRunner --> Repository
+    Repository --> ReplayRunner
+    Repository --> GatewayStore
+    Repository --> SubscriptionDao
+    Repository --> SnapshotDao
+    Repository --> CredentialVault
+    Repository --> ProviderCatalog
+    Repository --> FailureMapping
+    CredentialVault --> ApiKeyCipher
+    PreferencesRepo --> SharedPrefs
+
+    SubscriptionDao --> Database
+    SnapshotDao --> Database
+    UpgradeStateDao --> Database
+    Database --> SubscriptionTable
+    Database --> SnapshotTable
+    Database --> ResourceTable
+    Database --> WindowTable
+    Database --> UpgradeStateTable
+
+    ProviderCatalog --> CodingProvider
+    CodingProvider --> ProviderDescriptor
+    ProviderDescriptor --> CredentialFields
+    CredentialFields --> SecretBundle
+    CodingProvider --> CapturedSnapshot
+    CapturedSnapshot --> QuotaSnapshot
+    CapturedSnapshot --> ReplayPayload
+    ReplayPayload --> SnapshotTable
+    CardRegistry --> CardProjector
+    DetailRegistry --> DetailProjector
+    CardProjector --> QuotaSnapshot
+    DetailProjector --> QuotaSnapshot
+
+    Repository --> Subscription
+    Subscription --> SyncStatus
+    QuotaSnapshot --> QuotaResource
+    QuotaResource --> QuotaWindow
+    QuotaWindow --> QuotaRisk
+
+    Codex --> CodingProvider
+    Kimi --> CodingProvider
+    MiniMax --> CodingProvider
+    Zai --> MonitorFamily
+    Zhipu --> MonitorFamily
+    MonitorFamily --> CodingProvider
+    Codex --> CodexApi
+    Kimi --> KimiApi
+    MiniMax --> MiniMaxApi
+    Zai --> ZaiApi
+    Zhipu --> ZhipuApi
+```
+
+- `QuotaApplication` owns runtime assembly: Room, repositories, provider modules, registries, refresh policy, sync coordinator, and replay coordinator.
+- `HomeHubViewModel` observes `SubscriptionRegistry.snapshots`, while `ProviderQuotaViewModel` works through a `SubscriptionGateway` selected by provider support.
+- `SubscriptionRegistry` turns repository flows into card projections and returns either `RepositoryBackedSubscriptionGateway` or `ReadOnlySubscriptionGateway`.
+- `DefaultSubscriptionSyncCoordinator` is the only path that performs remote refresh or credential revalidation; it calls providers, then asks the repository to cache snapshots and sync state.
+- `SubscriptionRepository` owns local persistence, encrypted credential storage, normalized snapshot caching, replay payload persistence, and sync failure mapping.
+- `ProviderModule` wires each provider into the shared catalog with its API client, credential descriptor, card projector, detail projector, and replay contract.
+- `QuotaUpgradeCoordinator` compares provider replay fingerprints and replays stored raw payloads through `QuotaSnapshotReplayRunner` when normalizers change.
 
 This structure is already used for multi-provider support. Adding a new provider mainly requires a new provider definition, API client, normalization logic, and provider-specific UI projector implementation.
 
