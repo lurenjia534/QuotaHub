@@ -60,6 +60,7 @@ flowchart LR
         ProviderModules["ProviderModules.all"]
         Assembly["ProviderRegistryAssembly"]
         ProviderCatalog["ProviderCatalog"]
+        ProviderUiMetadata["ProviderUiMetadata"]
         ProviderUiRegistry["ProviderUiRegistry"]
         CardRegistry["SubscriptionCardProjectorRegistry"]
         DetailRegistry["ProviderQuotaDetailProjectorRegistry"]
@@ -97,7 +98,7 @@ flowchart LR
     end
 
     subgraph Persistence["Local persistence"]
-        Database[("QuotaDatabase")]
+        Database[(QuotaDatabase)]
         SubscriptionDao["SubscriptionDao"]
         SnapshotDao["QuotaSnapshotDao"]
         UpgradeStateDao["QuotaUpgradeStateDao"]
@@ -149,13 +150,23 @@ flowchart LR
     MainActivity --> QuotaApplication
     MainActivity --> QuotaApp
     QuotaApplication --> ProviderModules
+    QuotaApplication --> Assembly
+    QuotaApplication --> ProviderCatalog
+    QuotaApplication --> ProviderUiRegistry
+    QuotaApplication --> DetailRegistry
+    QuotaApplication --> RefreshPolicy
+    QuotaApplication --> Database
     QuotaApplication --> Repository
     QuotaApplication --> Registry
     QuotaApplication --> SyncCoordinator
     QuotaApplication --> UpgradeCoordinator
     QuotaApplication --> PreferencesRepo
     ProviderModules --> Assembly
-    Assembly --> ProviderCatalog
+    ProviderModules --> ProviderCatalog
+    ProviderModules --> CodingProvider
+    ProviderModules --> ProviderUiMetadata
+    ProviderModules --> CardProjector
+    ProviderModules --> DetailProjector
     Assembly --> ProviderUiRegistry
     Assembly --> CardRegistry
     Assembly --> DetailRegistry
@@ -168,11 +179,22 @@ flowchart LR
     QuotaApp --> NavHost
     QuotaApp --> BottomNav
     QuotaApp --> PreferencesRepo
+    QuotaApp --> Registry
+    QuotaApp --> ProviderUiRegistry
+    QuotaApp --> DetailRegistry
+    QuotaApp --> RefreshPolicy
     NavHost --> HomeScreen
     NavHost --> DetailScreen
     NavHost --> SettingsScreen
+    NavHost --> Registry
+    NavHost --> ProviderUiRegistry
+    NavHost --> DetailRegistry
+    NavHost --> RefreshPolicy
     HomeScreen --> HomeVM
+    HomeScreen --> Registry
+    HomeScreen --> ProviderUiRegistry
     DetailScreen --> DetailVM
+    DetailScreen --> ProviderUiRegistry
     SettingsScreen --> PreferencesRepo
     HomeVM --> Registry
     HomeVM --> ProviderUiRegistry
@@ -186,11 +208,10 @@ flowchart LR
     Registry --> SyncCoordinator
     Registry --> WriteGateway
     Registry --> ReadOnlyGateway
-    WriteGateway --> Gateway
-    ReadOnlyGateway --> Gateway
+    WriteGateway -. implements .-> Gateway
+    ReadOnlyGateway -. implements .-> Gateway
     WriteGateway --> GatewayStore
     ReadOnlyGateway --> GatewayStore
-    GatewayStore --> Repository
 
     SyncCoordinator --> Repository
     SyncCoordinator --> ProviderCatalog
@@ -198,9 +219,8 @@ flowchart LR
     UpgradeCoordinator --> ReplayRunner
     UpgradeCoordinator --> UpgradeStateDao
     UpgradeCoordinator --> ProviderCatalog
-    ReplayRunner --> Repository
-    Repository --> ReplayRunner
-    Repository --> GatewayStore
+    Repository -. implements .-> ReplayRunner
+    Repository -. implements .-> GatewayStore
     Repository --> SubscriptionDao
     Repository --> SnapshotDao
     Repository --> CredentialVault
@@ -220,6 +240,7 @@ flowchart LR
 
     ProviderCatalog --> CodingProvider
     CodingProvider --> ProviderDescriptor
+    ProviderUiMetadata --> ProviderUiRegistry
     ProviderDescriptor --> CredentialFields
     CredentialFields --> SecretBundle
     CodingProvider --> CapturedSnapshot
@@ -237,12 +258,12 @@ flowchart LR
     QuotaResource --> QuotaWindow
     QuotaWindow --> QuotaRisk
 
-    Codex --> CodingProvider
-    Kimi --> CodingProvider
-    MiniMax --> CodingProvider
+    Codex -. implements .-> CodingProvider
+    Kimi -. implements .-> CodingProvider
+    MiniMax -. implements .-> CodingProvider
     Zai --> MonitorFamily
     Zhipu --> MonitorFamily
-    MonitorFamily --> CodingProvider
+    MonitorFamily -. implements .-> CodingProvider
     Codex --> CodexApi
     Kimi --> KimiApi
     MiniMax --> MiniMaxApi
