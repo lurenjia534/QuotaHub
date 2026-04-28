@@ -65,10 +65,24 @@ jobs:
           path: app/build/outputs/mapping/release/mapping.txt
           if-no-files-found: error
 
+      - name: Extract release notes
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          awk -v tag="$TAG_NAME" '
+            index($0, "## [" tag "]") == 1 { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+            END { if (!found) exit 1 }
+          ' CHANGELOG.md > "$RUNNER_TEMP/release-notes.md"
+          test -s "$RUNNER_TEMP/release-notes.md"
+
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
+          body_path: ${{ runner.temp }}/release-notes.md
           files: |
             app/build/outputs/apk/release/*.apk
             app/build/outputs/mapping/release/mapping.txt
