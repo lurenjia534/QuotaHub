@@ -8,16 +8,30 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -26,8 +40,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.keepScreenOn
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.lurenjia534.quotahub.data.preferences.UiPreferencesRepository
+import com.lurenjia534.quotahub.data.update.AvailableUpdate
+import com.lurenjia534.quotahub.data.update.UpdateChecker
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -104,8 +122,16 @@ fun QuotaApp(
     var addSubscriptionRequestKey by remember { mutableIntStateOf(0) }
     val showBottomNavigation = currentRoute in bottomNavItems.map { it.route }
     val landscapeMonitorMode = uiPreferences.landscapeMonitorMode
+    var availableUpdate by remember { mutableStateOf<AvailableUpdate?>(null) }
 
     LandscapeMonitorModeEffect(enabled = landscapeMonitorMode)
+    UpdateCheckEffect(
+        currentVersionName = LocalContext.current.versionNameOrFallback(),
+        dismissedUpdateTag = uiPreferences.dismissedUpdateTag,
+        onUpdateAvailable = { update ->
+            availableUpdate = update
+        }
+    )
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -173,6 +199,20 @@ fun QuotaApp(
             }
         }
     }
+
+    availableUpdate?.let { update ->
+        UpdateAvailableDialog(
+            update = update,
+            onOpenRelease = {
+                uiPreferencesRepository.setDismissedUpdateTag(update.tagName)
+                availableUpdate = null
+            },
+            onDismiss = {
+                uiPreferencesRepository.setDismissedUpdateTag(update.tagName)
+                availableUpdate = null
+            }
+        )
+    }
 }
 
 @Composable
@@ -202,5 +242,119 @@ private tailrec fun Context.findActivity(): Activity? {
         is Activity -> this
         is ContextWrapper -> baseContext.findActivity()
         else -> null
+    }
+}
+
+@Composable
+private fun UpdateCheckEffect(
+    currentVersionName: String,
+    dismissedUpdateTag: String?,
+    onUpdateAvailable: (AvailableUpdate) -> Unit
+) {
+    LaunchedEffect(currentVersionName, dismissedUpdateTag) {
+        val update = UpdateChecker().checkForUpdate(currentVersionName).getOrNull()
+        if (update != null && update.tagName != dismissedUpdateTag) {
+            onUpdateAvailable(update)
+        }
+    }
+}
+
+@Composable
+private fun UpdateAvailableDialog(
+    update: AvailableUpdate,
+    onOpenRelease: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val uriHandler = LocalUriHandler.current
+    val colorScheme = MaterialTheme.colorScheme
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(
+            topStart = 30.dp,
+            topEnd = 22.dp,
+            bottomStart = 22.dp,
+            bottomEnd = 34.dp
+        ),
+        title = {
+            Column {
+                Surface(
+                    color = colorScheme.primaryContainer.copy(alpha = 0.72f),
+                    contentColor = colorScheme.onPrimaryContainer,
+                    shape = RoundedCornerShape(
+                        topStart = 18.dp,
+                        topEnd = 12.dp,
+                        bottomStart = 12.dp,
+                        bottomEnd = 20.dp
+                    ),
+                    border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.18f))
+                ) {
+                    Text(
+                        text = update.tagName,
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+                    )
+                }
+                Text(
+                    text = "Update available",
+                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                    modifier = Modifier.padding(top = 10.dp)
+                )
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = update.title,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+                )
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 260.dp),
+                    color = colorScheme.surfaceContainerLow,
+                    shape = RoundedCornerShape(
+                        topStart = 20.dp,
+                        topEnd = 28.dp,
+                        bottomStart = 28.dp,
+                        bottomEnd = 20.dp
+                    )
+                ) {
+                    Text(
+                        text = update.releaseNotes,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = colorScheme.onSurfaceVariant
+                        ),
+                        modifier = Modifier
+                            .verticalScroll(rememberScrollState())
+                            .padding(14.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onOpenRelease()
+                    uriHandler.openUri(update.releaseUrl)
+                }
+            ) {
+                Text("Open GitHub")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Later")
+            }
+        }
+    )
+}
+
+@Suppress("DEPRECATION")
+private fun Context.versionNameOrFallback(): String {
+    return runCatching {
+        packageManager.getPackageInfo(packageName, 0).versionName
+    }.getOrNull().orEmpty().ifBlank {
+        "0"
     }
 }

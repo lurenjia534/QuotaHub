@@ -8,7 +8,8 @@ import kotlinx.coroutines.flow.asStateFlow
 data class UiPreferences(
     val highEmphasisMetrics: Boolean = true,
     val hapticConfirmation: Boolean = true,
-    val landscapeMonitorMode: Boolean = false
+    val landscapeMonitorMode: Boolean = false,
+    val dismissedUpdateTag: String? = null
 )
 
 class UiPreferencesRepository(context: Context) {
@@ -44,11 +45,20 @@ class UiPreferencesRepository(context: Context) {
         _preferences.value = _preferences.value.copy(landscapeMonitorMode = enabled)
     }
 
+    fun setDismissedUpdateTag(tagName: String) {
+        sharedPreferences.edit()
+            .putString(KEY_DISMISSED_UPDATE_TAG, tagName)
+            .apply()
+
+        _preferences.value = _preferences.value.copy(dismissedUpdateTag = tagName)
+    }
+
     private fun loadPreferences(): UiPreferences {
         return UiPreferences(
             highEmphasisMetrics = sharedPreferences.getBoolean(KEY_HIGH_EMPHASIS_METRICS, true),
             hapticConfirmation = sharedPreferences.getBoolean(KEY_HAPTIC_CONFIRMATION, true),
-            landscapeMonitorMode = sharedPreferences.getBoolean(KEY_LANDSCAPE_MONITOR_MODE, false)
+            landscapeMonitorMode = sharedPreferences.getBoolean(KEY_LANDSCAPE_MONITOR_MODE, false),
+            dismissedUpdateTag = sharedPreferences.getString(KEY_DISMISSED_UPDATE_TAG, null)
         )
     }
 
@@ -57,5 +67,6 @@ class UiPreferencesRepository(context: Context) {
         const val KEY_HIGH_EMPHASIS_METRICS = "high_emphasis_metrics"
         const val KEY_HAPTIC_CONFIRMATION = "haptic_confirmation"
         const val KEY_LANDSCAPE_MONITOR_MODE = "landscape_monitor_mode"
+        const val KEY_DISMISSED_UPDATE_TAG = "dismissed_update_tag"
     }
 }

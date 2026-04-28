@@ -4,7 +4,9 @@ import android.content.Context
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -25,6 +27,7 @@ class UiPreferencesRepositoryTest {
         assertTrue(preferences.highEmphasisMetrics)
         assertTrue(preferences.hapticConfirmation)
         assertFalse(preferences.landscapeMonitorMode)
+        assertNull(preferences.dismissedUpdateTag)
     }
 
     @Test
@@ -56,6 +59,17 @@ class UiPreferencesRepositoryTest {
         assertFalse(preferences.highEmphasisMetrics)
         assertFalse(preferences.hapticConfirmation)
         assertTrue(preferences.landscapeMonitorMode)
+    }
+
+    @Test
+    fun setDismissedUpdateTag_updatesStateAndPersistsValue() {
+        clearPreferences()
+        val repository = UiPreferencesRepository(context)
+
+        repository.setDismissedUpdateTag("v1.2")
+
+        assertEquals("v1.2", repository.preferences.value.dismissedUpdateTag)
+        assertEquals("v1.2", UiPreferencesRepository(context).preferences.value.dismissedUpdateTag)
     }
 
     private fun clearPreferences() {
