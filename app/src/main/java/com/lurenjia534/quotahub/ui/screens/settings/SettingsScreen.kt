@@ -34,6 +34,7 @@ import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.PrivacyTip
+import androidx.compose.material.icons.outlined.ScreenRotation
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material.icons.outlined.Tune
@@ -96,8 +97,10 @@ private enum class RefreshProfile(
 fun SettingsScreen(
     highEmphasisMetrics: Boolean,
     hapticConfirmation: Boolean,
+    landscapeMonitorMode: Boolean,
     onHighEmphasisMetricsChange: (Boolean) -> Unit,
     onHapticConfirmationChange: (Boolean) -> Unit,
+    onLandscapeMonitorModeChange: (Boolean) -> Unit,
     onAboutClick: () -> Unit,
     bottomContentPadding: Dp = 0.dp,
     modifier: Modifier = Modifier
@@ -186,6 +189,16 @@ fun SettingsScreen(
                         onCheckedChange = onHapticConfirmationChange,
                         onAfterCheckedChange = { checked ->
                             quotaHaptics.toggle(checked, force = true)
+                        }
+                    )
+                    ToggleControlRow(
+                        icon = Icons.Outlined.ScreenRotation,
+                        title = "Landscape monitor mode",
+                        description = "Lock QuotaHub in landscape where supported and keep the display awake for desk or tablet monitoring.",
+                        checked = landscapeMonitorMode,
+                        onCheckedChange = onLandscapeMonitorModeChange,
+                        onAfterCheckedChange = { checked ->
+                            quotaHaptics.toggle(checked)
                         }
                     )
                 }
@@ -300,6 +313,7 @@ fun SettingsScreen(
                     dynamicPaletteEnabled = true
                     onHighEmphasisMetricsChange(true)
                     onHapticConfirmationChange(true)
+                    onLandscapeMonitorModeChange(false)
                     usageAlerts = true
                     lowBalanceBanner = true
                     privacyShield = true
@@ -949,8 +963,10 @@ private fun SettingsScreenPreview() {
         SettingsScreen(
             highEmphasisMetrics = true,
             hapticConfirmation = true,
+            landscapeMonitorMode = false,
             onHighEmphasisMetricsChange = {},
             onHapticConfirmationChange = {},
+            onLandscapeMonitorModeChange = {},
             onAboutClick = {}
         )
     }

@@ -7,7 +7,8 @@ import kotlinx.coroutines.flow.asStateFlow
 
 data class UiPreferences(
     val highEmphasisMetrics: Boolean = true,
-    val hapticConfirmation: Boolean = true
+    val hapticConfirmation: Boolean = true,
+    val landscapeMonitorMode: Boolean = false
 )
 
 class UiPreferencesRepository(context: Context) {
@@ -35,10 +36,19 @@ class UiPreferencesRepository(context: Context) {
         _preferences.value = _preferences.value.copy(hapticConfirmation = enabled)
     }
 
+    fun setLandscapeMonitorMode(enabled: Boolean) {
+        sharedPreferences.edit()
+            .putBoolean(KEY_LANDSCAPE_MONITOR_MODE, enabled)
+            .apply()
+
+        _preferences.value = _preferences.value.copy(landscapeMonitorMode = enabled)
+    }
+
     private fun loadPreferences(): UiPreferences {
         return UiPreferences(
             highEmphasisMetrics = sharedPreferences.getBoolean(KEY_HIGH_EMPHASIS_METRICS, true),
-            hapticConfirmation = sharedPreferences.getBoolean(KEY_HAPTIC_CONFIRMATION, true)
+            hapticConfirmation = sharedPreferences.getBoolean(KEY_HAPTIC_CONFIRMATION, true),
+            landscapeMonitorMode = sharedPreferences.getBoolean(KEY_LANDSCAPE_MONITOR_MODE, false)
         )
     }
 
@@ -46,5 +56,6 @@ class UiPreferencesRepository(context: Context) {
         const val PREFERENCES_NAME = "quotahub_ui_preferences"
         const val KEY_HIGH_EMPHASIS_METRICS = "high_emphasis_metrics"
         const val KEY_HAPTIC_CONFIRMATION = "haptic_confirmation"
+        const val KEY_LANDSCAPE_MONITOR_MODE = "landscape_monitor_mode"
     }
 }

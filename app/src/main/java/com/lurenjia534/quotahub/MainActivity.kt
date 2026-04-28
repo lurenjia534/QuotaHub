@@ -1,17 +1,21 @@
 package com.lurenjia534.quotahub
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.pm.ActivityInfo
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -21,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.keepScreenOn
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.lurenjia534.quotahub.data.preferences.UiPreferencesRepository
 import androidx.core.view.WindowCompat
@@ -98,6 +103,9 @@ fun QuotaApp(
     }
     var addSubscriptionRequestKey by remember { mutableIntStateOf(0) }
     val showBottomNavigation = currentRoute in bottomNavItems.map { it.route }
+    val landscapeMonitorMode = uiPreferences.landscapeMonitorMode
+
+    LandscapeMonitorModeEffect(enabled = landscapeMonitorMode)
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -108,8 +116,8 @@ fun QuotaApp(
             containerColor = Color.Transparent,
             contentWindowInsets = WindowInsets(0.dp)
         ) { innerPadding ->
-            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                val appContentModifier = if (maxWidth > maxHeight) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                val appContentModifier = if (landscapeMonitorMode) {
                     Modifier
                         .fillMaxSize()
                         .keepScreenOn()
@@ -129,8 +137,10 @@ fun QuotaApp(
                         subscriptionRefreshPolicy = subscriptionRefreshPolicy,
                         highEmphasisMetrics = uiPreferences.highEmphasisMetrics,
                         hapticConfirmation = uiPreferences.hapticConfirmation,
+                        landscapeMonitorMode = landscapeMonitorMode,
                         onHighEmphasisMetricsChange = uiPreferencesRepository::setHighEmphasisMetrics,
                         onHapticConfirmationChange = uiPreferencesRepository::setHapticConfirmation,
+                        onLandscapeMonitorModeChange = uiPreferencesRepository::setLandscapeMonitorMode,
                         bottomContentPadding = if (showBottomNavigation) FloatingBottomNavClearance else 0.dp,
                         addSubscriptionRequestKey = addSubscriptionRequestKey,
                         modifier = Modifier.fillMaxSize()
@@ -162,5 +172,35 @@ fun QuotaApp(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun LandscapeMonitorModeEffect(enabled: Boolean) {
+    val activity = LocalContext.current.findActivity()
+
+    DisposableEffect(activity, enabled) {
+        if (activity == null) {
+            return@DisposableEffect onDispose {}
+        }
+
+        val previousOrientation = activity.requestedOrientation
+        activity.requestedOrientation = if (enabled) {
+            ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+
+        onDispose {
+            activity.requestedOrientation = previousOrientation
+        }
+    }
+}
+
+private tailrec fun Context.findActivity(): Activity? {
+    return when (this) {
+        is Activity -> this
+        is ContextWrapper -> baseContext.findActivity()
+        else -> null
     }
 }
