@@ -1,5 +1,6 @@
 package com.lurenjia534.quotahub.ui.screens.about
 
+import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -46,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -64,6 +66,7 @@ fun AboutScreen(
     modifier: Modifier = Modifier
 ) {
     val colorScheme = MaterialTheme.colorScheme
+    val versionName = rememberAppVersionName()
     var headerVisible by remember { mutableStateOf(false) }
     var identityVisible by remember { mutableStateOf(false) }
     var githubVisible by remember { mutableStateOf(false) }
@@ -105,7 +108,7 @@ fun AboutScreen(
 
         item {
             AnimatedAboutSection(visible = identityVisible) {
-                AppIdentityPanel()
+                AppIdentityPanel(versionName = versionName)
             }
         }
 
@@ -176,7 +179,7 @@ private fun AboutTopBar(onBackClick: () -> Unit) {
 }
 
 @Composable
-private fun AppIdentityPanel() {
+private fun AppIdentityPanel(versionName: String) {
     val colorScheme = MaterialTheme.colorScheme
     var iconSettled by remember { mutableStateOf(false) }
     val iconScale by animateFloatAsState(
@@ -244,6 +247,7 @@ private fun AppIdentityPanel() {
                     text = "QuotaHub",
                     style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Black)
                 )
+                VersionLabel(versionName = versionName)
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -260,6 +264,29 @@ private fun AppIdentityPanel() {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun VersionLabel(versionName: String) {
+    val colorScheme = MaterialTheme.colorScheme
+
+    Surface(
+        color = colorScheme.secondaryContainer.copy(alpha = 0.74f),
+        contentColor = colorScheme.onSecondaryContainer,
+        shape = RoundedCornerShape(
+            topStart = 18.dp,
+            topEnd = 12.dp,
+            bottomStart = 12.dp,
+            bottomEnd = 20.dp
+        ),
+        border = BorderStroke(1.dp, colorScheme.secondary.copy(alpha = 0.18f))
+    ) {
+        Text(
+            text = "Version $versionName",
+            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+        )
     }
 }
 
@@ -320,6 +347,23 @@ private fun AboutLinkRow(
                 tint = colorScheme.onSurfaceVariant
             )
         }
+    }
+}
+
+@Composable
+private fun rememberAppVersionName(): String {
+    val context = LocalContext.current
+    return remember(context) {
+        context.versionNameOrFallback()
+    }
+}
+
+@Suppress("DEPRECATION")
+private fun Context.versionNameOrFallback(): String {
+    return runCatching {
+        packageManager.getPackageInfo(packageName, 0).versionName
+    }.getOrNull().orEmpty().ifBlank {
+        "1.1"
     }
 }
 
