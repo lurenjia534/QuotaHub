@@ -5,6 +5,13 @@ the matching version section from this file as release notes.
 
 ## [Unreleased]
 
+## [v1.1] - 2026-04-29
+
+- Added an About screen with the app icon, author GitHub profile, and app
+  GitHub repository links.
+- Added Landscape monitor mode to lock QuotaHub in landscape where supported
+  and keep the display awake for desk or tablet monitoring.
+- Added instrumentation coverage for persisted UI preferences.
 - Switched changelog entries from date-grouped history to release-grouped notes.
 - Updated the release workflow to publish GitHub Release notes from this file.
 
