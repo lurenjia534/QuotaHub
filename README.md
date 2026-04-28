@@ -55,6 +55,30 @@ After launching the app:
 3. Enter the required credentials and optionally set a custom title.
 4. Save the subscription to validate credentials and fetch the initial quota snapshot.
 
+## CI/CD
+
+GitHub Actions builds the project in two paths:
+
+- `Android Debug CI` runs on every push and pull request, executes
+  `testDebugUnitTest`, builds the debug APK, and uploads it as an artifact.
+- `Android Release CI` runs manually or on `v*` tags, executes
+  `testDebugUnitTest`, builds the signed release APK with R8 and resource
+  shrinking enabled, uploads both the APK and R8 mapping file, and creates a
+  GitHub Release when triggered by a tag.
+
+The release workflow expects these repository secrets:
+
+- `ANDROID_KEYSTORE_BASE64`
+- `ANDROID_KEYSTORE_PASSWORD`
+- `ANDROID_KEY_ALIAS`
+- `ANDROID_KEY_PASSWORD`
+
+To prepare the current release key for `ANDROID_KEYSTORE_BASE64`:
+
+```bash
+base64 -w 0 /home/luren/Android/MyBuildKeys/Skxkey.jks
+```
+
 ## Architecture Overview
 
 The app is organized around one provider registry, one repository-backed quota
