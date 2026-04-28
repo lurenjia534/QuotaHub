@@ -25,6 +25,7 @@ import com.lurenjia534.quotahub.ui.screens.home.HomeScreen
 import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaScreen
 import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaDetailProjectorRegistry
 import com.lurenjia534.quotahub.ui.provider.ProviderUiRegistry
+import com.lurenjia534.quotahub.ui.screens.about.AboutScreen
 import com.lurenjia534.quotahub.ui.screens.settings.SettingsScreen
 
 @Composable
@@ -125,7 +126,18 @@ fun QuotaNavHost(
                 hapticConfirmation = hapticConfirmation,
                 bottomContentPadding = bottomContentPadding,
                 onHighEmphasisMetricsChange = onHighEmphasisMetricsChange,
-                onHapticConfirmationChange = onHapticConfirmationChange
+                onHapticConfirmationChange = onHapticConfirmationChange,
+                onAboutClick = {
+                    navController.navigate(Screen.About.route) {
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
+        composable(route = Screen.About.route) {
+            AboutScreen(
+                onBackClick = { navController.popBackStack() }
             )
         }
     }

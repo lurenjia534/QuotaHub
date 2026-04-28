@@ -29,6 +29,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.Palette
@@ -97,6 +98,7 @@ fun SettingsScreen(
     hapticConfirmation: Boolean,
     onHighEmphasisMetricsChange: (Boolean) -> Unit,
     onHapticConfirmationChange: (Boolean) -> Unit,
+    onAboutClick: () -> Unit,
     bottomContentPadding: Dp = 0.dp,
     modifier: Modifier = Modifier
 ) {
@@ -286,6 +288,10 @@ fun SettingsScreen(
                     )
                 }
             }
+        }
+
+        item {
+            AboutCommand(onClick = onAboutClick)
         }
 
         item {
@@ -791,6 +797,46 @@ private fun ControlSummaryStrip(
 }
 
 @Composable
+private fun AboutCommand(onClick: () -> Unit) {
+    val colorScheme = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(
+        topStart = 24.dp,
+        topEnd = 34.dp,
+        bottomStart = 34.dp,
+        bottomEnd = 20.dp
+    )
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(62.dp)
+            .clip(shape)
+            .clickable(onClick = onClick),
+        color = colorScheme.surfaceContainerLow,
+        contentColor = colorScheme.onSurface,
+        shape = shape,
+        border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.14f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 18.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Info,
+                contentDescription = null,
+                tint = colorScheme.primary
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = "About QuotaHub",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+            )
+        }
+    }
+}
+
+@Composable
 private fun RestoreTuningCommand(onClick: () -> Unit) {
     val colorScheme = MaterialTheme.colorScheme
     val shape = RoundedCornerShape(
@@ -904,7 +950,8 @@ private fun SettingsScreenPreview() {
             highEmphasisMetrics = true,
             hapticConfirmation = true,
             onHighEmphasisMetricsChange = {},
-            onHapticConfirmationChange = {}
+            onHapticConfirmationChange = {},
+            onAboutClick = {}
         )
     }
 }

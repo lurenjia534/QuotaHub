@@ -12,6 +12,8 @@ sealed class Screen(val route: String) {
     }
 
     data object Settings : Screen("settings")
+
+    data object About : Screen("about")
 }
 
 val bottomNavItems = listOf(
