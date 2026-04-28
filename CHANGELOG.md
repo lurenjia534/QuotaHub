@@ -5,6 +5,14 @@ the matching version section from this file as release notes.
 
 ## [Unreleased]
 
+## [v1.2] - 2026-04-29
+
+- Added automatic update checks against the latest GitHub Release.
+- Added a Material 3 update dialog with the latest version, release notes, and
+  a GitHub release action.
+- Added persisted dismissal for already-seen update tags.
+- Added an app version label to the About screen.
+
 ## [v1.1] - 2026-04-29
 
 - Added an About screen with the app icon, author GitHub profile, and app
