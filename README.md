@@ -321,11 +321,14 @@ This structure is already used for multi-provider support. Adding a new provider
 
 ## Security and Release Notes
 
-Based on the current source code, these items should be addressed before a production release:
+Based on the current source code:
 
-- Provider credentials are encrypted before being persisted in the local Room database using an Android Keystore-backed AES/GCM cipher.
-- The provider API clients use `HttpLoggingInterceptor.Level.BASIC`. Production builds should still review logging policy and redact sensitive request metadata where necessary.
-- The Room database uses `fallbackToDestructiveMigration`, which can wipe local subscription and cache data on schema changes.
+- Provider credentials are encrypted before being persisted in the local Room
+  database using an Android Keystore-backed AES/GCM cipher.
+- Network clients use redacted HTTP logging: debug builds keep
+  `HttpLoggingInterceptor.Level.BASIC` for request visibility, while release
+  builds disable interceptor output. Sensitive headers such as
+  `Authorization`, cookies, and account identifiers are redacted before logging.
 
 ## Possible Next Steps
 

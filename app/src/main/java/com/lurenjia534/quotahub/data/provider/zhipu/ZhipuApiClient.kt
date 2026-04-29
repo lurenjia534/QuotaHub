@@ -3,10 +3,8 @@ package com.lurenjia534.quotahub.data.provider.zhipu
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.logging.HttpLoggingInterceptor
+import com.lurenjia534.quotahub.data.network.HttpClientFactory
 import retrofit2.Retrofit
-import java.util.concurrent.TimeUnit
 
 object ZhipuApiClient {
     private val json = Json {
@@ -14,16 +12,7 @@ object ZhipuApiClient {
         coerceInputValues = true
     }
 
-    private val loggingInterceptor = HttpLoggingInterceptor().apply {
-        level = HttpLoggingInterceptor.Level.BASIC
-    }
-
-    private val okHttpClient = OkHttpClient.Builder()
-        .addInterceptor(loggingInterceptor)
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
-        .build()
+    private val okHttpClient = HttpClientFactory.create(timeoutSeconds = 30)
 
     fun createService(baseUrl: String): ZhipuApiService {
         return Retrofit.Builder()
