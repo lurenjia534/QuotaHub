@@ -5,6 +5,24 @@ the matching version section from this file as release notes.
 
 ## [Unreleased]
 
+## [v1.3] - 2026-04-30
+
+- Added a dark mode preference that can keep QuotaHub in dark mode while
+  preserving system-following behavior when disabled.
+- Added an immersive landscape monitor HUD setting, enabled by default, to hide
+  the landscape Home status HUD while keeping compact monitor controls
+  available.
+- Reworked the landscape Home monitor into a denser provider list with
+  provider-specific quota progress bars for rolling windows, weekly limits, and
+  plan quotas.
+- Added landscape monitor quota progress support for Kimi, MiniMax, and OpenAI
+  Codex projections.
+- Improved landscape navigation so Settings can reliably return to the Home
+  monitor.
+- Made provider selection and credential dialogs scrollable on compact
+  landscape displays.
+- Redacted sensitive network logging.
+
 ## [v1.2] - 2026-04-29
 
 - Added automatic update checks against the latest GitHub Release.
