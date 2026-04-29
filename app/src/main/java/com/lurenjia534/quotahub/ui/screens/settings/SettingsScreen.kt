@@ -40,6 +40,7 @@ import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Update
 import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -98,9 +99,11 @@ fun SettingsScreen(
     highEmphasisMetrics: Boolean,
     hapticConfirmation: Boolean,
     landscapeMonitorMode: Boolean,
+    hideLandscapeMonitorHud: Boolean,
     onHighEmphasisMetricsChange: (Boolean) -> Unit,
     onHapticConfirmationChange: (Boolean) -> Unit,
     onLandscapeMonitorModeChange: (Boolean) -> Unit,
+    onHideLandscapeMonitorHudChange: (Boolean) -> Unit,
     onAboutClick: () -> Unit,
     bottomContentPadding: Dp = 0.dp,
     modifier: Modifier = Modifier
@@ -197,6 +200,16 @@ fun SettingsScreen(
                         description = "Lock QuotaHub in landscape where supported and keep the display awake for desk or tablet monitoring.",
                         checked = landscapeMonitorMode,
                         onCheckedChange = onLandscapeMonitorModeChange,
+                        onAfterCheckedChange = { checked ->
+                            quotaHaptics.toggle(checked)
+                        }
+                    )
+                    ToggleControlRow(
+                        icon = Icons.Outlined.VisibilityOff,
+                        title = "Immersive monitor HUD",
+                        description = "Hide the status HUD on the landscape Home monitor while keeping compact controls available.",
+                        checked = hideLandscapeMonitorHud,
+                        onCheckedChange = onHideLandscapeMonitorHudChange,
                         onAfterCheckedChange = { checked ->
                             quotaHaptics.toggle(checked)
                         }
@@ -964,9 +977,11 @@ private fun SettingsScreenPreview() {
             highEmphasisMetrics = true,
             hapticConfirmation = true,
             landscapeMonitorMode = false,
+            hideLandscapeMonitorHud = true,
             onHighEmphasisMetricsChange = {},
             onHapticConfirmationChange = {},
             onLandscapeMonitorModeChange = {},
+            onHideLandscapeMonitorHudChange = {},
             onAboutClick = {}
         )
     }

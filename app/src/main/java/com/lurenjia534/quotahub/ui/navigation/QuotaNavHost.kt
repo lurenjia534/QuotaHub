@@ -38,9 +38,11 @@ fun QuotaNavHost(
     highEmphasisMetrics: Boolean,
     hapticConfirmation: Boolean,
     landscapeMonitorMode: Boolean,
+    hideLandscapeMonitorHud: Boolean,
     onHighEmphasisMetricsChange: (Boolean) -> Unit,
     onHapticConfirmationChange: (Boolean) -> Unit,
     onLandscapeMonitorModeChange: (Boolean) -> Unit,
+    onHideLandscapeMonitorHudChange: (Boolean) -> Unit,
     bottomContentPadding: Dp = 0.dp,
     addSubscriptionRequestKey: Int = 0,
     modifier: Modifier = Modifier
@@ -55,6 +57,7 @@ fun QuotaNavHost(
                 subscriptionRegistry = subscriptionRegistry,
                 providerUiRegistry = providerUiRegistry,
                 highEmphasisMetrics = highEmphasisMetrics,
+                hideLandscapeMonitorHud = hideLandscapeMonitorHud,
                 bottomContentPadding = bottomContentPadding,
                 addSubscriptionRequestKey = addSubscriptionRequestKey,
                 onSubscriptionClick = { subscriptionId ->
@@ -132,10 +135,12 @@ fun QuotaNavHost(
                 highEmphasisMetrics = highEmphasisMetrics,
                 hapticConfirmation = hapticConfirmation,
                 landscapeMonitorMode = landscapeMonitorMode,
+                hideLandscapeMonitorHud = hideLandscapeMonitorHud,
                 bottomContentPadding = bottomContentPadding,
                 onHighEmphasisMetricsChange = onHighEmphasisMetricsChange,
                 onHapticConfirmationChange = onHapticConfirmationChange,
                 onLandscapeMonitorModeChange = onLandscapeMonitorModeChange,
+                onHideLandscapeMonitorHudChange = onHideLandscapeMonitorHudChange,
                 onAboutClick = {
                     navController.navigate(Screen.About.route) {
                         launchSingleTop = true

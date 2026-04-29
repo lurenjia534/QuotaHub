@@ -95,6 +95,7 @@ fun HomeScreen(
     subscriptionRegistry: SubscriptionRegistry,
     providerUiRegistry: ProviderUiRegistry,
     highEmphasisMetrics: Boolean,
+    hideLandscapeMonitorHud: Boolean,
     bottomContentPadding: Dp = 0.dp,
     addSubscriptionRequestKey: Int = 0,
     onSubscriptionClick: (Long) -> Unit,
@@ -173,6 +174,7 @@ fun HomeScreen(
                     trackedResources = trackedResources,
                     nextRefreshWindow = nextRefreshWindow,
                     highEmphasisMetrics = highEmphasisMetrics,
+                    hideLandscapeMonitorHud = hideLandscapeMonitorHud,
                     dominantRisk = dominantRisk,
                     dominantSyncState = dominantSyncState,
                     isBootstrapping = uiState.isBootstrapping,
@@ -378,6 +380,7 @@ private fun LandscapeHomeContent(
     trackedResources: Int,
     nextRefreshWindow: Long?,
     highEmphasisMetrics: Boolean,
+    hideLandscapeMonitorHud: Boolean,
     dominantRisk: QuotaRisk,
     dominantSyncState: SyncState,
     isBootstrapping: Boolean,
@@ -404,20 +407,42 @@ private fun LandscapeHomeContent(
             ),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        LandscapeHubStatusBar(
-            connectedCount = connectedCount,
-            providerCount = providerCount,
-            trackedResources = trackedResources,
-            nextRefreshWindow = nextRefreshWindow,
-            highEmphasisMetrics = highEmphasisMetrics,
-            dominantRisk = dominantRisk,
-            dominantSyncState = dominantSyncState,
-            isBootstrapping = isBootstrapping,
-            onAddClick = onAddClick,
-            onSettingsClick = onSettingsClick
-        )
+        if (hideLandscapeMonitorHud) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                LandscapeHudAction(
+                    icon = Icons.Filled.Settings,
+                    contentDescription = "Open settings",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    onClick = onSettingsClick
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                LandscapeHudAction(
+                    icon = Icons.Filled.Add,
+                    contentDescription = "Add provider",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    onClick = onAddClick
+                )
+            }
+        } else {
+            LandscapeHubStatusBar(
+                connectedCount = connectedCount,
+                providerCount = providerCount,
+                trackedResources = trackedResources,
+                nextRefreshWindow = nextRefreshWindow,
+                highEmphasisMetrics = highEmphasisMetrics,
+                dominantRisk = dominantRisk,
+                dominantSyncState = dominantSyncState,
+                isBootstrapping = isBootstrapping,
+                onAddClick = onAddClick,
+                onSettingsClick = onSettingsClick
+            )
 
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f))
+        }
 
         if (error != null && !showCredentialDialog) {
             AnimatedSection(visible = statusVisible) {
@@ -509,27 +534,28 @@ private fun LandscapeHubStatusBar(
             }
         }
 
-        Text(
-            text = buildString {
-                append(formatCount(connectedCount))
-                append(" sources")
-                append("  /  ")
-                append(formatCount(providerCount))
-                append(" providers")
-                append("  /  ")
-                append(formatCount(trackedResources))
-                append(" items")
-                append("  /  next ")
-                append(nextRefreshWindow?.let(::formatTimeUntil) ?: "--")
-            },
-            style = MaterialTheme.typography.labelLarge.copy(
-                color = colorScheme.onSurfaceVariant,
-                fontWeight = if (highEmphasisMetrics) FontWeight.SemiBold else FontWeight.Medium
-            ),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
-        )
+        Row(
+            modifier = Modifier.weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            LandscapeHudMetricChip(
+                label = "${formatCount(connectedCount)} sources",
+                highEmphasisMetrics = highEmphasisMetrics
+            )
+            LandscapeHudMetricChip(
+                label = "${formatCount(providerCount)} providers",
+                highEmphasisMetrics = highEmphasisMetrics
+            )
+            LandscapeHudMetricChip(
+                label = "${formatCount(trackedResources)} items",
+                highEmphasisMetrics = highEmphasisMetrics
+            )
+            LandscapeHudMetricChip(
+                label = "next ${nextRefreshWindow?.let(::formatTimeUntil) ?: "--"}",
+                highEmphasisMetrics = highEmphasisMetrics
+            )
+        }
 
         LandscapeHudAction(
             icon = Icons.Filled.Settings,
@@ -542,6 +568,31 @@ private fun LandscapeHubStatusBar(
             contentDescription = "Add provider",
             color = colorScheme.onSurface,
             onClick = onAddClick
+        )
+    }
+}
+
+@Composable
+private fun LandscapeHudMetricChip(
+    label: String,
+    highEmphasisMetrics: Boolean
+) {
+    val colorScheme = MaterialTheme.colorScheme
+
+    Surface(
+        color = colorScheme.surfaceContainerHigh.copy(alpha = 0.78f),
+        contentColor = colorScheme.onSurfaceVariant,
+        shape = CircleShape,
+        border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.16f))
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontWeight = if (highEmphasisMetrics) FontWeight.SemiBold else FontWeight.Medium
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
         )
     }
 }

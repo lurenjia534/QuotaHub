@@ -168,9 +168,11 @@ fun QuotaApp(
                         highEmphasisMetrics = uiPreferences.highEmphasisMetrics,
                         hapticConfirmation = uiPreferences.hapticConfirmation,
                         landscapeMonitorMode = landscapeMonitorMode,
+                        hideLandscapeMonitorHud = uiPreferences.hideLandscapeMonitorHud,
                         onHighEmphasisMetricsChange = uiPreferencesRepository::setHighEmphasisMetrics,
                         onHapticConfirmationChange = uiPreferencesRepository::setHapticConfirmation,
                         onLandscapeMonitorModeChange = uiPreferencesRepository::setLandscapeMonitorMode,
+                        onHideLandscapeMonitorHudChange = uiPreferencesRepository::setHideLandscapeMonitorHud,
                         bottomContentPadding = if (showFloatingNavigation) FloatingBottomNavClearance else 0.dp,
                         addSubscriptionRequestKey = addSubscriptionRequestKey,
                         modifier = Modifier.fillMaxSize()
