@@ -9,6 +9,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -78,7 +79,10 @@ class MainActivity : ComponentActivity() {
         val uiPreferencesRepository = application.uiPreferencesRepository
         val subscriptionRefreshPolicy = application.subscriptionRefreshPolicy
         setContent {
-            QuotaHubTheme {
+            val uiPreferences by uiPreferencesRepository.preferences.collectAsState()
+            QuotaHubTheme(
+                darkTheme = uiPreferences.forceDarkMode || isSystemInDarkTheme()
+            ) {
                 QuotaApp(
                     subscriptionRegistry = subscriptionRegistry,
                     providerQuotaDetailProjectorRegistry = providerQuotaDetailProjectorRegistry,
@@ -169,10 +173,12 @@ fun QuotaApp(
                         hapticConfirmation = uiPreferences.hapticConfirmation,
                         landscapeMonitorMode = landscapeMonitorMode,
                         hideLandscapeMonitorHud = uiPreferences.hideLandscapeMonitorHud,
+                        forceDarkMode = uiPreferences.forceDarkMode,
                         onHighEmphasisMetricsChange = uiPreferencesRepository::setHighEmphasisMetrics,
                         onHapticConfirmationChange = uiPreferencesRepository::setHapticConfirmation,
                         onLandscapeMonitorModeChange = uiPreferencesRepository::setLandscapeMonitorMode,
                         onHideLandscapeMonitorHudChange = uiPreferencesRepository::setHideLandscapeMonitorHud,
+                        onForceDarkModeChange = uiPreferencesRepository::setForceDarkMode,
                         bottomContentPadding = if (showFloatingNavigation) FloatingBottomNavClearance else 0.dp,
                         addSubscriptionRequestKey = addSubscriptionRequestKey,
                         modifier = Modifier.fillMaxSize()

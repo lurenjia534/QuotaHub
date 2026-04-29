@@ -29,6 +29,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.NotificationsActive
@@ -100,10 +101,12 @@ fun SettingsScreen(
     hapticConfirmation: Boolean,
     landscapeMonitorMode: Boolean,
     hideLandscapeMonitorHud: Boolean,
+    forceDarkMode: Boolean,
     onHighEmphasisMetricsChange: (Boolean) -> Unit,
     onHapticConfirmationChange: (Boolean) -> Unit,
     onLandscapeMonitorModeChange: (Boolean) -> Unit,
     onHideLandscapeMonitorHudChange: (Boolean) -> Unit,
+    onForceDarkModeChange: (Boolean) -> Unit,
     onAboutClick: () -> Unit,
     bottomContentPadding: Dp = 0.dp,
     modifier: Modifier = Modifier
@@ -180,6 +183,16 @@ fun SettingsScreen(
                         description = "Use stronger type contrast for remaining quota, reset dates, and low balances.",
                         checked = highEmphasisMetrics,
                         onCheckedChange = onHighEmphasisMetricsChange,
+                        onAfterCheckedChange = { checked ->
+                            quotaHaptics.toggle(checked)
+                        }
+                    )
+                    ToggleControlRow(
+                        icon = Icons.Outlined.DarkMode,
+                        title = "Dark mode",
+                        description = "Keep QuotaHub in dark mode. Turn this off to follow the system appearance.",
+                        checked = forceDarkMode,
+                        onCheckedChange = onForceDarkModeChange,
                         onAfterCheckedChange = { checked ->
                             quotaHaptics.toggle(checked)
                         }
@@ -978,10 +991,12 @@ private fun SettingsScreenPreview() {
             hapticConfirmation = true,
             landscapeMonitorMode = false,
             hideLandscapeMonitorHud = true,
+            forceDarkMode = false,
             onHighEmphasisMetricsChange = {},
             onHapticConfirmationChange = {},
             onLandscapeMonitorModeChange = {},
             onHideLandscapeMonitorHudChange = {},
+            onForceDarkModeChange = {},
             onAboutClick = {}
         )
     }

@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 data class UiPreferences(
     val highEmphasisMetrics: Boolean = true,
     val hapticConfirmation: Boolean = true,
+    val forceDarkMode: Boolean = false,
     val landscapeMonitorMode: Boolean = false,
     val hideLandscapeMonitorHud: Boolean = true,
     val dismissedUpdateTag: String? = null
@@ -38,6 +39,14 @@ class UiPreferencesRepository(context: Context) {
         _preferences.value = _preferences.value.copy(hapticConfirmation = enabled)
     }
 
+    fun setForceDarkMode(enabled: Boolean) {
+        sharedPreferences.edit()
+            .putBoolean(KEY_FORCE_DARK_MODE, enabled)
+            .apply()
+
+        _preferences.value = _preferences.value.copy(forceDarkMode = enabled)
+    }
+
     fun setLandscapeMonitorMode(enabled: Boolean) {
         sharedPreferences.edit()
             .putBoolean(KEY_LANDSCAPE_MONITOR_MODE, enabled)
@@ -66,6 +75,7 @@ class UiPreferencesRepository(context: Context) {
         return UiPreferences(
             highEmphasisMetrics = sharedPreferences.getBoolean(KEY_HIGH_EMPHASIS_METRICS, true),
             hapticConfirmation = sharedPreferences.getBoolean(KEY_HAPTIC_CONFIRMATION, true),
+            forceDarkMode = sharedPreferences.getBoolean(KEY_FORCE_DARK_MODE, false),
             landscapeMonitorMode = sharedPreferences.getBoolean(KEY_LANDSCAPE_MONITOR_MODE, false),
             hideLandscapeMonitorHud = sharedPreferences.getBoolean(KEY_HIDE_LANDSCAPE_MONITOR_HUD, true),
             dismissedUpdateTag = sharedPreferences.getString(KEY_DISMISSED_UPDATE_TAG, null)
@@ -76,6 +86,7 @@ class UiPreferencesRepository(context: Context) {
         const val PREFERENCES_NAME = "quotahub_ui_preferences"
         const val KEY_HIGH_EMPHASIS_METRICS = "high_emphasis_metrics"
         const val KEY_HAPTIC_CONFIRMATION = "haptic_confirmation"
+        const val KEY_FORCE_DARK_MODE = "force_dark_mode"
         const val KEY_LANDSCAPE_MONITOR_MODE = "landscape_monitor_mode"
         const val KEY_HIDE_LANDSCAPE_MONITOR_HUD = "hide_landscape_monitor_hud"
         const val KEY_DISMISSED_UPDATE_TAG = "dismissed_update_tag"
