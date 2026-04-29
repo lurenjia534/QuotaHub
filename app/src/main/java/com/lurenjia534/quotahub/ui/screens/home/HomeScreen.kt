@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -26,10 +27,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
@@ -41,7 +44,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -395,12 +397,12 @@ private fun LandscapeHomeContent(
             .fillMaxSize()
             .statusBarsPadding()
             .padding(
-                start = 18.dp,
-                top = 8.dp,
-                end = 18.dp,
-                bottom = 8.dp + bottomContentPadding
+                start = 12.dp,
+                top = 4.dp,
+                end = 12.dp,
+                bottom = 6.dp + bottomContentPadding
             ),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         LandscapeHubStatusBar(
             connectedCount = connectedCount,
@@ -475,13 +477,13 @@ private fun LandscapeHubStatusBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(44.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+            .height(38.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(
-            modifier = Modifier.widthIn(min = 178.dp, max = 230.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.widthIn(min = 142.dp, max = 174.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
@@ -492,13 +494,13 @@ private fun LandscapeHubStatusBar(
             Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
                 Text(
                     text = "QuotaHub",
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black),
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = if (isBootstrapping) "Loading" else if (connectedCount == 0) "Idle" else "Live monitor",
-                    style = MaterialTheme.typography.labelMedium.copy(
+                    style = MaterialTheme.typography.labelSmall.copy(
                         color = colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.SemiBold
                     ),
@@ -507,68 +509,96 @@ private fun LandscapeHubStatusBar(
             }
         }
 
-        LandscapeStatusStat(
-            label = "Sources",
-            value = formatCount(connectedCount),
-            highEmphasisMetrics = highEmphasisMetrics
-        )
-        LandscapeStatusStat(
-            label = "Providers",
-            value = formatCount(providerCount),
-            highEmphasisMetrics = highEmphasisMetrics
-        )
-        LandscapeStatusStat(
-            label = "Items",
-            value = formatCount(trackedResources),
-            highEmphasisMetrics = highEmphasisMetrics
-        )
-        LandscapeStatusStat(
-            label = "Next reset",
-            value = nextRefreshWindow?.let(::formatTimeUntil) ?: "--",
-            highEmphasisMetrics = highEmphasisMetrics
+        Text(
+            text = buildString {
+                append(formatCount(connectedCount))
+                append(" sources")
+                append("  /  ")
+                append(formatCount(providerCount))
+                append(" providers")
+                append("  /  ")
+                append(formatCount(trackedResources))
+                append(" items")
+                append("  /  next ")
+                append(nextRefreshWindow?.let(::formatTimeUntil) ?: "--")
+            },
+            style = MaterialTheme.typography.labelLarge.copy(
+                color = colorScheme.onSurfaceVariant,
+                fontWeight = if (highEmphasisMetrics) FontWeight.SemiBold else FontWeight.Medium
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
         )
 
-        Spacer(modifier = Modifier.weight(1f))
+        LandscapeHudAction(
+            icon = Icons.Filled.Settings,
+            contentDescription = "Open settings",
+            color = colorScheme.onSurfaceVariant,
+            onClick = onSettingsClick
+        )
+        LandscapeHudAction(
+            icon = Icons.Filled.Add,
+            contentDescription = "Add provider",
+            color = colorScheme.onSurface,
+            onClick = onAddClick
+        )
+    }
+}
 
-        IconButton(onClick = onSettingsClick) {
+@Composable
+private fun LandscapeHudAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    color: Color,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .clickable(onClick = onClick),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.84f),
+        contentColor = color,
+        shape = CircleShape,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f))
+    ) {
+        Box(contentAlignment = Alignment.Center) {
             Icon(
-                imageVector = Icons.Filled.Settings,
-                contentDescription = "Open settings",
-                tint = colorScheme.onSurfaceVariant
-            )
-        }
-        IconButton(onClick = onAddClick) {
-            Icon(
-                imageVector = Icons.Filled.Add,
-                contentDescription = "Add provider",
-                tint = colorScheme.onSurface
+                imageVector = icon,
+                contentDescription = contentDescription,
+                modifier = Modifier.size(20.dp)
             )
         }
     }
 }
 
 @Composable
-private fun LandscapeStatusStat(
-    label: String,
-    value: String,
-    highEmphasisMetrics: Boolean
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+private fun LandscapeProviderHeader() {
+    val colorScheme = MaterialTheme.colorScheme
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(22.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Text(
-            text = label,
+            text = "Provider",
             style = MaterialTheme.typography.labelSmall.copy(
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.Medium
+                color = colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Bold
             ),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            modifier = Modifier.widthIn(min = 196.dp, max = 234.dp)
         )
-        QuotaMetricText(
-            text = value,
-            emphasized = highEmphasisMetrics,
-            level = MetricEmphasisLevel.Compact,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+        Text(
+            text = "Quota windows",
+            style = MaterialTheme.typography.labelSmall.copy(
+                color = colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Bold
+            ),
+            modifier = Modifier.weight(1f)
         )
     }
 }
@@ -597,6 +627,7 @@ private fun LandscapeProviderMonitorTable(
             }
             hasSubscriptions -> {
                 Column(modifier = Modifier.fillMaxSize()) {
+                    LandscapeProviderHeader()
                     subscriptionCards.forEachIndexed { index, subscriptionCard ->
                         HubProviderSignalRow(
                             subscriptionCard = subscriptionCard,
@@ -651,15 +682,20 @@ private fun HubProviderSignalRow(
                 enabled = subscriptionCard.canOpenDetail,
                 onClick = onClick
             )
-            .padding(horizontal = 2.dp, vertical = 5.dp),
+            .padding(horizontal = 2.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(
             color = colorScheme.surfaceContainerHighest.copy(alpha = 0.72f),
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(
+                topStart = 16.dp,
+                topEnd = 12.dp,
+                bottomStart = 12.dp,
+                bottomEnd = 18.dp
+            ),
             border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.42f)),
-            modifier = Modifier.size(40.dp)
+            modifier = Modifier.size(42.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
@@ -674,7 +710,7 @@ private fun HubProviderSignalRow(
         }
 
         Column(
-            modifier = Modifier.widthIn(min = 146.dp, max = 184.dp),
+            modifier = Modifier.widthIn(min = 144.dp, max = 182.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Text(
@@ -1051,18 +1087,12 @@ private fun HubStackedProgressStrip(
 ) {
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(5.dp)
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        metrics.take(2).forEachIndexed { index, metric ->
+        metrics.take(2).forEach { metric ->
             HubStackedProgressMetric(
                 metric = metric,
-                color = color,
-                shape = RoundedCornerShape(
-                    topStart = if (index == 0) 18.dp else 12.dp,
-                    topEnd = if (index == 0) 12.dp else 18.dp,
-                    bottomStart = if (index == 0) 12.dp else 18.dp,
-                    bottomEnd = if (index == 0) 18.dp else 12.dp
-                )
+                color = color
             )
         }
     }
@@ -1071,63 +1101,55 @@ private fun HubStackedProgressStrip(
 @Composable
 private fun HubStackedProgressMetric(
     metric: QuotaProgressMetric,
-    color: Color,
-    shape: RoundedCornerShape
+    color: Color
 ) {
     val colorScheme = MaterialTheme.colorScheme
-    val progress = if (metric.total > 0L) {
+    val targetProgress = if (metric.total > 0L) {
         metric.used.toFloat() / metric.total.toFloat()
     } else {
         0f
     }.coerceIn(0f, 1f)
+    val progress by animateFloatAsState(
+        targetValue = targetProgress,
+        animationSpec = spring(stiffness = 360f, dampingRatio = 0.86f),
+        label = "landscapeQuotaProgress"
+    )
     val remainingText = metric.remaining?.let {
         "${formatLongCount(it)} left"
     } ?: "${(progress * 100).roundToInt()}% used"
     val resetText = metric.resetAtEpochMillis?.let(::formatTimeUntil) ?: "rolling"
+    val trackShape = RoundedCornerShape(percent = 50)
 
-    Column(
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(3.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = metric.label,
-                style = MaterialTheme.typography.labelMedium.copy(
-                    color = colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.SemiBold
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = "$remainingText / $resetText",
-                style = MaterialTheme.typography.labelSmall.copy(
-                    color = color,
-                    fontWeight = FontWeight.Bold
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
+        Text(
+            text = metric.label,
+            style = MaterialTheme.typography.labelMedium.copy(
+                color = colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.SemiBold
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(min = 78.dp, max = 96.dp)
+        )
 
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(18.dp)
-                .clip(shape),
+                .weight(1f)
+                .height(20.dp)
+                .clip(trackShape),
             contentAlignment = Alignment.Center
         ) {
             LinearProgressIndicator(
                 progress = { progress },
                 modifier = Modifier
                     .matchParentSize()
-                    .clip(shape),
+                    .clip(trackShape),
                 color = color,
-                trackColor = color.copy(alpha = 0.15f)
+                trackColor = colorScheme.surfaceContainerHigh
             )
             Text(
                 text = "${formatLongCount(metric.used)} / ${formatLongCount(metric.total)}",
@@ -1139,6 +1161,17 @@ private fun HubStackedProgressMetric(
                 overflow = TextOverflow.Ellipsis
             )
         }
+
+        Text(
+            text = "$remainingText / $resetText",
+            style = MaterialTheme.typography.labelSmall.copy(
+                color = color,
+                fontWeight = FontWeight.Bold
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(min = 112.dp, max = 146.dp)
+        )
     }
 }
 
@@ -1970,6 +2003,8 @@ private fun ProviderBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(max = 420.dp)
+                .verticalScroll(rememberScrollState())
                 .padding(start = 20.dp, end = 20.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
@@ -2063,7 +2098,12 @@ private fun ProviderCredentialDialog(
             )
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 320.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 Text(
                     text = "Name the subscription if needed, then provide the credentials below to validate and cache the first quota snapshot.",
                     style = MaterialTheme.typography.bodyMedium.copy(
