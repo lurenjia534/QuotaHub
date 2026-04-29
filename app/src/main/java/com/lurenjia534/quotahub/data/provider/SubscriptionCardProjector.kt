@@ -11,12 +11,21 @@ data class CardMetric(
     val value: String
 )
 
+data class QuotaProgressMetric(
+    val label: String,
+    val used: Long,
+    val total: Long,
+    val remaining: Long?,
+    val resetAtEpochMillis: Long?
+)
+
 data class SubscriptionCardProjection(
     val primaryMetric: CardMetric,
     val secondaryMetric: CardMetric?,
     val resourceCount: Int,
     val nextResetAt: Long?,
-    val risk: QuotaRisk
+    val risk: QuotaRisk,
+    val hubProgressMetrics: List<QuotaProgressMetric> = emptyList()
 )
 
 interface SubscriptionCardProjector {

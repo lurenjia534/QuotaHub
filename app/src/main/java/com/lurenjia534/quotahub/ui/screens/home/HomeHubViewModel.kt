@@ -7,6 +7,7 @@ import com.lurenjia534.quotahub.data.model.QuotaRisk
 import com.lurenjia534.quotahub.data.model.SyncState
 import com.lurenjia534.quotahub.data.provider.CardMetric
 import com.lurenjia534.quotahub.data.provider.ProviderDescriptor
+import com.lurenjia534.quotahub.data.provider.QuotaProgressMetric
 import com.lurenjia534.quotahub.data.provider.SecretBundle
 import com.lurenjia534.quotahub.data.provider.SubscriptionCard
 import com.lurenjia534.quotahub.data.provider.SubscriptionRegistry
@@ -27,6 +28,7 @@ data class SubscriptionCardUiModel(
     val secondaryMetric: CardMetric?,
     val resourceCount: Int,
     val nextResetAt: Long?,
+    val hubProgressMetrics: List<QuotaProgressMetric>,
     val risk: QuotaRisk,
     val syncState: SyncState,
     val syncLabel: String,
@@ -158,6 +160,7 @@ class HomeHubViewModel(
             secondaryMetric = secondaryMetric,
             resourceCount = resourceCount,
             nextResetAt = nextResetAt,
+            hubProgressMetrics = hubProgressMetrics,
             risk = risk,
             syncState = if (!isReadOnlyDetail) subscription.syncStatus.state else SyncState.SyncError,
             syncLabel = if (!isReadOnlyDetail) subscription.syncStatus.label() else "Unavailable",

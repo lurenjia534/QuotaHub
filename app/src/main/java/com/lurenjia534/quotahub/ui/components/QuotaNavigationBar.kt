@@ -49,6 +49,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.lurenjia534.quotahub.ui.navigation.BottomNavAction
 import com.lurenjia534.quotahub.ui.navigation.BottomNavItem
+import com.lurenjia534.quotahub.ui.navigation.Screen
 
 private val NavigationTrayShape = RoundedCornerShape(32.dp)
 private val NavigationActiveShape = RoundedCornerShape(26.dp)
@@ -116,13 +117,21 @@ fun QuotaNavigationBar(
                             selected = selected,
                             onClick = {
                                 when {
-                                    item.route != null && !selected -> {
-                                        navController.navigate(item.route) {
-                                            popUpTo(navController.graph.startDestinationId) {
-                                                saveState = true
+                                    item.route != null -> {
+                                        if (item.route == Screen.Home.route) {
+                                            if (!navController.popBackStack(Screen.Home.route, inclusive = false)) {
+                                                navController.navigate(Screen.Home.route) {
+                                                    launchSingleTop = true
+                                                }
                                             }
-                                            launchSingleTop = true
-                                            restoreState = true
+                                        } else {
+                                            navController.navigate(item.route) {
+                                                popUpTo(navController.graph.startDestinationId) {
+                                                    saveState = true
+                                                }
+                                                launchSingleTop = true
+                                                restoreState = true
+                                            }
                                         }
                                     }
                                     item.action != null -> onActionClick(item.action)

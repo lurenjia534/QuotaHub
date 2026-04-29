@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -26,21 +25,23 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DataUsage
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -75,12 +76,15 @@ import com.lurenjia534.quotahub.data.model.QuotaRisk
 import com.lurenjia534.quotahub.data.model.SyncState
 import com.lurenjia534.quotahub.data.provider.CredentialFieldSpec
 import com.lurenjia534.quotahub.data.provider.ProviderDescriptor
+import com.lurenjia534.quotahub.data.provider.QuotaProgressMetric
 import com.lurenjia534.quotahub.data.provider.SubscriptionRegistry
 import com.lurenjia534.quotahub.ui.components.MetricEmphasisLevel
 import com.lurenjia534.quotahub.ui.components.QuotaMetricText
 import com.lurenjia534.quotahub.ui.components.QuotaLoadingIndicator
 import com.lurenjia534.quotahub.ui.provider.ProviderUiRegistry
 import kotlinx.coroutines.delay
+import java.text.NumberFormat
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,7 +95,8 @@ fun HomeScreen(
     highEmphasisMetrics: Boolean,
     bottomContentPadding: Dp = 0.dp,
     addSubscriptionRequestKey: Int = 0,
-    onSubscriptionClick: (Long) -> Unit
+    onSubscriptionClick: (Long) -> Unit,
+    onSettingsClick: () -> Unit = {}
 ) {
     val viewModel: HomeHubViewModel = viewModel(
         factory = HomeHubViewModel.Factory(
@@ -161,9 +166,6 @@ fun HomeScreen(
             if (isLandscapeOverview) {
                 LandscapeHomeContent(
                     subscriptionCards = subscriptionCards,
-                    providers = subscriptionRegistry.providers,
-                    providerUiRegistry = providerUiRegistry,
-                    connectedProviderIds = connectedProviderIds,
                     connectedCount = connectedCount,
                     providerCount = providerCount,
                     trackedResources = trackedResources,
@@ -176,17 +178,12 @@ fun HomeScreen(
                     showCredentialDialog = uiState.showCredentialDialog,
                     hasSubscriptions = hasSubscriptions,
                     bottomContentPadding = bottomContentPadding,
-                    boardVisible = boardVisible,
                     statusVisible = statusVisible,
                     queueVisible = queueVisible,
-                    providerVisible = providerVisible,
                     onDismissError = viewModel::clearError,
                     onSubscriptionClick = onSubscriptionClick,
                     onAddClick = { showBottomSheet = true },
-                    onProviderClick = { provider ->
-                        viewModel.clearError()
-                        viewModel.showCredentialDialog(provider)
-                    }
+                    onSettingsClick = onSettingsClick
                 )
             } else {
                 PortraitHomeContent(
@@ -374,9 +371,6 @@ private fun PortraitHomeContent(
 @Composable
 private fun LandscapeHomeContent(
     subscriptionCards: List<SubscriptionCardUiModel>,
-    providers: List<ProviderDescriptor>,
-    providerUiRegistry: ProviderUiRegistry,
-    connectedProviderIds: Set<String>,
     connectedCount: Int,
     providerCount: Int,
     trackedResources: Int,
@@ -389,111 +383,378 @@ private fun LandscapeHomeContent(
     showCredentialDialog: Boolean,
     hasSubscriptions: Boolean,
     bottomContentPadding: Dp,
-    boardVisible: Boolean,
     statusVisible: Boolean,
     queueVisible: Boolean,
-    providerVisible: Boolean,
     onDismissError: () -> Unit,
     onSubscriptionClick: (Long) -> Unit,
     onAddClick: () -> Unit,
-    onProviderClick: (ProviderDescriptor) -> Unit
+    onSettingsClick: () -> Unit
 ) {
-    LazyColumn(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .statusBarsPadding(),
-        contentPadding = PaddingValues(
-            start = 20.dp,
-            top = 14.dp,
-            end = 20.dp,
-            bottom = 24.dp + bottomContentPadding
-        ),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+            .statusBarsPadding()
+            .padding(
+                start = 18.dp,
+                top = 8.dp,
+                end = 18.dp,
+                bottom = 8.dp + bottomContentPadding
+            ),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(292.dp),
-                horizontalArrangement = Arrangement.spacedBy(18.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .weight(0.78f)
-                        .fillMaxHeight()
-                ) {
-                    AnimatedSection(visible = boardVisible) {
-                        CompactHomeRadarSurface(
-                            connectedCount = connectedCount,
-                            providerCount = providerCount,
-                            trackedResources = trackedResources,
-                            nextRefreshWindow = nextRefreshWindow,
-                            highEmphasisMetrics = highEmphasisMetrics,
-                            dominantRisk = dominantRisk,
-                            dominantSyncState = dominantSyncState,
-                            isBootstrapping = isBootstrapping
-                        )
-                    }
-                }
+        LandscapeHubStatusBar(
+            connectedCount = connectedCount,
+            providerCount = providerCount,
+            trackedResources = trackedResources,
+            nextRefreshWindow = nextRefreshWindow,
+            highEmphasisMetrics = highEmphasisMetrics,
+            dominantRisk = dominantRisk,
+            dominantSyncState = dominantSyncState,
+            isBootstrapping = isBootstrapping,
+            onAddClick = onAddClick,
+            onSettingsClick = onSettingsClick
+        )
 
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f))
+
+        if (error != null && !showCredentialDialog) {
+            AnimatedSection(visible = statusVisible) {
+                HomeErrorStrip(
+                    message = error,
+                    onDismiss = onDismissError
+                )
+            }
+        }
+
+        if (queueVisible) {
+            LandscapeProviderMonitorTable(
+                subscriptionCards = subscriptionCards,
+                highEmphasisMetrics = highEmphasisMetrics,
+                isBootstrapping = isBootstrapping,
+                hasSubscriptions = hasSubscriptions,
+                onSubscriptionClick = onSubscriptionClick,
+                onAddClick = onAddClick,
+                modifier = Modifier.weight(1f)
+            )
+        } else {
+            Spacer(modifier = Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun LandscapeHubStatusBar(
+    connectedCount: Int,
+    providerCount: Int,
+    trackedResources: Int,
+    nextRefreshWindow: Long?,
+    highEmphasisMetrics: Boolean,
+    dominantRisk: QuotaRisk,
+    dominantSyncState: SyncState,
+    isBootstrapping: Boolean,
+    onAddClick: () -> Unit,
+    onSettingsClick: () -> Unit
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    val accentColor by animateColorAsState(
+        targetValue = when {
+            connectedCount == 0 -> colorScheme.onSurfaceVariant
+            dominantSyncState == SyncState.AuthFailed -> colorScheme.error
+            dominantSyncState == SyncState.SyncError -> colorScheme.error
+            dominantSyncState == SyncState.Stale -> colorScheme.tertiary
+            dominantSyncState == SyncState.Syncing -> colorScheme.primary
+            dominantSyncState == SyncState.NeverSynced -> colorScheme.secondary
+            dominantRisk == QuotaRisk.Critical -> colorScheme.error
+            dominantRisk == QuotaRisk.Watch -> colorScheme.tertiary
+            else -> colorScheme.primary
+        },
+        animationSpec = spring(stiffness = 420f, dampingRatio = 0.9f),
+        label = "landscapeHubAccent"
+    )
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(44.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            modifier = Modifier.widthIn(min = 178.dp, max = 230.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier.size(10.dp),
+                color = accentColor,
+                shape = CircleShape
+            ) {}
+            Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                Text(
+                    text = "QuotaHub",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = if (isBootstrapping) "Loading" else if (connectedCount == 0) "Idle" else "Live monitor",
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        color = colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.SemiBold
+                    ),
+                    maxLines = 1
+                )
+            }
+        }
+
+        LandscapeStatusStat(
+            label = "Sources",
+            value = formatCount(connectedCount),
+            highEmphasisMetrics = highEmphasisMetrics
+        )
+        LandscapeStatusStat(
+            label = "Providers",
+            value = formatCount(providerCount),
+            highEmphasisMetrics = highEmphasisMetrics
+        )
+        LandscapeStatusStat(
+            label = "Items",
+            value = formatCount(trackedResources),
+            highEmphasisMetrics = highEmphasisMetrics
+        )
+        LandscapeStatusStat(
+            label = "Next reset",
+            value = nextRefreshWindow?.let(::formatTimeUntil) ?: "--",
+            highEmphasisMetrics = highEmphasisMetrics
+        )
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        IconButton(onClick = onSettingsClick) {
+            Icon(
+                imageVector = Icons.Filled.Settings,
+                contentDescription = "Open settings",
+                tint = colorScheme.onSurfaceVariant
+            )
+        }
+        IconButton(onClick = onAddClick) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = "Add provider",
+                tint = colorScheme.onSurface
+            )
+        }
+    }
+}
+
+@Composable
+private fun LandscapeStatusStat(
+    label: String,
+    value: String,
+    highEmphasisMetrics: Boolean
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Medium
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        QuotaMetricText(
+            text = value,
+            emphasized = highEmphasisMetrics,
+            level = MetricEmphasisLevel.Compact,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun LandscapeProviderMonitorTable(
+    subscriptionCards: List<SubscriptionCardUiModel>,
+    highEmphasisMetrics: Boolean,
+    isBootstrapping: Boolean,
+    hasSubscriptions: Boolean,
+    onSubscriptionClick: (Long) -> Unit,
+    onAddClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier.fillMaxWidth()
+    ) {
+        when {
+            isBootstrapping -> {
                 Box(
-                    modifier = Modifier
-                        .weight(1.22f)
-                        .fillMaxHeight()
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
                 ) {
-                    AnimatedSection(visible = queueVisible) {
-                        Surface(
-                            modifier = Modifier.fillMaxSize(),
-                            color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.78f),
-                            shape = RoundedCornerShape(
-                                topStart = 34.dp,
-                                topEnd = 22.dp,
-                                bottomStart = 22.dp,
-                                bottomEnd = 38.dp
-                            ),
-                            border = BorderStroke(
-                                width = 1.dp,
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.24f)
-                            ),
-                            tonalElevation = 1.dp
-                        ) {
-                            AccountCreditsOverview(
-                                subscriptionCards = subscriptionCards,
-                                highEmphasisMetrics = highEmphasisMetrics,
-                                isBootstrapping = isBootstrapping,
-                                hasSubscriptions = hasSubscriptions,
-                                onSubscriptionClick = onSubscriptionClick,
-                                onAddClick = onAddClick
+                    HomeLoadingRow()
+                }
+            }
+            hasSubscriptions -> {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    subscriptionCards.forEachIndexed { index, subscriptionCard ->
+                        HubProviderSignalRow(
+                            subscriptionCard = subscriptionCard,
+                            highEmphasisMetrics = highEmphasisMetrics,
+                            onClick = { onSubscriptionClick(subscriptionCard.subscriptionId) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                        )
+                        if (index < subscriptionCards.lastIndex) {
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f)
                             )
                         }
                     }
                 }
             }
+            else -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    HomeEmptyState(onAddClick = onAddClick)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HubProviderSignalRow(
+    subscriptionCard: SubscriptionCardUiModel,
+    highEmphasisMetrics: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    val stateColor by animateColorAsState(
+        targetValue = when (subscriptionCard.risk) {
+            QuotaRisk.Critical -> colorScheme.error
+            QuotaRisk.Watch -> colorScheme.tertiary
+            QuotaRisk.Healthy -> colorScheme.primary
+        },
+        animationSpec = spring(stiffness = 420f, dampingRatio = 0.9f),
+        label = "landscapeProviderColor"
+    )
+    val progressPercent = subscriptionCard.primaryMetric.value.percentValueOrNull()
+
+    Row(
+        modifier = modifier
+            .clickable(
+                enabled = subscriptionCard.canOpenDetail,
+                onClick = onClick
+            )
+            .padding(horizontal = 2.dp, vertical = 5.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            color = colorScheme.surfaceContainerHighest.copy(alpha = 0.72f),
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.42f)),
+            modifier = Modifier.size(40.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    painter = painterResource(subscriptionCard.providerIconRes),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(24.dp)
+                        .padding(2.dp),
+                    tint = Color.Unspecified
+                )
+            }
         }
 
-        if (error != null && !showCredentialDialog) {
-            item {
-                AnimatedSection(visible = statusVisible) {
-                    HomeErrorStrip(
-                        message = error,
-                        onDismiss = onDismissError
+        Column(
+            modifier = Modifier.widthIn(min = 146.dp, max = 184.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = subscriptionCard.displayTitle,
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = when (subscriptionCard.risk) {
+                    QuotaRisk.Critical -> "Critical"
+                    QuotaRisk.Watch -> "Watch"
+                    QuotaRisk.Healthy -> subscriptionCard.syncLabel
+                },
+                style = MaterialTheme.typography.labelSmall.copy(
+                    color = if (subscriptionCard.risk == QuotaRisk.Healthy) {
+                        colorScheme.onSurfaceVariant
+                    } else {
+                        stateColor
+                    },
+                    fontWeight = FontWeight.SemiBold
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        val metrics = subscriptionCard.hubProgressMetrics.landscapeMetricOrder()
+        if (metrics.isNotEmpty()) {
+            HubStackedProgressStrip(
+                metrics = metrics,
+                color = stateColor,
+                modifier = Modifier.weight(1f)
+            )
+        } else {
+            Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                QueueMetric(
+                    modifier = Modifier.weight(0.8f),
+                    label = subscriptionCard.primaryMetric.label,
+                    value = subscriptionCard.primaryMetric.value,
+                    highEmphasisMetrics = highEmphasisMetrics
+                )
+                if (progressPercent != null) {
+                    LinearProgressIndicator(
+                        progress = { progressPercent / 100f },
+                        modifier = Modifier
+                            .weight(1.2f)
+                            .height(14.dp)
+                            .clip(CircleShape),
+                        color = stateColor,
+                        trackColor = stateColor.copy(alpha = 0.16f)
+                    )
+                } else {
+                    QueueMetric(
+                        modifier = Modifier.weight(1f),
+                        label = subscriptionCard.secondaryMetric?.label ?: "Resources",
+                        value = subscriptionCard.secondaryMetric?.value ?: formatCount(subscriptionCard.resourceCount),
+                        highEmphasisMetrics = highEmphasisMetrics
                     )
                 }
             }
         }
-
-        item {
-            AnimatedSection(visible = providerVisible) {
-                ProviderAccessSection(
-                    providers = providers,
-                    providerUiRegistry = providerUiRegistry,
-                    subscriptionCards = subscriptionCards,
-                    connectedProviderIds = connectedProviderIds,
-                    onProviderClick = onProviderClick
-                )
-            }
-        }
     }
+}
+
+private fun List<QuotaProgressMetric>.landscapeMetricOrder(): List<QuotaProgressMetric> {
+    return sortedWith(
+        compareBy<QuotaProgressMetric> {
+            when {
+                it.label.contains("5h", ignoreCase = true) -> 0
+                it.label.contains("week", ignoreCase = true) -> 1
+                it.label.contains("plan", ignoreCase = true) -> 2
+                else -> 3
+            }
+        }.thenBy { it.label }
+    )
 }
 
 @Composable
@@ -783,209 +1044,100 @@ private fun CompactHomeRadarSurface(
 }
 
 @Composable
-private fun AccountCreditsOverview(
-    subscriptionCards: List<SubscriptionCardUiModel>,
-    highEmphasisMetrics: Boolean,
-    isBootstrapping: Boolean,
-    hasSubscriptions: Boolean,
-    onSubscriptionClick: (Long) -> Unit,
-    onAddClick: () -> Unit
+private fun HubStackedProgressStrip(
+    metrics: List<QuotaProgressMetric>,
+    color: Color,
+    modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(5.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(3.dp)
-        ) {
-            Text(
-                text = "Credits overview",
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
-            )
-            Text(
-                text = "All accounts side by side for landscape scanning.",
-                style = MaterialTheme.typography.bodySmall.copy(
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+        metrics.take(2).forEachIndexed { index, metric ->
+            HubStackedProgressMetric(
+                metric = metric,
+                color = color,
+                shape = RoundedCornerShape(
+                    topStart = if (index == 0) 18.dp else 12.dp,
+                    topEnd = if (index == 0) 12.dp else 18.dp,
+                    bottomStart = if (index == 0) 12.dp else 18.dp,
+                    bottomEnd = if (index == 0) 18.dp else 12.dp
                 )
             )
-        }
-
-        when {
-            isBootstrapping -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    HomeLoadingRow()
-                }
-            }
-            hasSubscriptions -> {
-                LazyRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentPadding = PaddingValues(horizontal = 18.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    items(
-                        items = subscriptionCards,
-                        key = { it.subscriptionId }
-                    ) { subscriptionCard ->
-                        AccountCreditTile(
-                            subscriptionCard = subscriptionCard,
-                            highEmphasisMetrics = highEmphasisMetrics,
-                            onClick = { onSubscriptionClick(subscriptionCard.subscriptionId) }
-                        )
-                    }
-                }
-            }
-            else -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .padding(horizontal = 18.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    HomeEmptyState(onAddClick = onAddClick)
-                }
-            }
         }
     }
 }
 
 @Composable
-private fun AccountCreditTile(
-    subscriptionCard: SubscriptionCardUiModel,
-    highEmphasisMetrics: Boolean,
-    onClick: () -> Unit
+private fun HubStackedProgressMetric(
+    metric: QuotaProgressMetric,
+    color: Color,
+    shape: RoundedCornerShape
 ) {
     val colorScheme = MaterialTheme.colorScheme
-    val stateColor by animateColorAsState(
-        targetValue = when (subscriptionCard.risk) {
-            QuotaRisk.Critical -> colorScheme.error
-            QuotaRisk.Watch -> colorScheme.tertiary
-            QuotaRisk.Healthy -> colorScheme.primary
-        },
-        animationSpec = spring(stiffness = 420f, dampingRatio = 0.9f),
-        label = "creditTileColor"
-    )
-    val progressPercent = subscriptionCard.primaryMetric.value.percentValueOrNull()
+    val progress = if (metric.total > 0L) {
+        metric.used.toFloat() / metric.total.toFloat()
+    } else {
+        0f
+    }.coerceIn(0f, 1f)
+    val remainingText = metric.remaining?.let {
+        "${formatLongCount(it)} left"
+    } ?: "${(progress * 100).roundToInt()}% used"
+    val resetText = metric.resetAtEpochMillis?.let(::formatTimeUntil) ?: "rolling"
 
-    Surface(
-        modifier = Modifier
-            .widthIn(min = 178.dp, max = 220.dp)
-            .fillMaxHeight()
-            .clickable(
-                enabled = subscriptionCard.canOpenDetail,
-                onClick = onClick
-            ),
-        color = stateColor.copy(alpha = 0.08f),
-        contentColor = colorScheme.onSurface,
-        shape = RoundedCornerShape(
-            topStart = 26.dp,
-            topEnd = 18.dp,
-            bottomStart = 18.dp,
-            bottomEnd = 30.dp
-        ),
-        border = BorderStroke(1.dp, stateColor.copy(alpha = 0.22f))
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(3.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.SpaceBetween
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                SignalGlyph(color = stateColor) {
-                    Icon(
-                        painter = painterResource(subscriptionCard.providerIconRes),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(29.dp)
-                            .padding(2.dp),
-                        tint = Color.Unspecified
-                    )
-                }
-                SignalChip(
-                    label = when (subscriptionCard.risk) {
-                        QuotaRisk.Critical -> "Critical"
-                        QuotaRisk.Watch -> "Watch"
-                        QuotaRisk.Healthy -> "Healthy"
-                    },
-                    color = stateColor
-                )
-            }
+            Text(
+                text = metric.label,
+                style = MaterialTheme.typography.labelMedium.copy(
+                    color = colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.SemiBold
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = "$remainingText / $resetText",
+                style = MaterialTheme.typography.labelSmall.copy(
+                    color = color,
+                    fontWeight = FontWeight.Bold
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
 
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = subscriptionCard.displayTitle,
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = subscriptionCard.subtitle,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        color = colorScheme.onSurfaceVariant
-                    ),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                QuotaMetricText(
-                    text = subscriptionCard.primaryMetric.value,
-                    emphasized = highEmphasisMetrics,
-                    level = MetricEmphasisLevel.Hero,
-                    color = stateColor
-                )
-                Text(
-                    text = subscriptionCard.primaryMetric.label,
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        color = colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.SemiBold
-                    ),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (progressPercent != null) {
-                    LinearProgressIndicator(
-                        progress = { progressPercent / 100f },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(10.dp)
-                            .clip(CircleShape),
-                        color = stateColor,
-                        trackColor = stateColor.copy(alpha = 0.16f)
-                    )
-                } else {
-                    Surface(
-                        color = stateColor.copy(alpha = 0.13f),
-                        contentColor = stateColor,
-                        shape = CircleShape
-                    ) {
-                        Text(
-                            text = subscriptionCard.secondaryMetric?.let {
-                                "${it.value} ${it.label.lowercase()}"
-                            } ?: "${formatCount(subscriptionCard.resourceCount)} resources",
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                        )
-                    }
-                }
-            }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(18.dp)
+                .clip(shape),
+            contentAlignment = Alignment.Center
+        ) {
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier
+                    .matchParentSize()
+                    .clip(shape),
+                color = color,
+                trackColor = color.copy(alpha = 0.15f)
+            )
+            Text(
+                text = "${formatLongCount(metric.used)} / ${formatLongCount(metric.total)}",
+                style = MaterialTheme.typography.labelSmall.copy(
+                    color = colorScheme.onSurface,
+                    fontWeight = FontWeight.Black
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
@@ -1783,6 +1935,10 @@ private fun String.percentValueOrNull(): Float? {
         .removeSuffix("%")
         .toFloatOrNull()
         ?.coerceIn(0f, 100f)
+}
+
+private fun formatLongCount(value: Long): String {
+    return NumberFormat.getIntegerInstance().format(value)
 }
 
 @Composable

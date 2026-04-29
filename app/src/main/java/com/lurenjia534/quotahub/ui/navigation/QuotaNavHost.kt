@@ -59,6 +59,11 @@ fun QuotaNavHost(
                 addSubscriptionRequestKey = addSubscriptionRequestKey,
                 onSubscriptionClick = { subscriptionId ->
                     navController.navigate(Screen.SubscriptionDetail.createRoute(subscriptionId))
+                },
+                onSettingsClick = {
+                    navController.navigate(Screen.Settings.route) {
+                        launchSingleTop = true
+                    }
                 }
             )
         }

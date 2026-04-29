@@ -1,9 +1,12 @@
 package com.lurenjia534.quotahub.data.provider.minimax
 
 import com.lurenjia534.quotahub.data.model.QuotaRisk
+import com.lurenjia534.quotahub.data.model.QuotaResource
 import com.lurenjia534.quotahub.data.model.QuotaSnapshot
+import com.lurenjia534.quotahub.data.model.QuotaWindow
 import com.lurenjia534.quotahub.data.model.Subscription
 import com.lurenjia534.quotahub.data.provider.CardMetric
+import com.lurenjia534.quotahub.data.provider.QuotaProgressMetric
 import com.lurenjia534.quotahub.data.provider.SubscriptionCardProjection
 import com.lurenjia534.quotahub.data.provider.SubscriptionCardProjector
 import java.text.NumberFormat
@@ -47,9 +50,52 @@ class MiniMaxSubscriptionCardProjector : SubscriptionCardProjector {
             nextResetAt = snapshot.resources.mapNotNull {
                 it.relevantResetAt(planHasWeeklyQuota)
             }.minOrNull(),
-            risk = snapshot.resources.dominantQuotaRisk(planHasWeeklyQuota)
+            risk = snapshot.resources.dominantQuotaRisk(planHasWeeklyQuota),
+            hubProgressMetrics = snapshot.resources.toMiniMaxHubProgressMetrics(planHasWeeklyQuota)
         )
     }
+}
+
+private fun List<QuotaResource>.toMiniMaxHubProgressMetrics(
+    planHasWeeklyQuota: Boolean
+): List<QuotaProgressMetric> {
+    val resources = this
+    return buildList {
+        aggregateWindow(
+            label = "5h window",
+            windows = resources.mapNotNull { it.intervalWindow }
+        )?.let(::add)
+
+        if (planHasWeeklyQuota) {
+            aggregateWindow(
+                label = "Weekly limit",
+                windows = resources.filter { it.hasVisibleWeeklyQuota(planHasWeeklyQuota) }
+                    .mapNotNull { it.weeklyWindow }
+            )?.let(::add)
+        }
+    }
+}
+
+private fun aggregateWindow(
+    label: String,
+    windows: List<QuotaWindow>
+): QuotaProgressMetric? {
+    val visibleWindows = windows.filter { (it.total ?: 0L) > 0L }
+    if (visibleWindows.isEmpty()) return null
+
+    val totalValue = visibleWindows.sumOf { it.total ?: 0L }
+    val usedValue = visibleWindows.sumOf { it.used ?: 0L }.coerceIn(0L, totalValue)
+    val remainingValue = visibleWindows
+        .mapNotNull { it.remaining }
+        .takeIf { it.isNotEmpty() }
+        ?.sum()
+    return QuotaProgressMetric(
+        label = label,
+        used = usedValue,
+        total = totalValue,
+        remaining = remainingValue,
+        resetAtEpochMillis = visibleWindows.mapNotNull { it.resetAtEpochMillis }.minOrNull()
+    )
 }
 
 private fun formatMetricCount(value: Int): String {

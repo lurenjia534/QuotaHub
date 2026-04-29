@@ -11,6 +11,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -38,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.keepScreenOn
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
@@ -142,7 +144,9 @@ fun QuotaApp(
             containerColor = Color.Transparent,
             contentWindowInsets = WindowInsets(0.dp)
         ) { innerPadding ->
-            Box(modifier = Modifier.fillMaxSize()) {
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val landscapeHub = currentRoute == Screen.Home.route && maxWidth > maxHeight
+                val showFloatingNavigation = showBottomNavigation && !landscapeHub
                 val appContentModifier = if (landscapeMonitorMode) {
                     Modifier
                         .fillMaxSize()
@@ -167,12 +171,12 @@ fun QuotaApp(
                         onHighEmphasisMetricsChange = uiPreferencesRepository::setHighEmphasisMetrics,
                         onHapticConfirmationChange = uiPreferencesRepository::setHapticConfirmation,
                         onLandscapeMonitorModeChange = uiPreferencesRepository::setLandscapeMonitorMode,
-                        bottomContentPadding = if (showBottomNavigation) FloatingBottomNavClearance else 0.dp,
+                        bottomContentPadding = if (showFloatingNavigation) FloatingBottomNavClearance else 0.dp,
                         addSubscriptionRequestKey = addSubscriptionRequestKey,
                         modifier = Modifier.fillMaxSize()
                     )
 
-                    if (showBottomNavigation) {
+                    if (showFloatingNavigation) {
                         QuotaNavigationBar(
                             navController = navController,
                             items = navigationItems,
@@ -192,9 +196,12 @@ fun QuotaApp(
                                     }
                                 }
                             },
-                            modifier = Modifier.align(Alignment.BottomCenter)
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .zIndex(1f)
                         )
                     }
+
                 }
             }
         }

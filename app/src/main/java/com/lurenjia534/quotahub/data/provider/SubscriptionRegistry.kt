@@ -17,7 +17,8 @@ data class SubscriptionCard(
     val secondaryMetric: CardMetric?,
     val resourceCount: Int,
     val nextResetAt: Long?,
-    val risk: QuotaRisk
+    val risk: QuotaRisk,
+    val hubProgressMetrics: List<QuotaProgressMetric>
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -46,7 +47,8 @@ class SubscriptionRegistry(
                             secondaryMetric = projection.secondaryMetric,
                             resourceCount = projection.resourceCount,
                             nextResetAt = projection.nextResetAt,
-                            risk = projection.risk
+                            risk = projection.risk,
+                            hubProgressMetrics = projection.hubProgressMetrics
                         )
                     }
                 }

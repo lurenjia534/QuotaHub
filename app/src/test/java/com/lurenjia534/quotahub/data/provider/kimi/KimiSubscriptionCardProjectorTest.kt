@@ -22,6 +22,16 @@ class KimiSubscriptionCardProjectorTest {
         assertEquals("20", projection.secondaryMetric?.value)
         assertEquals(QuotaRisk.Healthy, projection.risk)
         assertEquals(1_777_219_428_011L, projection.nextResetAt)
+        assertEquals(2, projection.hubProgressMetrics.size)
+        assertEquals("Plan quota", projection.hubProgressMetrics[0].label)
+        assertEquals(25L, projection.hubProgressMetrics[0].used)
+        assertEquals(100L, projection.hubProgressMetrics[0].total)
+        assertEquals(75L, projection.hubProgressMetrics[0].remaining)
+        assertEquals("5h window", projection.hubProgressMetrics[1].label)
+        assertEquals(20L, projection.hubProgressMetrics[1].used)
+        assertEquals(100L, projection.hubProgressMetrics[1].total)
+        assertEquals(80L, projection.hubProgressMetrics[1].remaining)
+        assertEquals(1_777_219_428_011L, projection.hubProgressMetrics[1].resetAtEpochMillis)
     }
 
     private fun subscription(): Subscription {

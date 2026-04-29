@@ -25,6 +25,17 @@ class CodexSubscriptionCardProjectorTest {
         assertEquals(2, projection.resourceCount)
         assertEquals(1_900_000_000L, projection.nextResetAt)
         assertEquals(QuotaRisk.Watch, projection.risk)
+        assertEquals(2, projection.hubProgressMetrics.size)
+        assertEquals("5h window", projection.hubProgressMetrics[0].label)
+        assertEquals(88L, projection.hubProgressMetrics[0].used)
+        assertEquals(100L, projection.hubProgressMetrics[0].total)
+        assertEquals(12L, projection.hubProgressMetrics[0].remaining)
+        assertEquals(1_900_000_000L, projection.hubProgressMetrics[0].resetAtEpochMillis)
+        assertEquals("Weekly limit", projection.hubProgressMetrics[1].label)
+        assertEquals(60L, projection.hubProgressMetrics[1].used)
+        assertEquals(100L, projection.hubProgressMetrics[1].total)
+        assertEquals(40L, projection.hubProgressMetrics[1].remaining)
+        assertEquals(2_600_000_000L, projection.hubProgressMetrics[1].resetAtEpochMillis)
     }
 
     private fun subscription(): Subscription {

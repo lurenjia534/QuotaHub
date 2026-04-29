@@ -58,6 +58,17 @@ class MiniMaxSubscriptionCardProjectorTest {
         assertEquals(2, projection.resourceCount)
         assertEquals(1_200L, projection.nextResetAt)
         assertEquals(QuotaRisk.Healthy, projection.risk)
+        assertEquals(2, projection.hubProgressMetrics.size)
+        assertEquals("5h window", projection.hubProgressMetrics[0].label)
+        assertEquals(50L, projection.hubProgressMetrics[0].used)
+        assertEquals(200L, projection.hubProgressMetrics[0].total)
+        assertEquals(150L, projection.hubProgressMetrics[0].remaining)
+        assertEquals(1_200L, projection.hubProgressMetrics[0].resetAtEpochMillis)
+        assertEquals("Weekly limit", projection.hubProgressMetrics[1].label)
+        assertEquals(270L, projection.hubProgressMetrics[1].used)
+        assertEquals(400L, projection.hubProgressMetrics[1].total)
+        assertEquals(130L, projection.hubProgressMetrics[1].remaining)
+        assertEquals(2_000L, projection.hubProgressMetrics[1].resetAtEpochMillis)
     }
 
     @Test
@@ -87,6 +98,12 @@ class MiniMaxSubscriptionCardProjectorTest {
         assertEquals(1, projection.resourceCount)
         assertEquals(3_000L, projection.nextResetAt)
         assertEquals(QuotaRisk.Healthy, projection.risk)
+        assertEquals(1, projection.hubProgressMetrics.size)
+        assertEquals("5h window", projection.hubProgressMetrics[0].label)
+        assertEquals(60L, projection.hubProgressMetrics[0].used)
+        assertEquals(100L, projection.hubProgressMetrics[0].total)
+        assertEquals(40L, projection.hubProgressMetrics[0].remaining)
+        assertEquals(3_000L, projection.hubProgressMetrics[0].resetAtEpochMillis)
     }
 
     private fun subscription(): Subscription {
