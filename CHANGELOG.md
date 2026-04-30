@@ -5,6 +5,12 @@ the matching version section from this file as release notes.
 
 ## [Unreleased]
 
+## [v1.4.1] - 2026-04-30
+
+- Fixed the landscape Home monitor for Z.ai and Zhipu subscriptions so their
+  quota limits render as compact quota bars instead of a single fallback
+  headroom bar.
+
 ## [v1.4] - 2026-04-30
 
 - Wired the Update rhythm setting into real refresh behavior across Home,
