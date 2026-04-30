@@ -5,10 +5,15 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -71,6 +76,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -400,7 +407,27 @@ private fun LandscapeHomeContent(
     onAddClick: () -> Unit,
     onSettingsClick: () -> Unit
 ) {
-    Column(
+    var hudActionsVisible by remember { mutableStateOf(hideLandscapeMonitorHud) }
+    var hudActionsRevealKey by remember { mutableStateOf(0) }
+
+    fun revealHudActions() {
+        if (hideLandscapeMonitorHud) {
+            hudActionsVisible = true
+            hudActionsRevealKey += 1
+        }
+    }
+
+    LaunchedEffect(hideLandscapeMonitorHud, hudActionsRevealKey) {
+        if (hideLandscapeMonitorHud) {
+            hudActionsVisible = true
+            delay(3_200L)
+            hudActionsVisible = false
+        } else {
+            hudActionsVisible = false
+        }
+    }
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .windowInsetsPadding(
@@ -413,13 +440,84 @@ private fun LandscapeHomeContent(
                 top = 4.dp,
                 end = 12.dp,
                 bottom = 6.dp + bottomContentPadding
-            ),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+            )
+            .pointerInput(hideLandscapeMonitorHud) {
+                if (!hideLandscapeMonitorHud) {
+                    return@pointerInput
+                }
+                awaitEachGesture {
+                    awaitFirstDown(pass = PointerEventPass.Initial)
+                    val up = waitForUpOrCancellation(pass = PointerEventPass.Initial)
+                    if (up != null) {
+                        revealHudActions()
+                    }
+                }
+            }
     ) {
-        if (hideLandscapeMonitorHud) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            if (!hideLandscapeMonitorHud) {
+                LandscapeHubStatusBar(
+                    connectedCount = connectedCount,
+                    providerCount = providerCount,
+                    trackedResources = trackedResources,
+                    nextRefreshWindow = nextRefreshWindow,
+                    highEmphasisMetrics = highEmphasisMetrics,
+                    dominantRisk = dominantRisk,
+                    dominantSyncState = dominantSyncState,
+                    isBootstrapping = isBootstrapping,
+                    onAddClick = onAddClick,
+                    onSettingsClick = onSettingsClick
+                )
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f))
+            }
+
+            if (error != null && !showCredentialDialog) {
+                AnimatedSection(visible = statusVisible) {
+                    HomeErrorStrip(
+                        message = error,
+                        onDismiss = onDismissError
+                    )
+                }
+            }
+
+            if (queueVisible) {
+                LandscapeProviderMonitorTable(
+                    subscriptionCards = subscriptionCards,
+                    highEmphasisMetrics = highEmphasisMetrics,
+                    isBootstrapping = isBootstrapping,
+                    hasSubscriptions = hasSubscriptions,
+                    showHeader = !hideLandscapeMonitorHud || hudActionsVisible,
+                    onSubscriptionClick = onSubscriptionClick,
+                    onAddClick = onAddClick,
+                    modifier = Modifier.weight(1f)
+                )
+            } else {
+                Spacer(modifier = Modifier.weight(1f))
+            }
+        }
+
+        AnimatedVisibility(
+            visible = hideLandscapeMonitorHud && hudActionsVisible,
+            enter = fadeIn(
+                animationSpec = spring(stiffness = 420f, dampingRatio = 0.9f)
+            ) + slideInVertically(
+                animationSpec = spring(stiffness = 420f, dampingRatio = 0.9f),
+                initialOffsetY = { -it / 2 }
+            ),
+            exit = fadeOut(
+                animationSpec = spring(stiffness = 500f, dampingRatio = 0.95f)
+            ) + slideOutVertically(
+                animationSpec = spring(stiffness = 500f, dampingRatio = 0.95f),
+                targetOffsetY = { -it / 2 }
+            ),
+            modifier = Modifier.align(Alignment.TopEnd)
+        ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 LandscapeHudAction(
@@ -428,7 +526,6 @@ private fun LandscapeHomeContent(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     onClick = onSettingsClick
                 )
-                Spacer(modifier = Modifier.width(8.dp))
                 LandscapeHudAction(
                     icon = Icons.Filled.Add,
                     contentDescription = "Add provider",
@@ -436,44 +533,6 @@ private fun LandscapeHomeContent(
                     onClick = onAddClick
                 )
             }
-        } else {
-            LandscapeHubStatusBar(
-                connectedCount = connectedCount,
-                providerCount = providerCount,
-                trackedResources = trackedResources,
-                nextRefreshWindow = nextRefreshWindow,
-                highEmphasisMetrics = highEmphasisMetrics,
-                dominantRisk = dominantRisk,
-                dominantSyncState = dominantSyncState,
-                isBootstrapping = isBootstrapping,
-                onAddClick = onAddClick,
-                onSettingsClick = onSettingsClick
-            )
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f))
-        }
-
-        if (error != null && !showCredentialDialog) {
-            AnimatedSection(visible = statusVisible) {
-                HomeErrorStrip(
-                    message = error,
-                    onDismiss = onDismissError
-                )
-            }
-        }
-
-        if (queueVisible) {
-            LandscapeProviderMonitorTable(
-                subscriptionCards = subscriptionCards,
-                highEmphasisMetrics = highEmphasisMetrics,
-                isBootstrapping = isBootstrapping,
-                hasSubscriptions = hasSubscriptions,
-                onSubscriptionClick = onSubscriptionClick,
-                onAddClick = onAddClick,
-                modifier = Modifier.weight(1f)
-            )
-        } else {
-            Spacer(modifier = Modifier.weight(1f))
         }
     }
 }
@@ -669,6 +728,7 @@ private fun LandscapeProviderMonitorTable(
     highEmphasisMetrics: Boolean,
     isBootstrapping: Boolean,
     hasSubscriptions: Boolean,
+    showHeader: Boolean,
     onSubscriptionClick: (Long) -> Unit,
     onAddClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -687,7 +747,23 @@ private fun LandscapeProviderMonitorTable(
             }
             hasSubscriptions -> {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    LandscapeProviderHeader()
+                    AnimatedVisibility(
+                        visible = showHeader,
+                        enter = fadeIn(
+                            animationSpec = spring(stiffness = 420f, dampingRatio = 0.9f)
+                        ) + slideInVertically(
+                            animationSpec = spring(stiffness = 420f, dampingRatio = 0.9f),
+                            initialOffsetY = { -it / 2 }
+                        ),
+                        exit = fadeOut(
+                            animationSpec = spring(stiffness = 500f, dampingRatio = 0.95f)
+                        ) + slideOutVertically(
+                            animationSpec = spring(stiffness = 500f, dampingRatio = 0.95f),
+                            targetOffsetY = { -it / 2 }
+                        )
+                    ) {
+                        LandscapeProviderHeader()
+                    }
                     subscriptionCards.forEachIndexed { index, subscriptionCard ->
                         HubProviderSignalRow(
                             subscriptionCard = subscriptionCard,

@@ -8,7 +8,16 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,16 +45,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.zIndex
 import androidx.compose.ui.keepScreenOn
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import com.lurenjia534.quotahub.data.preferences.UiPreferencesRepository
 import com.lurenjia534.quotahub.data.update.AvailableUpdate
 import com.lurenjia534.quotahub.data.update.UpdateChecker
@@ -64,14 +76,13 @@ import com.lurenjia534.quotahub.ui.provider.ProviderUiRegistry
 import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaDetailProjectorRegistry
 import com.lurenjia534.quotahub.sync.SubscriptionRefreshPolicy
 import com.lurenjia534.quotahub.ui.theme.QuotaHubTheme
-
-private val FloatingBottomNavClearance = 120.dp
+import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        hideNavigationBar()
+        hideSystemBars()
         val application = application as QuotaApplication
         val subscriptionRegistry = application.subscriptionRegistry
         val providerQuotaDetailProjectorRegistry = application.providerQuotaDetailProjectorRegistry
@@ -97,14 +108,14 @@ class MainActivity : ComponentActivity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) {
-            hideNavigationBar()
+            hideSystemBars()
         }
     }
 
-    private fun hideNavigationBar() {
+    private fun hideSystemBars() {
         WindowCompat.getInsetsController(window, window.decorView).apply {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            hide(WindowInsetsCompat.Type.navigationBars())
+            hide(WindowInsetsCompat.Type.systemBars())
         }
     }
 }
@@ -129,6 +140,8 @@ fun QuotaApp(
     val showBottomNavigation = currentRoute in bottomNavItems.map { it.route }
     val landscapeMonitorMode = uiPreferences.landscapeMonitorMode
     var availableUpdate by remember { mutableStateOf<AvailableUpdate?>(null) }
+    var navigationControlsVisible by rememberSaveable { mutableStateOf(true) }
+    var navigationRevealKey by remember { mutableIntStateOf(0) }
 
     LandscapeMonitorModeEffect(enabled = landscapeMonitorMode)
     UpdateCheckEffect(
@@ -151,6 +164,21 @@ fun QuotaApp(
             BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                 val landscapeHub = currentRoute == Screen.Home.route && maxWidth > maxHeight
                 val showFloatingNavigation = showBottomNavigation && !landscapeHub
+                fun revealNavigationControls() {
+                    if (showFloatingNavigation) {
+                        navigationControlsVisible = true
+                        navigationRevealKey += 1
+                    }
+                }
+                LaunchedEffect(showFloatingNavigation, currentRoute, navigationRevealKey) {
+                    if (showFloatingNavigation) {
+                        navigationControlsVisible = true
+                        delay(3_200L)
+                        navigationControlsVisible = false
+                    } else {
+                        navigationControlsVisible = false
+                    }
+                }
                 val appContentModifier = if (landscapeMonitorMode) {
                     Modifier
                         .fillMaxSize()
@@ -161,8 +189,21 @@ fun QuotaApp(
                         .fillMaxSize()
                         .padding(innerPadding)
                 }
+                val interactiveContentModifier = if (showFloatingNavigation) {
+                    appContentModifier.pointerInput(currentRoute, showFloatingNavigation) {
+                        awaitEachGesture {
+                            awaitFirstDown(pass = PointerEventPass.Initial)
+                            val up = waitForUpOrCancellation(pass = PointerEventPass.Initial)
+                            if (up != null) {
+                                revealNavigationControls()
+                            }
+                        }
+                    }
+                } else {
+                    appContentModifier
+                }
 
-                Box(modifier = appContentModifier) {
+                Box(modifier = interactiveContentModifier) {
                     QuotaNavHost(
                         navController = navController,
                         subscriptionRegistry = subscriptionRegistry,
@@ -181,12 +222,29 @@ fun QuotaApp(
                         onHideLandscapeMonitorHudChange = uiPreferencesRepository::setHideLandscapeMonitorHud,
                         onForceDarkModeChange = uiPreferencesRepository::setForceDarkMode,
                         onRefreshCadenceChange = uiPreferencesRepository::setRefreshCadence,
-                        bottomContentPadding = if (showFloatingNavigation) FloatingBottomNavClearance else 0.dp,
+                        bottomContentPadding = 0.dp,
                         addSubscriptionRequestKey = addSubscriptionRequestKey,
                         modifier = Modifier.fillMaxSize()
                     )
 
-                    if (showFloatingNavigation) {
+                    AnimatedVisibility(
+                        visible = showFloatingNavigation && navigationControlsVisible,
+                        enter = fadeIn(
+                            animationSpec = spring(stiffness = 420f, dampingRatio = 0.9f)
+                        ) + slideInVertically(
+                            animationSpec = spring(stiffness = 420f, dampingRatio = 0.9f),
+                            initialOffsetY = { it / 2 }
+                        ),
+                        exit = fadeOut(
+                            animationSpec = spring(stiffness = 500f, dampingRatio = 0.95f)
+                        ) + slideOutVertically(
+                            animationSpec = spring(stiffness = 500f, dampingRatio = 0.95f),
+                            targetOffsetY = { it / 2 }
+                        ),
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .zIndex(1f)
+                    ) {
                         QuotaNavigationBar(
                             navController = navController,
                             items = navigationItems,
@@ -207,11 +265,8 @@ fun QuotaApp(
                                 }
                             },
                             modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .zIndex(1f)
                         )
                     }
-
                 }
             }
         }
