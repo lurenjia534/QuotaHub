@@ -5,6 +5,23 @@ the matching version section from this file as release notes.
 
 ## [Unreleased]
 
+## [v1.4] - 2026-04-30
+
+- Wired the Update rhythm setting into real refresh behavior across Home,
+  provider detail, and Settings views.
+- Added app-wide automatic quota refresh while QuotaHub is running, using
+  Live, Balanced, and Manual cadence settings.
+- Changed the Live refresh cadence from 15 minutes to 1 minute.
+- Updated provider detail auto-refresh to honor the selected refresh cadence
+  instead of using a fixed interval.
+- Improved the landscape Home monitor for edge-to-edge and display cutout
+  devices by using safe drawing insets.
+- Auto-hide floating navigation and landscape monitor controls, revealing them
+  again when the user taps the screen.
+- Let the landscape monitor Provider and Quota windows headers collapse with
+  the compact Settings and Add controls.
+- Requested immersive system bars for the edge-to-edge app shell.
+
 ## [v1.3] - 2026-04-30
 
 - Added a dark mode preference that can keep QuotaHub in dark mode while
