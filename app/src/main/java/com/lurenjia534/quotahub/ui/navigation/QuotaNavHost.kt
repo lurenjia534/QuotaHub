@@ -17,6 +17,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.lurenjia534.quotahub.data.preferences.RefreshCadence
 import com.lurenjia534.quotahub.data.provider.SubscriptionGateway
 import com.lurenjia534.quotahub.data.provider.SubscriptionRegistry
 import com.lurenjia534.quotahub.sync.SubscriptionRefreshPolicy
@@ -35,6 +36,7 @@ fun QuotaNavHost(
     providerQuotaDetailProjectorRegistry: ProviderQuotaDetailProjectorRegistry,
     providerUiRegistry: ProviderUiRegistry,
     subscriptionRefreshPolicy: SubscriptionRefreshPolicy,
+    refreshCadence: RefreshCadence,
     highEmphasisMetrics: Boolean,
     hapticConfirmation: Boolean,
     landscapeMonitorMode: Boolean,
@@ -45,6 +47,7 @@ fun QuotaNavHost(
     onLandscapeMonitorModeChange: (Boolean) -> Unit,
     onHideLandscapeMonitorHudChange: (Boolean) -> Unit,
     onForceDarkModeChange: (Boolean) -> Unit,
+    onRefreshCadenceChange: (RefreshCadence) -> Unit,
     bottomContentPadding: Dp = 0.dp,
     addSubscriptionRequestKey: Int = 0,
     modifier: Modifier = Modifier
@@ -107,6 +110,7 @@ fun QuotaNavHost(
                         detailProjectorRegistry = providerQuotaDetailProjectorRegistry,
                         providerUiRegistry = providerUiRegistry,
                         refreshPolicy = subscriptionRefreshPolicy,
+                        refreshCadence = refreshCadence,
                         highEmphasisMetrics = highEmphasisMetrics,
                         hapticConfirmation = hapticConfirmation,
                         onBackClick = { navController.popBackStack() }
@@ -139,12 +143,14 @@ fun QuotaNavHost(
                 landscapeMonitorMode = landscapeMonitorMode,
                 hideLandscapeMonitorHud = hideLandscapeMonitorHud,
                 forceDarkMode = forceDarkMode,
+                refreshCadence = refreshCadence,
                 bottomContentPadding = bottomContentPadding,
                 onHighEmphasisMetricsChange = onHighEmphasisMetricsChange,
                 onHapticConfirmationChange = onHapticConfirmationChange,
                 onLandscapeMonitorModeChange = onLandscapeMonitorModeChange,
                 onHideLandscapeMonitorHudChange = onHideLandscapeMonitorHudChange,
                 onForceDarkModeChange = onForceDarkModeChange,
+                onRefreshCadenceChange = onRefreshCadenceChange,
                 onAboutClick = {
                     navController.navigate(Screen.About.route) {
                         launchSingleTop = true

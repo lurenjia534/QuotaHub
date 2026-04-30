@@ -7,6 +7,7 @@ import com.lurenjia534.quotahub.data.model.SyncCause
 import com.lurenjia534.quotahub.data.model.SyncFailureKind
 import com.lurenjia534.quotahub.data.model.SubscriptionSyncStatus
 import com.lurenjia534.quotahub.data.model.SyncState
+import com.lurenjia534.quotahub.data.preferences.RefreshCadence
 import com.lurenjia534.quotahub.data.provider.CredentialFieldSpec
 import com.lurenjia534.quotahub.data.provider.ProviderDescriptor
 import org.junit.Assert.assertFalse
@@ -35,6 +36,55 @@ class SubscriptionRefreshPolicyTest {
                         fetchedAt = 900L
                     )
                 ),
+                now = 1_000L
+            )
+        )
+    }
+
+    @Test
+    fun shouldAutoRefresh_usesCadenceIntervalForActiveSubscriptions() {
+        val subscription = subscription(
+            syncStatus = SubscriptionSyncStatus.active(
+                fetchedAt = 1_000L
+            )
+        )
+
+        assertFalse(
+            policy.shouldAutoRefresh(
+                subscription = subscription,
+                refreshCadence = RefreshCadence.Live,
+                now = 60_999L
+            )
+        )
+        assertTrue(
+            policy.shouldAutoRefresh(
+                subscription = subscription,
+                refreshCadence = RefreshCadence.Live,
+                now = 61_000L
+            )
+        )
+        assertFalse(
+            policy.shouldAutoRefresh(
+                subscription = subscription,
+                refreshCadence = RefreshCadence.Balanced,
+                now = 3_600_999L
+            )
+        )
+        assertTrue(
+            policy.shouldAutoRefresh(
+                subscription = subscription,
+                refreshCadence = RefreshCadence.Balanced,
+                now = 3_601_000L
+            )
+        )
+    }
+
+    @Test
+    fun shouldAutoRefresh_skipsAutomaticRefreshWhenManual() {
+        assertFalse(
+            policy.shouldAutoRefresh(
+                subscription = subscription(syncStatus = SubscriptionSyncStatus.neverSynced()),
+                refreshCadence = RefreshCadence.Manual,
                 now = 1_000L
             )
         )

@@ -76,6 +76,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lurenjia534.quotahub.data.model.QuotaRisk
 import com.lurenjia534.quotahub.data.model.SyncState
+import com.lurenjia534.quotahub.data.preferences.RefreshCadence
 import com.lurenjia534.quotahub.data.provider.CredentialFieldSpec
 import com.lurenjia534.quotahub.data.provider.SubscriptionGateway
 import com.lurenjia534.quotahub.sync.SubscriptionRefreshPolicy
@@ -96,16 +97,18 @@ fun ProviderQuotaScreen(
     detailProjectorRegistry: ProviderQuotaDetailProjectorRegistry,
     providerUiRegistry: ProviderUiRegistry,
     refreshPolicy: SubscriptionRefreshPolicy,
+    refreshCadence: RefreshCadence,
     highEmphasisMetrics: Boolean,
     hapticConfirmation: Boolean,
     onBackClick: () -> Unit
 ) {
     val viewModel: ProviderQuotaViewModel = viewModel(
-        key = "provider-quota-${subscriptionGateway.subscription.id}",
+        key = "provider-quota-${subscriptionGateway.subscription.id}-${refreshCadence.name}",
         factory = ProviderQuotaViewModel.Factory(
             subscriptionGateway = subscriptionGateway,
             detailProjectorRegistry = detailProjectorRegistry,
-            refreshPolicy = refreshPolicy
+            refreshPolicy = refreshPolicy,
+            refreshCadence = refreshCadence
         )
     )
     val uiState by viewModel.uiState.collectAsState()

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.lurenjia534.quotahub.data.model.Subscription
+import com.lurenjia534.quotahub.data.preferences.RefreshCadence
 import com.lurenjia534.quotahub.data.provider.SecretBundle
 import com.lurenjia534.quotahub.data.provider.SubscriptionGateway
 import com.lurenjia534.quotahub.sync.SubscriptionRefreshPolicy
@@ -35,7 +36,8 @@ data class ProviderQuotaUiState(
 class ProviderQuotaViewModel(
     private val subscriptionGateway: SubscriptionGateway,
     private val detailProjectorRegistry: ProviderQuotaDetailProjectorRegistry,
-    private val refreshPolicy: SubscriptionRefreshPolicy
+    private val refreshPolicy: SubscriptionRefreshPolicy,
+    private val refreshCadence: RefreshCadence
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(
         ProviderQuotaUiState(
@@ -74,7 +76,10 @@ class ProviderQuotaViewModel(
                 )
 
             if (subscriptionGateway.capabilities.canRefresh &&
-                refreshPolicy.shouldAutoRefreshOnDetailOpen(snapshot.subscription)
+                refreshPolicy.shouldAutoRefreshOnDetailOpen(
+                    subscription = snapshot.subscription,
+                    refreshCadence = refreshCadence
+                )
             ) {
                 refresh()
             }
@@ -258,7 +263,8 @@ class ProviderQuotaViewModel(
     class Factory(
         private val subscriptionGateway: SubscriptionGateway,
         private val detailProjectorRegistry: ProviderQuotaDetailProjectorRegistry,
-        private val refreshPolicy: SubscriptionRefreshPolicy
+        private val refreshPolicy: SubscriptionRefreshPolicy,
+        private val refreshCadence: RefreshCadence
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -266,7 +272,8 @@ class ProviderQuotaViewModel(
                 return ProviderQuotaViewModel(
                     subscriptionGateway = subscriptionGateway,
                     detailProjectorRegistry = detailProjectorRegistry,
-                    refreshPolicy = refreshPolicy
+                    refreshPolicy = refreshPolicy,
+                    refreshCadence = refreshCadence
                 ) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class")

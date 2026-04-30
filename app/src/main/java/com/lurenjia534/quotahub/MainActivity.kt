@@ -169,6 +169,7 @@ fun QuotaApp(
                         providerQuotaDetailProjectorRegistry = providerQuotaDetailProjectorRegistry,
                         providerUiRegistry = providerUiRegistry,
                         subscriptionRefreshPolicy = subscriptionRefreshPolicy,
+                        refreshCadence = uiPreferences.refreshCadence,
                         highEmphasisMetrics = uiPreferences.highEmphasisMetrics,
                         hapticConfirmation = uiPreferences.hapticConfirmation,
                         landscapeMonitorMode = landscapeMonitorMode,
@@ -179,6 +180,7 @@ fun QuotaApp(
                         onLandscapeMonitorModeChange = uiPreferencesRepository::setLandscapeMonitorMode,
                         onHideLandscapeMonitorHudChange = uiPreferencesRepository::setHideLandscapeMonitorHud,
                         onForceDarkModeChange = uiPreferencesRepository::setForceDarkMode,
+                        onRefreshCadenceChange = uiPreferencesRepository::setRefreshCadence,
                         bottomContentPadding = if (showFloatingNavigation) FloatingBottomNavClearance else 0.dp,
                         addSubscriptionRequestKey = addSubscriptionRequestKey,
                         modifier = Modifier.fillMaxSize()

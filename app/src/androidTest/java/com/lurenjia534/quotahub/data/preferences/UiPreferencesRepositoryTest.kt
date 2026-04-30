@@ -27,6 +27,7 @@ class UiPreferencesRepositoryTest {
         assertTrue(preferences.highEmphasisMetrics)
         assertTrue(preferences.hapticConfirmation)
         assertFalse(preferences.landscapeMonitorMode)
+        assertEquals(RefreshCadence.Balanced, preferences.refreshCadence)
         assertNull(preferences.dismissedUpdateTag)
     }
 
@@ -70,6 +71,22 @@ class UiPreferencesRepositoryTest {
 
         assertEquals("v1.2", repository.preferences.value.dismissedUpdateTag)
         assertEquals("v1.2", UiPreferencesRepository(context).preferences.value.dismissedUpdateTag)
+    }
+
+    @Test
+    fun setRefreshCadence_updatesStateAndPersistsValue() {
+        clearPreferences()
+        val repository = UiPreferencesRepository(context)
+
+        repository.setRefreshCadence(RefreshCadence.Live)
+
+        assertEquals(RefreshCadence.Live, repository.preferences.value.refreshCadence)
+        assertEquals(RefreshCadence.Live, UiPreferencesRepository(context).preferences.value.refreshCadence)
+
+        repository.setRefreshCadence(RefreshCadence.Manual)
+
+        assertEquals(RefreshCadence.Manual, repository.preferences.value.refreshCadence)
+        assertEquals(RefreshCadence.Manual, UiPreferencesRepository(context).preferences.value.refreshCadence)
     }
 
     private fun clearPreferences() {

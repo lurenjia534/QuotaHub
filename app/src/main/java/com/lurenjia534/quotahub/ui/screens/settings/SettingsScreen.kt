@@ -65,34 +65,45 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.lurenjia534.quotahub.data.preferences.RefreshCadence
 import com.lurenjia534.quotahub.ui.components.rememberQuotaHaptics
 import com.lurenjia534.quotahub.ui.theme.QuotaHubTheme
 import kotlinx.coroutines.delay
 
 private enum class RefreshProfile(
+    val cadence: RefreshCadence,
     val title: String,
     val caption: String,
     val summary: String,
     val icon: ImageVector
 ) {
     Live(
+        cadence = RefreshCadence.Live,
         title = "Live",
-        caption = "15 min",
-        summary = "Checks quota frequently and keeps fast-moving providers visible.",
+        caption = "1 min",
+        summary = "Checks quota every minute while QuotaHub is running.",
         icon = Icons.Outlined.Bolt
     ),
     Balanced(
+        cadence = RefreshCadence.Balanced,
         title = "Balanced",
         caption = "Hourly",
         summary = "Uses the recommended rhythm for a cleaner dashboard and lighter battery use.",
         icon = Icons.Outlined.Update
     ),
     Manual(
+        cadence = RefreshCadence.Manual,
         title = "Manual",
         caption = "Pull only",
-        summary = "Refreshes only when you open details or explicitly ask for an update.",
+        summary = "Skips automatic refreshes. Pull down or tap Refresh when you want fresh data.",
         icon = Icons.Outlined.TouchApp
-    )
+    );
+
+    companion object {
+        fun fromCadence(refreshCadence: RefreshCadence): RefreshProfile {
+            return entries.first { it.cadence == refreshCadence }
+        }
+    }
 }
 
 @Composable
@@ -102,11 +113,13 @@ fun SettingsScreen(
     landscapeMonitorMode: Boolean,
     hideLandscapeMonitorHud: Boolean,
     forceDarkMode: Boolean,
+    refreshCadence: RefreshCadence,
     onHighEmphasisMetricsChange: (Boolean) -> Unit,
     onHapticConfirmationChange: (Boolean) -> Unit,
     onLandscapeMonitorModeChange: (Boolean) -> Unit,
     onHideLandscapeMonitorHudChange: (Boolean) -> Unit,
     onForceDarkModeChange: (Boolean) -> Unit,
+    onRefreshCadenceChange: (RefreshCadence) -> Unit,
     onAboutClick: () -> Unit,
     bottomContentPadding: Dp = 0.dp,
     modifier: Modifier = Modifier
@@ -115,7 +128,7 @@ fun SettingsScreen(
     var usageAlerts by rememberSaveable { mutableStateOf(true) }
     var lowBalanceBanner by rememberSaveable { mutableStateOf(true) }
     var privacyShield by rememberSaveable { mutableStateOf(true) }
-    var refreshProfile by rememberSaveable { mutableStateOf(RefreshProfile.Balanced) }
+    val refreshProfile = RefreshProfile.fromCadence(refreshCadence)
     val quotaHaptics = rememberQuotaHaptics(hapticConfirmation)
 
     var headerVisible by remember { mutableStateOf(false) }
@@ -243,7 +256,7 @@ fun SettingsScreen(
                         selectedProfile = refreshProfile,
                         onProfileSelected = { profile ->
                             if (refreshProfile != profile) {
-                                refreshProfile = profile
+                                onRefreshCadenceChange(profile.cadence)
                                 quotaHaptics.toggle(true)
                             }
                         }
@@ -315,9 +328,9 @@ fun SettingsScreen(
                     )
                     ReadoutControlRow(
                         icon = Icons.Outlined.Update,
-                        title = "Recommended preset",
+                        title = "Active cadence",
                         value = refreshProfile.title,
-                        description = "Balanced is the default expressive rhythm for this page."
+                        description = "This setting now drives automatic quota refresh across the app."
                     )
                     ReadoutControlRow(
                         icon = Icons.Filled.AutoAwesome,
@@ -343,7 +356,7 @@ fun SettingsScreen(
                     usageAlerts = true
                     lowBalanceBanner = true
                     privacyShield = true
-                    refreshProfile = RefreshProfile.Balanced
+                    onRefreshCadenceChange(RefreshCadence.Balanced)
                     quotaHaptics.refreshResult(success = true)
                 }
             )
@@ -992,11 +1005,13 @@ private fun SettingsScreenPreview() {
             landscapeMonitorMode = false,
             hideLandscapeMonitorHud = true,
             forceDarkMode = false,
+            refreshCadence = RefreshCadence.Balanced,
             onHighEmphasisMetricsChange = {},
             onHapticConfirmationChange = {},
             onLandscapeMonitorModeChange = {},
             onHideLandscapeMonitorHudChange = {},
             onForceDarkModeChange = {},
+            onRefreshCadenceChange = {},
             onAboutClick = {}
         )
     }

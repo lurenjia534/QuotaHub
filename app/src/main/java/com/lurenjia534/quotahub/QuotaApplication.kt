@@ -15,6 +15,7 @@ import com.lurenjia534.quotahub.data.security.EncryptedCredentialVault
 import com.lurenjia534.quotahub.data.upgrade.QuotaUpgradeCoordinator
 import com.lurenjia534.quotahub.sync.DefaultSubscriptionRefreshPolicy
 import com.lurenjia534.quotahub.sync.DefaultSubscriptionSyncCoordinator
+import com.lurenjia534.quotahub.sync.SubscriptionAutoRefreshScheduler
 import com.lurenjia534.quotahub.sync.SubscriptionRefreshPolicy
 import com.lurenjia534.quotahub.sync.SubscriptionSyncCoordinator
 import com.lurenjia534.quotahub.ui.provider.ProviderUiRegistry
@@ -93,6 +94,16 @@ class QuotaApplication : Application() {
         )
     }
 
+    val subscriptionAutoRefreshScheduler: SubscriptionAutoRefreshScheduler by lazy {
+        SubscriptionAutoRefreshScheduler(
+            scope = applicationScope,
+            preferences = uiPreferencesRepository.preferences,
+            repository = subscriptionRepository,
+            syncCoordinator = subscriptionSyncCoordinator,
+            refreshPolicy = subscriptionRefreshPolicy
+        )
+    }
+
     override fun onCreate() {
         super.onCreate()
         applicationScope.launch {
@@ -110,6 +121,7 @@ class QuotaApplication : Application() {
                     "Replay failed for subscription=${failure.subscriptionId}, provider=${failure.providerId}: ${failure.reason}"
                 )
             }
+            subscriptionAutoRefreshScheduler.start()
         }
     }
 

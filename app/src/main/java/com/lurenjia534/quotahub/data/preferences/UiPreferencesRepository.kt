@@ -11,8 +11,23 @@ data class UiPreferences(
     val forceDarkMode: Boolean = false,
     val landscapeMonitorMode: Boolean = false,
     val hideLandscapeMonitorHud: Boolean = true,
+    val refreshCadence: RefreshCadence = RefreshCadence.Balanced,
     val dismissedUpdateTag: String? = null
 )
+
+enum class RefreshCadence(
+    val autoRefreshIntervalMillis: Long?
+) {
+    Live(60 * 1000L),
+    Balanced(60 * 60 * 1000L),
+    Manual(null);
+
+    companion object {
+        fun fromPersisted(value: String?): RefreshCadence {
+            return entries.firstOrNull { it.name == value } ?: Balanced
+        }
+    }
+}
 
 class UiPreferencesRepository(context: Context) {
     private val sharedPreferences = context.getSharedPreferences(
@@ -63,6 +78,14 @@ class UiPreferencesRepository(context: Context) {
         _preferences.value = _preferences.value.copy(hideLandscapeMonitorHud = enabled)
     }
 
+    fun setRefreshCadence(refreshCadence: RefreshCadence) {
+        sharedPreferences.edit()
+            .putString(KEY_REFRESH_CADENCE, refreshCadence.name)
+            .apply()
+
+        _preferences.value = _preferences.value.copy(refreshCadence = refreshCadence)
+    }
+
     fun setDismissedUpdateTag(tagName: String) {
         sharedPreferences.edit()
             .putString(KEY_DISMISSED_UPDATE_TAG, tagName)
@@ -78,6 +101,9 @@ class UiPreferencesRepository(context: Context) {
             forceDarkMode = sharedPreferences.getBoolean(KEY_FORCE_DARK_MODE, false),
             landscapeMonitorMode = sharedPreferences.getBoolean(KEY_LANDSCAPE_MONITOR_MODE, false),
             hideLandscapeMonitorHud = sharedPreferences.getBoolean(KEY_HIDE_LANDSCAPE_MONITOR_HUD, true),
+            refreshCadence = RefreshCadence.fromPersisted(
+                sharedPreferences.getString(KEY_REFRESH_CADENCE, null)
+            ),
             dismissedUpdateTag = sharedPreferences.getString(KEY_DISMISSED_UPDATE_TAG, null)
         )
     }
@@ -89,6 +115,7 @@ class UiPreferencesRepository(context: Context) {
         const val KEY_FORCE_DARK_MODE = "force_dark_mode"
         const val KEY_LANDSCAPE_MONITOR_MODE = "landscape_monitor_mode"
         const val KEY_HIDE_LANDSCAPE_MONITOR_HUD = "hide_landscape_monitor_hud"
+        const val KEY_REFRESH_CADENCE = "refresh_cadence"
         const val KEY_DISMISSED_UPDATE_TAG = "dismissed_update_tag"
     }
 }
