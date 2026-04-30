@@ -26,6 +26,17 @@ class ZaiSubscriptionCardProjectorTest {
         assertEquals(2, projection.resourceCount)
         assertEquals(1_776_610_539_070L, projection.nextResetAt)
         assertEquals(QuotaRisk.Healthy, projection.risk)
+        assertEquals(2, projection.hubProgressMetrics.size)
+        assertEquals("5h tokens", projection.hubProgressMetrics[0].label)
+        assertEquals(5L, projection.hubProgressMetrics[0].used)
+        assertEquals(100L, projection.hubProgressMetrics[0].total)
+        assertEquals(95L, projection.hubProgressMetrics[0].remaining)
+        assertEquals(1_776_610_539_070L, projection.hubProgressMetrics[0].resetAtEpochMillis)
+        assertEquals("Monthly MCP", projection.hubProgressMetrics[1].label)
+        assertEquals(14L, projection.hubProgressMetrics[1].used)
+        assertEquals(100L, projection.hubProgressMetrics[1].total)
+        assertEquals(86L, projection.hubProgressMetrics[1].remaining)
+        assertEquals(1_776_836_140_998L, projection.hubProgressMetrics[1].resetAtEpochMillis)
     }
 
     private fun subscription(): Subscription {
