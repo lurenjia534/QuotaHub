@@ -5,6 +5,11 @@ the matching version section from this file as release notes.
 
 ## [Unreleased]
 
+## [v1.4.2] - 2026-05-01
+
+- Added a manual Check for updates action to the About screen, reusing the
+  GitHub Releases update dialog and showing inline check status.
+
 ## [v1.4.1] - 2026-04-30
 
 - Fixed the landscape Home monitor for Z.ai and Zhipu subscriptions so their
