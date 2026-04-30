@@ -27,6 +27,7 @@ import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaScreen
 import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaDetailProjectorRegistry
 import com.lurenjia534.quotahub.ui.provider.ProviderUiRegistry
 import com.lurenjia534.quotahub.ui.screens.about.AboutScreen
+import com.lurenjia534.quotahub.ui.screens.about.ManualUpdateCheckResult
 import com.lurenjia534.quotahub.ui.screens.settings.SettingsScreen
 
 @Composable
@@ -48,6 +49,7 @@ fun QuotaNavHost(
     onHideLandscapeMonitorHudChange: (Boolean) -> Unit,
     onForceDarkModeChange: (Boolean) -> Unit,
     onRefreshCadenceChange: (RefreshCadence) -> Unit,
+    onCheckForUpdate: suspend () -> ManualUpdateCheckResult,
     bottomContentPadding: Dp = 0.dp,
     addSubscriptionRequestKey: Int = 0,
     modifier: Modifier = Modifier
@@ -161,7 +163,8 @@ fun QuotaNavHost(
 
         composable(route = Screen.About.route) {
             AboutScreen(
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                onCheckForUpdate = onCheckForUpdate
             )
         }
     }

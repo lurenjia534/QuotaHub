@@ -31,6 +31,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.Update
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -41,6 +44,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,25 +60,46 @@ import androidx.compose.ui.unit.dp
 import com.lurenjia534.quotahub.R
 import com.lurenjia534.quotahub.ui.theme.QuotaHubTheme
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private const val AuthorGithubUrl = "https://github.com/lurenjia534"
 private const val AppHomepageUrl = "https://github.com/lurenjia534/QuotaHub/"
 
+sealed interface ManualUpdateCheckResult {
+    data object UpToDate : ManualUpdateCheckResult
+    data class UpdateFound(val versionName: String) : ManualUpdateCheckResult
+    data class Failed(val message: String) : ManualUpdateCheckResult
+}
+
+private sealed interface ManualUpdateCheckUiState {
+    data object Idle : ManualUpdateCheckUiState
+    data object Checking : ManualUpdateCheckUiState
+    data object UpToDate : ManualUpdateCheckUiState
+    data class UpdateFound(val versionName: String) : ManualUpdateCheckUiState
+    data class Failed(val message: String) : ManualUpdateCheckUiState
+}
+
 @Composable
 fun AboutScreen(
     onBackClick: () -> Unit,
+    onCheckForUpdate: suspend () -> ManualUpdateCheckResult = { ManualUpdateCheckResult.UpToDate },
     modifier: Modifier = Modifier
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val versionName = rememberAppVersionName()
+    val coroutineScope = rememberCoroutineScope()
     var headerVisible by remember { mutableStateOf(false) }
     var identityVisible by remember { mutableStateOf(false) }
+    var updateVisible by remember { mutableStateOf(false) }
     var githubVisible by remember { mutableStateOf(false) }
+    var updateCheckUiState by remember { mutableStateOf<ManualUpdateCheckUiState>(ManualUpdateCheckUiState.Idle) }
 
     LaunchedEffect(Unit) {
         headerVisible = true
         delay(80)
         identityVisible = true
+        delay(80)
+        updateVisible = true
         delay(80)
         githubVisible = true
     }
@@ -113,6 +138,34 @@ fun AboutScreen(
         }
 
         item {
+            AnimatedAboutSection(visible = updateVisible) {
+                AboutUpdatePanel(
+                    versionName = versionName,
+                    state = updateCheckUiState,
+                    onCheckForUpdate = {
+                        coroutineScope.launch {
+                            updateCheckUiState = ManualUpdateCheckUiState.Checking
+                            val result = runCatching { onCheckForUpdate() }.getOrElse {
+                                ManualUpdateCheckResult.Failed("Could not reach GitHub Releases.")
+                            }
+                            updateCheckUiState = when (result) {
+                                is ManualUpdateCheckResult.Failed -> {
+                                    ManualUpdateCheckUiState.Failed(result.message)
+                                }
+                                ManualUpdateCheckResult.UpToDate -> {
+                                    ManualUpdateCheckUiState.UpToDate
+                                }
+                                is ManualUpdateCheckResult.UpdateFound -> {
+                                    ManualUpdateCheckUiState.UpdateFound(result.versionName)
+                                }
+                            }
+                        }
+                    }
+                )
+            }
+        }
+
+        item {
             AnimatedAboutSection(visible = githubVisible) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     AboutLinkRow(
@@ -126,6 +179,105 @@ fun AboutScreen(
                         url = AppHomepageUrl
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AboutUpdatePanel(
+    versionName: String,
+    state: ManualUpdateCheckUiState,
+    onCheckForUpdate: () -> Unit
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    val isChecking = state == ManualUpdateCheckUiState.Checking
+    val statusText = when (state) {
+        ManualUpdateCheckUiState.Idle -> "Check GitHub Releases for a newer build."
+        ManualUpdateCheckUiState.Checking -> "Checking GitHub Releases..."
+        ManualUpdateCheckUiState.UpToDate -> "Version $versionName is up to date."
+        is ManualUpdateCheckUiState.UpdateFound -> "Version ${state.versionName} is available."
+        is ManualUpdateCheckUiState.Failed -> state.message.ifBlank {
+            "Could not reach GitHub Releases."
+        }
+    }
+    val shape = RoundedCornerShape(
+        topStart = 28.dp,
+        topEnd = 20.dp,
+        bottomStart = 20.dp,
+        bottomEnd = 32.dp
+    )
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = shape,
+        color = colorScheme.surfaceContainerLow,
+        contentColor = colorScheme.onSurface,
+        border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.16f))
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    modifier = Modifier.size(44.dp),
+                    shape = RoundedCornerShape(
+                        topStart = 16.dp,
+                        topEnd = 12.dp,
+                        bottomStart = 12.dp,
+                        bottomEnd = 18.dp
+                    ),
+                    color = colorScheme.primaryContainer.copy(alpha = 0.62f),
+                    contentColor = colorScheme.onPrimaryContainer
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Outlined.Update,
+                            contentDescription = null
+                        )
+                    }
+                }
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    Text(
+                        text = "Updates",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+                    )
+                    Text(
+                        text = statusText,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = colorScheme.onSurfaceVariant
+                        )
+                    )
+                }
+            }
+
+            FilledTonalButton(
+                onClick = onCheckForUpdate,
+                enabled = !isChecking,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (isChecking) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                } else {
+                    Icon(
+                        imageVector = Icons.Outlined.Update,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                Text(if (isChecking) "Checking" else "Check for updates")
             }
         }
     }

@@ -73,6 +73,7 @@ import com.lurenjia534.quotahub.ui.navigation.bottomNavItems
 import com.lurenjia534.quotahub.ui.navigation.bottomNavItemsData
 import com.lurenjia534.quotahub.ui.navigation.Screen
 import com.lurenjia534.quotahub.ui.provider.ProviderUiRegistry
+import com.lurenjia534.quotahub.ui.screens.about.ManualUpdateCheckResult
 import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaDetailProjectorRegistry
 import com.lurenjia534.quotahub.sync.SubscriptionRefreshPolicy
 import com.lurenjia534.quotahub.ui.theme.QuotaHubTheme
@@ -142,10 +143,11 @@ fun QuotaApp(
     var availableUpdate by remember { mutableStateOf<AvailableUpdate?>(null) }
     var navigationControlsVisible by rememberSaveable { mutableStateOf(true) }
     var navigationRevealKey by remember { mutableIntStateOf(0) }
+    val currentVersionName = LocalContext.current.versionNameOrFallback()
 
     LandscapeMonitorModeEffect(enabled = landscapeMonitorMode)
     UpdateCheckEffect(
-        currentVersionName = LocalContext.current.versionNameOrFallback(),
+        currentVersionName = currentVersionName,
         dismissedUpdateTag = uiPreferences.dismissedUpdateTag,
         onUpdateAvailable = { update ->
             availableUpdate = update
@@ -222,6 +224,21 @@ fun QuotaApp(
                         onHideLandscapeMonitorHudChange = uiPreferencesRepository::setHideLandscapeMonitorHud,
                         onForceDarkModeChange = uiPreferencesRepository::setForceDarkMode,
                         onRefreshCadenceChange = uiPreferencesRepository::setRefreshCadence,
+                        onCheckForUpdate = {
+                            UpdateChecker().checkForUpdate(currentVersionName).fold(
+                                onSuccess = { update ->
+                                    if (update == null) {
+                                        ManualUpdateCheckResult.UpToDate
+                                    } else {
+                                        availableUpdate = update
+                                        ManualUpdateCheckResult.UpdateFound(update.versionName)
+                                    }
+                                },
+                                onFailure = {
+                                    ManualUpdateCheckResult.Failed("Could not reach GitHub Releases.")
+                                }
+                            )
+                        },
                         bottomContentPadding = 0.dp,
                         addSubscriptionRequestKey = addSubscriptionRequestKey,
                         modifier = Modifier.fillMaxSize()
