@@ -117,6 +117,7 @@ fun SettingsScreen(
     serverClientMode: Boolean,
     forceDarkMode: Boolean,
     refreshCadence: RefreshCadence,
+    notificationPermissionGranted: Boolean,
     onHighEmphasisMetricsChange: (Boolean) -> Unit,
     onHapticConfirmationChange: (Boolean) -> Unit,
     onLandscapeMonitorModeChange: (Boolean) -> Unit,
@@ -124,12 +125,13 @@ fun SettingsScreen(
     onServerClientModeChange: (Boolean) -> Unit,
     onForceDarkModeChange: (Boolean) -> Unit,
     onRefreshCadenceChange: (RefreshCadence) -> Unit,
+    onRequestNotificationPermission: () -> Unit,
     onAboutClick: () -> Unit,
     bottomContentPadding: Dp = 0.dp,
     modifier: Modifier = Modifier
 ) {
     var dynamicPaletteEnabled by rememberSaveable { mutableStateOf(true) }
-    var usageAlerts by rememberSaveable { mutableStateOf(true) }
+    var usageAlerts by rememberSaveable { mutableStateOf(notificationPermissionGranted) }
     var lowBalanceBanner by rememberSaveable { mutableStateOf(true) }
     var privacyShield by rememberSaveable { mutableStateOf(true) }
     val refreshProfile = RefreshProfile.fromCadence(refreshCadence)
@@ -154,6 +156,9 @@ fun SettingsScreen(
         awarenessVisible = true
         delay(70)
         transparencyVisible = true
+    }
+    LaunchedEffect(notificationPermissionGranted) {
+        usageAlerts = notificationPermissionGranted
     }
 
     LazyColumn(
@@ -317,12 +322,29 @@ fun SettingsScreen(
                     ToggleControlRow(
                         icon = Icons.Outlined.NotificationsActive,
                         title = "Usage alerts",
-                        description = "Notify when a provider crosses your preferred quota threshold.",
+                        description = if (notificationPermissionGranted) {
+                            "Notify when a provider crosses your preferred quota threshold."
+                        } else {
+                            "Allow Android notification permission before quota alerts can appear."
+                        },
                         checked = usageAlerts,
-                        onCheckedChange = { usageAlerts = it },
+                        onCheckedChange = { checked ->
+                            if (checked && !notificationPermissionGranted) {
+                                usageAlerts = false
+                                onRequestNotificationPermission()
+                            } else {
+                                usageAlerts = checked
+                            }
+                        },
                         onAfterCheckedChange = { checked ->
                             quotaHaptics.toggle(checked)
                         }
+                    )
+                    ReadoutControlRow(
+                        icon = Icons.Outlined.Security,
+                        title = "Notification permission",
+                        value = if (notificationPermissionGranted) "Allowed" else "Required",
+                        description = "Android permission gate for future quota usage notifications."
                     )
                     ToggleControlRow(
                         icon = Icons.Outlined.Bolt,
@@ -390,7 +412,12 @@ fun SettingsScreen(
                     onHapticConfirmationChange(true)
                     onLandscapeMonitorModeChange(false)
                     onServerClientModeChange(false)
-                    usageAlerts = true
+                    if (notificationPermissionGranted) {
+                        usageAlerts = true
+                    } else {
+                        usageAlerts = false
+                        onRequestNotificationPermission()
+                    }
                     lowBalanceBanner = true
                     privacyShield = true
                     onRefreshCadenceChange(RefreshCadence.Balanced)
@@ -1141,6 +1168,7 @@ private fun SettingsScreenPreview() {
             serverClientMode = false,
             forceDarkMode = false,
             refreshCadence = RefreshCadence.Balanced,
+            notificationPermissionGranted = true,
             onHighEmphasisMetricsChange = {},
             onHapticConfirmationChange = {},
             onLandscapeMonitorModeChange = {},
@@ -1148,6 +1176,7 @@ private fun SettingsScreenPreview() {
             onServerClientModeChange = {},
             onForceDarkModeChange = {},
             onRefreshCadenceChange = {},
+            onRequestNotificationPermission = {},
             onAboutClick = {}
         )
     }

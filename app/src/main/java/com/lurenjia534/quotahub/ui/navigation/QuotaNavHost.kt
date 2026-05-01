@@ -44,6 +44,7 @@ fun QuotaNavHost(
     hideLandscapeMonitorHud: Boolean,
     serverClientMode: Boolean,
     forceDarkMode: Boolean,
+    notificationPermissionGranted: Boolean,
     onHighEmphasisMetricsChange: (Boolean) -> Unit,
     onHapticConfirmationChange: (Boolean) -> Unit,
     onLandscapeMonitorModeChange: (Boolean) -> Unit,
@@ -51,6 +52,7 @@ fun QuotaNavHost(
     onServerClientModeChange: (Boolean) -> Unit,
     onForceDarkModeChange: (Boolean) -> Unit,
     onRefreshCadenceChange: (RefreshCadence) -> Unit,
+    onRequestNotificationPermission: () -> Unit,
     onCheckForUpdate: suspend () -> ManualUpdateCheckResult,
     bottomContentPadding: Dp = 0.dp,
     addSubscriptionRequestKey: Int = 0,
@@ -149,6 +151,7 @@ fun QuotaNavHost(
                 serverClientMode = serverClientMode,
                 forceDarkMode = forceDarkMode,
                 refreshCadence = refreshCadence,
+                notificationPermissionGranted = notificationPermissionGranted,
                 bottomContentPadding = bottomContentPadding,
                 onHighEmphasisMetricsChange = onHighEmphasisMetricsChange,
                 onHapticConfirmationChange = onHapticConfirmationChange,
@@ -157,6 +160,7 @@ fun QuotaNavHost(
                 onServerClientModeChange = onServerClientModeChange,
                 onForceDarkModeChange = onForceDarkModeChange,
                 onRefreshCadenceChange = onRefreshCadenceChange,
+                onRequestNotificationPermission = onRequestNotificationPermission,
                 onAboutClick = {
                     navController.navigate(Screen.About.route) {
                         launchSingleTop = true

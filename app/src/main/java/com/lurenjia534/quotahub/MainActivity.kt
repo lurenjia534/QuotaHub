@@ -1,13 +1,18 @@
 package com.lurenjia534.quotahub
 
+import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.pm.PackageManager
 import android.content.pm.ActivityInfo
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
@@ -61,6 +66,7 @@ import androidx.compose.ui.zIndex
 import com.lurenjia534.quotahub.data.preferences.UiPreferencesRepository
 import com.lurenjia534.quotahub.data.update.AvailableUpdate
 import com.lurenjia534.quotahub.data.update.UpdateChecker
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -143,9 +149,30 @@ fun QuotaApp(
     var availableUpdate by remember { mutableStateOf<AvailableUpdate?>(null) }
     var navigationControlsVisible by rememberSaveable { mutableStateOf(true) }
     var navigationRevealKey by remember { mutableIntStateOf(0) }
-    val currentVersionName = LocalContext.current.versionNameOrFallback()
+    val context = LocalContext.current
+    val currentVersionName = context.versionNameOrFallback()
+    var notificationPermissionGranted by remember {
+        mutableStateOf(context.hasNotificationPermission())
+    }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { granted ->
+            notificationPermissionGranted = granted
+        }
+    )
+
+    fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            notificationPermissionGranted = true
+        }
+    }
 
     LandscapeMonitorModeEffect(enabled = landscapeMonitorMode)
+    LaunchedEffect(currentRoute) {
+        notificationPermissionGranted = context.hasNotificationPermission()
+    }
     UpdateCheckEffect(
         currentVersionName = currentVersionName,
         dismissedUpdateTag = uiPreferences.dismissedUpdateTag,
@@ -219,6 +246,7 @@ fun QuotaApp(
                         hideLandscapeMonitorHud = uiPreferences.hideLandscapeMonitorHud,
                         serverClientMode = uiPreferences.serverClientMode,
                         forceDarkMode = uiPreferences.forceDarkMode,
+                        notificationPermissionGranted = notificationPermissionGranted,
                         onHighEmphasisMetricsChange = uiPreferencesRepository::setHighEmphasisMetrics,
                         onHapticConfirmationChange = uiPreferencesRepository::setHapticConfirmation,
                         onLandscapeMonitorModeChange = uiPreferencesRepository::setLandscapeMonitorMode,
@@ -226,6 +254,7 @@ fun QuotaApp(
                         onServerClientModeChange = uiPreferencesRepository::setServerClientMode,
                         onForceDarkModeChange = uiPreferencesRepository::setForceDarkMode,
                         onRefreshCadenceChange = uiPreferencesRepository::setRefreshCadence,
+                        onRequestNotificationPermission = ::requestNotificationPermission,
                         onCheckForUpdate = {
                             UpdateChecker().checkForUpdate(currentVersionName).fold(
                                 onSuccess = { update ->
@@ -334,6 +363,14 @@ private tailrec fun Context.findActivity(): Activity? {
         is ContextWrapper -> baseContext.findActivity()
         else -> null
     }
+}
+
+private fun Context.hasNotificationPermission(): Boolean {
+    return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+        ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
 }
 
 @Composable
