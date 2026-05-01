@@ -29,6 +29,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.outlined.CloudQueue
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Bolt
@@ -36,6 +37,7 @@ import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.PrivacyTip
 import androidx.compose.material.icons.outlined.ScreenRotation
+import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material.icons.outlined.Tune
@@ -112,12 +114,14 @@ fun SettingsScreen(
     hapticConfirmation: Boolean,
     landscapeMonitorMode: Boolean,
     hideLandscapeMonitorHud: Boolean,
+    serverClientMode: Boolean,
     forceDarkMode: Boolean,
     refreshCadence: RefreshCadence,
     onHighEmphasisMetricsChange: (Boolean) -> Unit,
     onHapticConfirmationChange: (Boolean) -> Unit,
     onLandscapeMonitorModeChange: (Boolean) -> Unit,
     onHideLandscapeMonitorHudChange: (Boolean) -> Unit,
+    onServerClientModeChange: (Boolean) -> Unit,
     onForceDarkModeChange: (Boolean) -> Unit,
     onRefreshCadenceChange: (RefreshCadence) -> Unit,
     onAboutClick: () -> Unit,
@@ -134,6 +138,7 @@ fun SettingsScreen(
     var headerVisible by remember { mutableStateOf(false) }
     var displayVisible by remember { mutableStateOf(false) }
     var refreshVisible by remember { mutableStateOf(false) }
+    var serverVisible by remember { mutableStateOf(false) }
     var awarenessVisible by remember { mutableStateOf(false) }
     var transparencyVisible by remember { mutableStateOf(false) }
 
@@ -143,6 +148,8 @@ fun SettingsScreen(
         displayVisible = true
         delay(70)
         refreshVisible = true
+        delay(70)
+        serverVisible = true
         delay(70)
         awarenessVisible = true
         delay(70)
@@ -167,7 +174,8 @@ fun SettingsScreen(
                     refreshProfile = refreshProfile,
                     dynamicPaletteEnabled = dynamicPaletteEnabled,
                     usageAlerts = usageAlerts,
-                    privacyShield = privacyShield
+                    privacyShield = privacyShield,
+                    serverClientMode = serverClientMode
                 )
             }
         }
@@ -271,9 +279,37 @@ fun SettingsScreen(
         }
 
         item {
-            AnimatedSection(visible = awarenessVisible) {
+            AnimatedSection(visible = serverVisible) {
                 SettingsControlSection(
                     index = 2,
+                    icon = Icons.Outlined.CloudQueue,
+                    title = "Server coordination",
+                    subtitle = "Gate any future web-managed subscription sync before this device accepts it."
+                ) {
+                    ToggleControlRow(
+                        icon = Icons.Outlined.CloudQueue,
+                        title = "Remote client mode",
+                        description = "Allow this device to link to a trusted QuotaHub web server after strict authentication is implemented.",
+                        checked = serverClientMode,
+                        onCheckedChange = onServerClientModeChange,
+                        onAfterCheckedChange = { checked ->
+                            quotaHaptics.toggle(checked)
+                        }
+                    )
+                    ServerModeScopeReadout(enabled = serverClientMode)
+                    ControlSummaryStrip(
+                        icon = Icons.Outlined.Security,
+                        title = if (serverClientMode) "Client gate armed" else "Local-only client",
+                        body = "UI shell only. No endpoints, server auth, or remote subscription sync are active in this build."
+                    )
+                }
+            }
+        }
+
+        item {
+            AnimatedSection(visible = awarenessVisible) {
+                SettingsControlSection(
+                    index = 3,
                     icon = Icons.Outlined.NotificationsActive,
                     title = "Awareness",
                     subtitle = "Decide which changes should surface without turning Home into noise."
@@ -315,7 +351,7 @@ fun SettingsScreen(
         item {
             AnimatedSection(visible = transparencyVisible) {
                 SettingsControlSection(
-                    index = 3,
+                    index = 4,
                     icon = Icons.Outlined.Storage,
                     title = "Data transparency",
                     subtitle = "Keep implementation facts visible as compact readouts."
@@ -353,6 +389,7 @@ fun SettingsScreen(
                     onHighEmphasisMetricsChange(true)
                     onHapticConfirmationChange(true)
                     onLandscapeMonitorModeChange(false)
+                    onServerClientModeChange(false)
                     usageAlerts = true
                     lowBalanceBanner = true
                     privacyShield = true
@@ -387,7 +424,8 @@ private fun SettingsControlHeader(
     refreshProfile: RefreshProfile,
     dynamicPaletteEnabled: Boolean,
     usageAlerts: Boolean,
-    privacyShield: Boolean
+    privacyShield: Boolean,
+    serverClientMode: Boolean
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val titleScale by animateFloatAsState(
@@ -464,6 +502,11 @@ private fun SettingsControlHeader(
                 label = if (privacyShield) "Private labels" else "Full labels",
                 icon = Icons.Outlined.PrivacyTip,
                 index = 3
+            )
+            HeaderSignalChip(
+                label = if (serverClientMode) "Remote client armed" else "Local only",
+                icon = Icons.Outlined.CloudQueue,
+                index = 4
             )
         }
     }
@@ -706,6 +749,97 @@ private fun ReadoutControlRow(
                         color = colorScheme.primary
                     ),
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ServerModeScopeReadout(enabled: Boolean) {
+    val colorScheme = MaterialTheme.colorScheme
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text(
+            text = "Subscription boundaries",
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+        )
+        Text(
+            text = "Planned scopes keep local, team server, and private cloud subscriptions separate.",
+            style = MaterialTheme.typography.bodyMedium.copy(
+                color = colorScheme.onSurfaceVariant
+            )
+        )
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            SourceScopeChip(
+                icon = Icons.Outlined.Storage,
+                label = "Local",
+                value = "On device",
+                emphasized = true
+            )
+            SourceScopeChip(
+                icon = Icons.Outlined.CloudQueue,
+                label = "Team server",
+                value = if (enabled) "Auth required" else "Off",
+                emphasized = enabled
+            )
+            SourceScopeChip(
+                icon = Icons.Outlined.PrivacyTip,
+                label = "Private cloud",
+                value = "Separate",
+                emphasized = false
+            )
+        }
+    }
+}
+
+@Composable
+private fun SourceScopeChip(
+    icon: ImageVector,
+    label: String,
+    value: String,
+    emphasized: Boolean
+) {
+    val colorScheme = MaterialTheme.colorScheme
+
+    Surface(
+        color = if (emphasized) colorScheme.primaryContainer else colorScheme.surfaceContainerHigh,
+        contentColor = if (emphasized) colorScheme.onPrimaryContainer else colorScheme.onSurface,
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.14f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+                )
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        color = if (emphasized) {
+                            colorScheme.onPrimaryContainer.copy(alpha = 0.78f)
+                        } else {
+                            colorScheme.onSurfaceVariant
+                        }
+                    )
                 )
             }
         }
@@ -1004,12 +1138,14 @@ private fun SettingsScreenPreview() {
             hapticConfirmation = true,
             landscapeMonitorMode = false,
             hideLandscapeMonitorHud = true,
+            serverClientMode = false,
             forceDarkMode = false,
             refreshCadence = RefreshCadence.Balanced,
             onHighEmphasisMetricsChange = {},
             onHapticConfirmationChange = {},
             onLandscapeMonitorModeChange = {},
             onHideLandscapeMonitorHudChange = {},
+            onServerClientModeChange = {},
             onForceDarkModeChange = {},
             onRefreshCadenceChange = {},
             onAboutClick = {}

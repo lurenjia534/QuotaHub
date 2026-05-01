@@ -11,6 +11,7 @@ data class UiPreferences(
     val forceDarkMode: Boolean = false,
     val landscapeMonitorMode: Boolean = false,
     val hideLandscapeMonitorHud: Boolean = true,
+    val serverClientMode: Boolean = false,
     val refreshCadence: RefreshCadence = RefreshCadence.Balanced,
     val dismissedUpdateTag: String? = null
 )
@@ -78,6 +79,14 @@ class UiPreferencesRepository(context: Context) {
         _preferences.value = _preferences.value.copy(hideLandscapeMonitorHud = enabled)
     }
 
+    fun setServerClientMode(enabled: Boolean) {
+        sharedPreferences.edit()
+            .putBoolean(KEY_SERVER_CLIENT_MODE, enabled)
+            .apply()
+
+        _preferences.value = _preferences.value.copy(serverClientMode = enabled)
+    }
+
     fun setRefreshCadence(refreshCadence: RefreshCadence) {
         sharedPreferences.edit()
             .putString(KEY_REFRESH_CADENCE, refreshCadence.name)
@@ -101,6 +110,7 @@ class UiPreferencesRepository(context: Context) {
             forceDarkMode = sharedPreferences.getBoolean(KEY_FORCE_DARK_MODE, false),
             landscapeMonitorMode = sharedPreferences.getBoolean(KEY_LANDSCAPE_MONITOR_MODE, false),
             hideLandscapeMonitorHud = sharedPreferences.getBoolean(KEY_HIDE_LANDSCAPE_MONITOR_HUD, true),
+            serverClientMode = sharedPreferences.getBoolean(KEY_SERVER_CLIENT_MODE, false),
             refreshCadence = RefreshCadence.fromPersisted(
                 sharedPreferences.getString(KEY_REFRESH_CADENCE, null)
             ),
@@ -115,6 +125,7 @@ class UiPreferencesRepository(context: Context) {
         const val KEY_FORCE_DARK_MODE = "force_dark_mode"
         const val KEY_LANDSCAPE_MONITOR_MODE = "landscape_monitor_mode"
         const val KEY_HIDE_LANDSCAPE_MONITOR_HUD = "hide_landscape_monitor_hud"
+        const val KEY_SERVER_CLIENT_MODE = "server_client_mode"
         const val KEY_REFRESH_CADENCE = "refresh_cadence"
         const val KEY_DISMISSED_UPDATE_TAG = "dismissed_update_tag"
     }

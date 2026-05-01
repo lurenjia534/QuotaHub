@@ -217,11 +217,13 @@ fun QuotaApp(
                         hapticConfirmation = uiPreferences.hapticConfirmation,
                         landscapeMonitorMode = landscapeMonitorMode,
                         hideLandscapeMonitorHud = uiPreferences.hideLandscapeMonitorHud,
+                        serverClientMode = uiPreferences.serverClientMode,
                         forceDarkMode = uiPreferences.forceDarkMode,
                         onHighEmphasisMetricsChange = uiPreferencesRepository::setHighEmphasisMetrics,
                         onHapticConfirmationChange = uiPreferencesRepository::setHapticConfirmation,
                         onLandscapeMonitorModeChange = uiPreferencesRepository::setLandscapeMonitorMode,
                         onHideLandscapeMonitorHudChange = uiPreferencesRepository::setHideLandscapeMonitorHud,
+                        onServerClientModeChange = uiPreferencesRepository::setServerClientMode,
                         onForceDarkModeChange = uiPreferencesRepository::setForceDarkMode,
                         onRefreshCadenceChange = uiPreferencesRepository::setRefreshCadence,
                         onCheckForUpdate = {

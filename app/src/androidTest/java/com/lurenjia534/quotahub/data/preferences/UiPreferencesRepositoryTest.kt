@@ -27,6 +27,7 @@ class UiPreferencesRepositoryTest {
         assertTrue(preferences.highEmphasisMetrics)
         assertTrue(preferences.hapticConfirmation)
         assertFalse(preferences.landscapeMonitorMode)
+        assertFalse(preferences.serverClientMode)
         assertEquals(RefreshCadence.Balanced, preferences.refreshCadence)
         assertNull(preferences.dismissedUpdateTag)
     }
@@ -60,6 +61,37 @@ class UiPreferencesRepositoryTest {
         assertFalse(preferences.highEmphasisMetrics)
         assertFalse(preferences.hapticConfirmation)
         assertTrue(preferences.landscapeMonitorMode)
+    }
+
+    @Test
+    fun setServerClientMode_updatesStateAndPersistsValue() {
+        clearPreferences()
+        val repository = UiPreferencesRepository(context)
+
+        repository.setServerClientMode(true)
+
+        assertTrue(repository.preferences.value.serverClientMode)
+        assertTrue(UiPreferencesRepository(context).preferences.value.serverClientMode)
+
+        repository.setServerClientMode(false)
+
+        assertFalse(repository.preferences.value.serverClientMode)
+        assertFalse(UiPreferencesRepository(context).preferences.value.serverClientMode)
+    }
+
+    @Test
+    fun setServerClientMode_doesNotMutateLocalDisplayPreferences() {
+        clearPreferences()
+        val repository = UiPreferencesRepository(context)
+
+        repository.setHighEmphasisMetrics(false)
+        repository.setLandscapeMonitorMode(true)
+        repository.setServerClientMode(true)
+
+        val preferences = repository.preferences.value
+        assertFalse(preferences.highEmphasisMetrics)
+        assertTrue(preferences.landscapeMonitorMode)
+        assertTrue(preferences.serverClientMode)
     }
 
     @Test
