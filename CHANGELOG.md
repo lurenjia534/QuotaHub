@@ -5,6 +5,8 @@ the matching version section from this file as release notes.
 
 ## [Unreleased]
 
+## [v1.4.4] - 2026-05-05
+
 - Added an optional WorkManager-backed background refresh toggle that runs
   separately from the foreground refresh cadence.
 - Scoped the existing automatic refresh loop to the visible app lifecycle.
