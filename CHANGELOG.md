@@ -5,6 +5,16 @@ the matching version section from this file as release notes.
 
 ## [Unreleased]
 
+## [v1.4.3] - 2026-05-05
+
+- Added the server/client mode settings shell and persisted its preference.
+- Added notification permission gating for quota usage alerts.
+- Updated the recommended settings action to respect the current notification
+  permission state.
+- Added an adaptive provider detail layout for wider screens.
+- Updated the Kimi trademark asset reference to the current drawable path.
+- Updated Material 3 to 1.5.0-alpha18.
+
 ## [v1.4.2] - 2026-05-01
 
 - Added a manual Check for updates action to the About screen, reusing the
