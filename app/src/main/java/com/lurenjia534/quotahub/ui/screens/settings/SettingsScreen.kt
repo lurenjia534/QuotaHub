@@ -340,12 +340,6 @@ fun SettingsScreen(
                             quotaHaptics.toggle(checked)
                         }
                     )
-                    ReadoutControlRow(
-                        icon = Icons.Outlined.Security,
-                        title = "Notification permission",
-                        value = if (notificationPermissionGranted) "Allowed" else "Required",
-                        description = "Android permission gate for future quota usage notifications."
-                    )
                     ToggleControlRow(
                         icon = Icons.Outlined.Bolt,
                         title = "Low-balance banner",
@@ -412,12 +406,7 @@ fun SettingsScreen(
                     onHapticConfirmationChange(true)
                     onLandscapeMonitorModeChange(false)
                     onServerClientModeChange(false)
-                    if (notificationPermissionGranted) {
-                        usageAlerts = true
-                    } else {
-                        usageAlerts = false
-                        onRequestNotificationPermission()
-                    }
+                    usageAlerts = notificationPermissionGranted
                     lowBalanceBanner = true
                     privacyShield = true
                     onRefreshCadenceChange(RefreshCadence.Balanced)
