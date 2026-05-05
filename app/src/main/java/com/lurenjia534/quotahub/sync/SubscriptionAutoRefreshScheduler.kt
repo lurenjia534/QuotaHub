@@ -44,6 +44,11 @@ class SubscriptionAutoRefreshScheduler(
         }
     }
 
+    fun stop() {
+        job?.cancel()
+        job = null
+    }
+
     private suspend fun refreshEligibleSubscriptions(refreshCadence: RefreshCadence) {
         val subscriptions = repository.subscriptions.first()
         subscriptions

@@ -86,6 +86,16 @@ import com.lurenjia534.quotahub.ui.theme.QuotaHubTheme
 import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
+    override fun onStart() {
+        super.onStart()
+        (application as QuotaApplication).startForegroundRefresh()
+    }
+
+    override fun onStop() {
+        (application as QuotaApplication).stopForegroundRefresh()
+        super.onStop()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -246,6 +256,7 @@ fun QuotaApp(
                         hideLandscapeMonitorHud = uiPreferences.hideLandscapeMonitorHud,
                         serverClientMode = uiPreferences.serverClientMode,
                         forceDarkMode = uiPreferences.forceDarkMode,
+                        backgroundRefreshEnabled = uiPreferences.backgroundRefreshEnabled,
                         notificationPermissionGranted = notificationPermissionGranted,
                         onHighEmphasisMetricsChange = uiPreferencesRepository::setHighEmphasisMetrics,
                         onHapticConfirmationChange = uiPreferencesRepository::setHapticConfirmation,
@@ -253,6 +264,7 @@ fun QuotaApp(
                         onHideLandscapeMonitorHudChange = uiPreferencesRepository::setHideLandscapeMonitorHud,
                         onServerClientModeChange = uiPreferencesRepository::setServerClientMode,
                         onForceDarkModeChange = uiPreferencesRepository::setForceDarkMode,
+                        onBackgroundRefreshEnabledChange = uiPreferencesRepository::setBackgroundRefreshEnabled,
                         onRefreshCadenceChange = uiPreferencesRepository::setRefreshCadence,
                         onRequestNotificationPermission = ::requestNotificationPermission,
                         onCheckForUpdate = {

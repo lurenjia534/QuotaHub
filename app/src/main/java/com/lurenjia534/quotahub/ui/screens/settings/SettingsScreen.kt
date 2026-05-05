@@ -117,6 +117,7 @@ fun SettingsScreen(
     serverClientMode: Boolean,
     forceDarkMode: Boolean,
     refreshCadence: RefreshCadence,
+    backgroundRefreshEnabled: Boolean,
     notificationPermissionGranted: Boolean,
     onHighEmphasisMetricsChange: (Boolean) -> Unit,
     onHapticConfirmationChange: (Boolean) -> Unit,
@@ -124,6 +125,7 @@ fun SettingsScreen(
     onHideLandscapeMonitorHudChange: (Boolean) -> Unit,
     onServerClientModeChange: (Boolean) -> Unit,
     onForceDarkModeChange: (Boolean) -> Unit,
+    onBackgroundRefreshEnabledChange: (Boolean) -> Unit,
     onRefreshCadenceChange: (RefreshCadence) -> Unit,
     onRequestNotificationPermission: () -> Unit,
     onAboutClick: () -> Unit,
@@ -180,7 +182,8 @@ fun SettingsScreen(
                     dynamicPaletteEnabled = dynamicPaletteEnabled,
                     usageAlerts = usageAlerts,
                     privacyShield = privacyShield,
-                    serverClientMode = serverClientMode
+                    serverClientMode = serverClientMode,
+                    backgroundRefreshEnabled = backgroundRefreshEnabled
                 )
             }
         }
@@ -263,7 +266,7 @@ fun SettingsScreen(
                     index = 1,
                     icon = Icons.Outlined.Update,
                     title = "Update rhythm",
-                    subtitle = "Pick the cadence that should shape cached quota freshness."
+                    subtitle = "Pick the foreground cadence, then decide if Android may refresh in the background."
                 ) {
                     RefreshProfileDial(
                         selectedProfile = refreshProfile,
@@ -278,6 +281,16 @@ fun SettingsScreen(
                         icon = refreshProfile.icon,
                         title = refreshProfile.title,
                         body = refreshProfile.summary
+                    )
+                    ToggleControlRow(
+                        icon = Icons.Outlined.CloudQueue,
+                        title = "Background refresh",
+                        description = "Use WorkManager to refresh about hourly on a network, separate from the foreground cadence.",
+                        checked = backgroundRefreshEnabled,
+                        onCheckedChange = onBackgroundRefreshEnabledChange,
+                        onAfterCheckedChange = { checked ->
+                            quotaHaptics.toggle(checked)
+                        }
                     )
                 }
             }
@@ -406,6 +419,7 @@ fun SettingsScreen(
                     onHapticConfirmationChange(true)
                     onLandscapeMonitorModeChange(false)
                     onServerClientModeChange(false)
+                    onBackgroundRefreshEnabledChange(false)
                     usageAlerts = notificationPermissionGranted
                     lowBalanceBanner = true
                     privacyShield = true
@@ -441,7 +455,8 @@ private fun SettingsControlHeader(
     dynamicPaletteEnabled: Boolean,
     usageAlerts: Boolean,
     privacyShield: Boolean,
-    serverClientMode: Boolean
+    serverClientMode: Boolean,
+    backgroundRefreshEnabled: Boolean
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val titleScale by animateFloatAsState(
@@ -523,6 +538,11 @@ private fun SettingsControlHeader(
                 label = if (serverClientMode) "Remote client armed" else "Local only",
                 icon = Icons.Outlined.CloudQueue,
                 index = 4
+            )
+            HeaderSignalChip(
+                label = if (backgroundRefreshEnabled) "Background on" else "Foreground only",
+                icon = Icons.Outlined.Update,
+                index = 5
             )
         }
     }
@@ -1157,6 +1177,7 @@ private fun SettingsScreenPreview() {
             serverClientMode = false,
             forceDarkMode = false,
             refreshCadence = RefreshCadence.Balanced,
+            backgroundRefreshEnabled = false,
             notificationPermissionGranted = true,
             onHighEmphasisMetricsChange = {},
             onHapticConfirmationChange = {},
@@ -1164,6 +1185,7 @@ private fun SettingsScreenPreview() {
             onHideLandscapeMonitorHudChange = {},
             onServerClientModeChange = {},
             onForceDarkModeChange = {},
+            onBackgroundRefreshEnabledChange = {},
             onRefreshCadenceChange = {},
             onRequestNotificationPermission = {},
             onAboutClick = {}

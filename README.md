@@ -17,7 +17,7 @@ QuotaHub is an Android quota dashboard built with Jetpack Compose. It is designe
 - Open a subscription detail page to inspect model-level quota data, pull to refresh, rename the subscription, or disconnect it.
 - Cache subscriptions and the latest quota snapshot locally with Room.
 - Persist provider-specific raw payloads so normalized quota snapshots can be replayed after schema upgrades.
-- Persist UI preferences for `High-emphasis metrics` and `Haptic confirmation`.
+- Persist UI preferences for display, foreground refresh cadence, background refresh, and haptic behavior.
 
 ## Tech Stack
 
@@ -317,7 +317,7 @@ This structure is already used for multi-provider support. Adding a new provider
 
 - `OpenAI Codex`, `Kimi`, `MiniMax`, `Z.ai`, and `Zhipu` are currently integrated.
 - The codebase includes unit tests for repository, gateway, upgrade replay, and provider-specific normalization/projector logic, but it still lacks broader end-to-end coverage.
-- Part of the `Settings` screen is still UI-only placeholder behavior and does not fully persist or drive background update policies.
+- Some `Settings` awareness and server coordination controls are still UI-only placeholders.
 
 ## Security and Release Notes
 
@@ -333,7 +333,7 @@ Based on the current source code:
 ## Possible Next Steps
 
 - Add support for more AI providers.
-- Add scheduled refresh and system notifications.
+- Add system notifications.
 - Write unit tests for the repository, gateway, and quota calculation logic.
 - Add import/export or sync support.
 

@@ -28,6 +28,7 @@ class UiPreferencesRepositoryTest {
         assertTrue(preferences.hapticConfirmation)
         assertFalse(preferences.landscapeMonitorMode)
         assertFalse(preferences.serverClientMode)
+        assertFalse(preferences.backgroundRefreshEnabled)
         assertEquals(RefreshCadence.Balanced, preferences.refreshCadence)
         assertNull(preferences.dismissedUpdateTag)
     }
@@ -92,6 +93,35 @@ class UiPreferencesRepositoryTest {
         assertFalse(preferences.highEmphasisMetrics)
         assertTrue(preferences.landscapeMonitorMode)
         assertTrue(preferences.serverClientMode)
+    }
+
+    @Test
+    fun setBackgroundRefreshEnabled_updatesStateAndPersistsValue() {
+        clearPreferences()
+        val repository = UiPreferencesRepository(context)
+
+        repository.setBackgroundRefreshEnabled(true)
+
+        assertTrue(repository.preferences.value.backgroundRefreshEnabled)
+        assertTrue(UiPreferencesRepository(context).preferences.value.backgroundRefreshEnabled)
+
+        repository.setBackgroundRefreshEnabled(false)
+
+        assertFalse(repository.preferences.value.backgroundRefreshEnabled)
+        assertFalse(UiPreferencesRepository(context).preferences.value.backgroundRefreshEnabled)
+    }
+
+    @Test
+    fun setBackgroundRefreshEnabled_doesNotMutateForegroundRefreshCadence() {
+        clearPreferences()
+        val repository = UiPreferencesRepository(context)
+
+        repository.setRefreshCadence(RefreshCadence.Live)
+        repository.setBackgroundRefreshEnabled(true)
+
+        val preferences = repository.preferences.value
+        assertEquals(RefreshCadence.Live, preferences.refreshCadence)
+        assertTrue(preferences.backgroundRefreshEnabled)
     }
 
     @Test

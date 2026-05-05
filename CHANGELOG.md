@@ -5,6 +5,10 @@ the matching version section from this file as release notes.
 
 ## [Unreleased]
 
+- Added an optional WorkManager-backed background refresh toggle that runs
+  separately from the foreground refresh cadence.
+- Scoped the existing automatic refresh loop to the visible app lifecycle.
+
 ## [v1.4.3] - 2026-05-05
 
 - Added the server/client mode settings shell and persisted its preference.

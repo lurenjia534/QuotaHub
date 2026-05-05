@@ -13,6 +13,7 @@ import com.lurenjia534.quotahub.data.repository.SubscriptionRepository
 import com.lurenjia534.quotahub.data.security.AndroidKeystoreApiKeyCipher
 import com.lurenjia534.quotahub.data.security.EncryptedCredentialVault
 import com.lurenjia534.quotahub.data.upgrade.QuotaUpgradeCoordinator
+import com.lurenjia534.quotahub.sync.BackgroundRefreshScheduler
 import com.lurenjia534.quotahub.sync.DefaultSubscriptionRefreshPolicy
 import com.lurenjia534.quotahub.sync.DefaultSubscriptionSyncCoordinator
 import com.lurenjia534.quotahub.sync.SubscriptionAutoRefreshScheduler
@@ -22,11 +23,15 @@ import com.lurenjia534.quotahub.ui.provider.ProviderUiRegistry
 import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaDetailProjectorRegistry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 class QuotaApplication : Application() {
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var startupJob: Job? = null
+    private var foregroundRefreshRequested = false
+    private var foregroundRefreshStartJob: Job? = null
 
     val database: QuotaDatabase by lazy {
         QuotaDatabase.getDatabase(this)
@@ -104,9 +109,17 @@ class QuotaApplication : Application() {
         )
     }
 
+    val backgroundRefreshScheduler: BackgroundRefreshScheduler by lazy {
+        BackgroundRefreshScheduler(
+            context = this,
+            scope = applicationScope,
+            preferences = uiPreferencesRepository.preferences
+        )
+    }
+
     override fun onCreate() {
         super.onCreate()
-        applicationScope.launch {
+        startupJob = applicationScope.launch {
             val upgradeResult = quotaUpgradeCoordinator.runPendingUpgrades()
             val replayResult = upgradeResult.replayBatchResult
             if (upgradeResult.replayTriggered && replayResult != null) {
@@ -121,8 +134,33 @@ class QuotaApplication : Application() {
                     "Replay failed for subscription=${failure.subscriptionId}, provider=${failure.providerId}: ${failure.reason}"
                 )
             }
-            subscriptionAutoRefreshScheduler.start()
         }
+        backgroundRefreshScheduler.start()
+    }
+
+    fun startForegroundRefresh() {
+        foregroundRefreshRequested = true
+        if (foregroundRefreshStartJob?.isActive == true) {
+            return
+        }
+
+        foregroundRefreshStartJob = applicationScope.launch {
+            awaitStartup()
+            if (foregroundRefreshRequested) {
+                subscriptionAutoRefreshScheduler.start()
+            }
+        }
+    }
+
+    fun stopForegroundRefresh() {
+        foregroundRefreshRequested = false
+        foregroundRefreshStartJob?.cancel()
+        foregroundRefreshStartJob = null
+        subscriptionAutoRefreshScheduler.stop()
+    }
+
+    suspend fun awaitStartup() {
+        startupJob?.join()
     }
 
     private companion object {

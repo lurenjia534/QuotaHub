@@ -12,6 +12,7 @@ data class UiPreferences(
     val landscapeMonitorMode: Boolean = false,
     val hideLandscapeMonitorHud: Boolean = true,
     val serverClientMode: Boolean = false,
+    val backgroundRefreshEnabled: Boolean = false,
     val refreshCadence: RefreshCadence = RefreshCadence.Balanced,
     val dismissedUpdateTag: String? = null
 )
@@ -87,6 +88,14 @@ class UiPreferencesRepository(context: Context) {
         _preferences.value = _preferences.value.copy(serverClientMode = enabled)
     }
 
+    fun setBackgroundRefreshEnabled(enabled: Boolean) {
+        sharedPreferences.edit()
+            .putBoolean(KEY_BACKGROUND_REFRESH_ENABLED, enabled)
+            .apply()
+
+        _preferences.value = _preferences.value.copy(backgroundRefreshEnabled = enabled)
+    }
+
     fun setRefreshCadence(refreshCadence: RefreshCadence) {
         sharedPreferences.edit()
             .putString(KEY_REFRESH_CADENCE, refreshCadence.name)
@@ -111,6 +120,7 @@ class UiPreferencesRepository(context: Context) {
             landscapeMonitorMode = sharedPreferences.getBoolean(KEY_LANDSCAPE_MONITOR_MODE, false),
             hideLandscapeMonitorHud = sharedPreferences.getBoolean(KEY_HIDE_LANDSCAPE_MONITOR_HUD, true),
             serverClientMode = sharedPreferences.getBoolean(KEY_SERVER_CLIENT_MODE, false),
+            backgroundRefreshEnabled = sharedPreferences.getBoolean(KEY_BACKGROUND_REFRESH_ENABLED, false),
             refreshCadence = RefreshCadence.fromPersisted(
                 sharedPreferences.getString(KEY_REFRESH_CADENCE, null)
             ),
@@ -126,6 +136,7 @@ class UiPreferencesRepository(context: Context) {
         const val KEY_LANDSCAPE_MONITOR_MODE = "landscape_monitor_mode"
         const val KEY_HIDE_LANDSCAPE_MONITOR_HUD = "hide_landscape_monitor_hud"
         const val KEY_SERVER_CLIENT_MODE = "server_client_mode"
+        const val KEY_BACKGROUND_REFRESH_ENABLED = "background_refresh_enabled"
         const val KEY_REFRESH_CADENCE = "refresh_cadence"
         const val KEY_DISMISSED_UPDATE_TAG = "dismissed_update_tag"
     }
