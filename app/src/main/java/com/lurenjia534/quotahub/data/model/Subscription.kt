@@ -58,7 +58,8 @@ data class Subscription(
     val customTitle: String?,
     val credentialState: CredentialState,
     val syncStatus: SubscriptionSyncStatus,
-    val createdAt: Long
+    val createdAt: Long,
+    val cloudRemoteId: String? = null
 ) {
     /**
      * 显示标题
@@ -79,6 +80,9 @@ data class Subscription(
 
     val hasUsableCredentials: Boolean
         get() = isProviderSupported && credentialState is CredentialState.Available
+
+    val isCloudSynced: Boolean
+        get() = cloudRemoteId != null
 
     val credentialIssue: String?
         get() = when {
@@ -108,7 +112,8 @@ data class Subscription(
 fun SubscriptionEntity.toSubscription(
     provider: SubscriptionProvider,
     credentialState: CredentialState,
-    syncStatus: SubscriptionSyncStatus
+    syncStatus: SubscriptionSyncStatus,
+    cloudRemoteId: String? = null
 ): Subscription {
     return Subscription(
         id = id,
@@ -116,6 +121,7 @@ fun SubscriptionEntity.toSubscription(
         customTitle = customTitle,
         credentialState = credentialState,
         syncStatus = syncStatus,
-        createdAt = createdAt
+        createdAt = createdAt,
+        cloudRemoteId = cloudRemoteId
     )
 }

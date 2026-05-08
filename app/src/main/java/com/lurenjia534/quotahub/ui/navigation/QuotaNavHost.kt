@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.lurenjia534.quotahub.data.cloud.CloudSyncSettings
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -42,18 +43,24 @@ fun QuotaNavHost(
     hapticConfirmation: Boolean,
     landscapeMonitorMode: Boolean,
     hideLandscapeMonitorHud: Boolean,
-    serverClientMode: Boolean,
     forceDarkMode: Boolean,
     backgroundRefreshEnabled: Boolean,
     notificationPermissionGranted: Boolean,
+    cloudSyncSettings: CloudSyncSettings,
+    cloudOperationInProgress: Boolean,
     onHighEmphasisMetricsChange: (Boolean) -> Unit,
     onHapticConfirmationChange: (Boolean) -> Unit,
     onLandscapeMonitorModeChange: (Boolean) -> Unit,
     onHideLandscapeMonitorHudChange: (Boolean) -> Unit,
-    onServerClientModeChange: (Boolean) -> Unit,
     onForceDarkModeChange: (Boolean) -> Unit,
     onBackgroundRefreshEnabledChange: (Boolean) -> Unit,
     onRefreshCadenceChange: (RefreshCadence) -> Unit,
+    onCloudSyncEnabledChange: (Boolean) -> Unit,
+    onCloudRelayBaseUrlChange: (String) -> Unit,
+    onCloudClientTokenSave: (String) -> Unit,
+    onCloudClientTokenClear: () -> Unit,
+    onTestCloudConnection: () -> Unit,
+    onCloudSyncNow: () -> Unit,
     onRequestNotificationPermission: () -> Unit,
     onCheckForUpdate: suspend () -> ManualUpdateCheckResult,
     bottomContentPadding: Dp = 0.dp,
@@ -150,20 +157,26 @@ fun QuotaNavHost(
                 hapticConfirmation = hapticConfirmation,
                 landscapeMonitorMode = landscapeMonitorMode,
                 hideLandscapeMonitorHud = hideLandscapeMonitorHud,
-                serverClientMode = serverClientMode,
                 forceDarkMode = forceDarkMode,
                 refreshCadence = refreshCadence,
                 backgroundRefreshEnabled = backgroundRefreshEnabled,
                 notificationPermissionGranted = notificationPermissionGranted,
+                cloudSyncSettings = cloudSyncSettings,
+                cloudOperationInProgress = cloudOperationInProgress,
                 bottomContentPadding = bottomContentPadding,
                 onHighEmphasisMetricsChange = onHighEmphasisMetricsChange,
                 onHapticConfirmationChange = onHapticConfirmationChange,
                 onLandscapeMonitorModeChange = onLandscapeMonitorModeChange,
                 onHideLandscapeMonitorHudChange = onHideLandscapeMonitorHudChange,
-                onServerClientModeChange = onServerClientModeChange,
                 onForceDarkModeChange = onForceDarkModeChange,
                 onBackgroundRefreshEnabledChange = onBackgroundRefreshEnabledChange,
                 onRefreshCadenceChange = onRefreshCadenceChange,
+                onCloudSyncEnabledChange = onCloudSyncEnabledChange,
+                onCloudRelayBaseUrlChange = onCloudRelayBaseUrlChange,
+                onCloudClientTokenSave = onCloudClientTokenSave,
+                onCloudClientTokenClear = onCloudClientTokenClear,
+                onTestCloudConnection = onTestCloudConnection,
+                onCloudSyncNow = onCloudSyncNow,
                 onRequestNotificationPermission = onRequestNotificationPermission,
                 onAboutClick = {
                     navController.navigate(Screen.About.route) {

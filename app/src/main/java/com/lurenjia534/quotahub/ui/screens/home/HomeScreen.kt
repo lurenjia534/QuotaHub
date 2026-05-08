@@ -49,6 +49,8 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DataUsage
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.outlined.CloudQueue
+import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -352,15 +354,27 @@ private fun PortraitHomeContent(
                 }
             }
         } else if (hasSubscriptions) {
-            items(
-                items = subscriptionCards,
-                key = { it.subscriptionId }
-            ) { subscriptionCard ->
-                SubscriptionSignalLane(
-                    subscriptionCard = subscriptionCard,
-                    highEmphasisMetrics = highEmphasisMetrics,
-                    onClick = { onSubscriptionClick(subscriptionCard.subscriptionId) }
-                )
+            item {
+                AnimatedSection(visible = queueVisible) {
+                    SubscriptionSourceSummary(subscriptionCards = subscriptionCards)
+                }
+            }
+            subscriptionCards.sourceGroups().forEach { group ->
+                item(key = "source-header-${group.key}") {
+                    AnimatedSection(visible = queueVisible) {
+                        SubscriptionSourceHeader(group = group)
+                    }
+                }
+                items(
+                    items = group.cards,
+                    key = { it.subscriptionId }
+                ) { subscriptionCard ->
+                    SubscriptionSignalLane(
+                        subscriptionCard = subscriptionCard,
+                        highEmphasisMetrics = highEmphasisMetrics,
+                        onClick = { onSubscriptionClick(subscriptionCard.subscriptionId) }
+                    )
+                }
             }
         } else {
             item {
@@ -764,18 +778,28 @@ private fun LandscapeProviderMonitorTable(
                     ) {
                         LandscapeProviderHeader()
                     }
-                    subscriptionCards.forEachIndexed { index, subscriptionCard ->
-                        HubProviderSignalRow(
-                            subscriptionCard = subscriptionCard,
-                            highEmphasisMetrics = highEmphasisMetrics,
-                            onClick = { onSubscriptionClick(subscriptionCard.subscriptionId) },
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth()
-                        )
-                        if (index < subscriptionCards.lastIndex) {
+                    val groups = subscriptionCards.sourceGroups()
+                    groups.forEachIndexed { groupIndex, group ->
+                        LandscapeSourceHeader(group = group)
+                        group.cards.forEachIndexed { cardIndex, subscriptionCard ->
+                            HubProviderSignalRow(
+                                subscriptionCard = subscriptionCard,
+                                highEmphasisMetrics = highEmphasisMetrics,
+                                onClick = { onSubscriptionClick(subscriptionCard.subscriptionId) },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth()
+                            )
+                            if (cardIndex < group.cards.lastIndex) {
+                                HorizontalDivider(
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f)
+                                )
+                            }
+                        }
+                        if (groupIndex < groups.lastIndex) {
                             HorizontalDivider(
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.18f)
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.22f),
+                                thickness = 2.dp
                             )
                         }
                     }
@@ -913,6 +937,54 @@ private fun HubProviderSignalRow(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun LandscapeSourceHeader(
+    group: SubscriptionSourceGroup
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    val accentColor = if (group.isCloud) colorScheme.primary else colorScheme.secondary
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(28.dp)
+            .padding(horizontal = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = if (group.isCloud) Icons.Outlined.CloudQueue else Icons.Outlined.Storage,
+            contentDescription = null,
+            tint = accentColor,
+            modifier = Modifier.size(17.dp)
+        )
+        Text(
+            text = group.title,
+            style = MaterialTheme.typography.labelLarge.copy(
+                color = accentColor,
+                fontWeight = FontWeight.Black
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Surface(
+            color = accentColor.copy(alpha = 0.14f),
+            contentColor = accentColor,
+            shape = CircleShape
+        ) {
+            Text(
+                text = formatCount(group.cards.size),
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+            )
+        }
+        HorizontalDivider(
+            modifier = Modifier.weight(1f),
+            color = accentColor.copy(alpha = 0.22f)
+        )
     }
 }
 
@@ -1543,6 +1615,172 @@ private fun HomeLaneHeader(
     }
 }
 
+private data class SubscriptionSourceGroup(
+    val key: String,
+    val title: String,
+    val subtitle: String,
+    val label: String,
+    val isCloud: Boolean,
+    val cards: List<SubscriptionCardUiModel>
+)
+
+private fun List<SubscriptionCardUiModel>.sourceGroups(): List<SubscriptionSourceGroup> {
+    val cloudCards = filter { it.isCloudSynced }
+    val localCards = filterNot { it.isCloudSynced }
+    return buildList {
+        if (cloudCards.isNotEmpty()) {
+            add(
+                SubscriptionSourceGroup(
+                    key = "cloud",
+                    title = "Cloud subscriptions",
+                    subtitle = "Managed by QuotaHub Relay. Provider credentials stay on the server.",
+                    label = "Relay",
+                    isCloud = true,
+                    cards = cloudCards
+                )
+            )
+        }
+        if (localCards.isNotEmpty()) {
+            add(
+                SubscriptionSourceGroup(
+                    key = "local",
+                    title = "Local subscriptions",
+                    subtitle = "Added on this device. Credentials are stored in the Android keystore.",
+                    label = "Device",
+                    isCloud = false,
+                    cards = localCards
+                )
+            )
+        }
+    }
+}
+
+@Composable
+private fun SubscriptionSourceSummary(
+    subscriptionCards: List<SubscriptionCardUiModel>
+) {
+    val cloudCount = subscriptionCards.count { it.isCloudSynced }
+    val localCount = subscriptionCards.size - cloudCount
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        SourceCountPill(
+            icon = Icons.Outlined.CloudQueue,
+            label = "Cloud",
+            count = cloudCount,
+            emphasized = cloudCount > 0,
+            modifier = Modifier.weight(1f)
+        )
+        SourceCountPill(
+            icon = Icons.Outlined.Storage,
+            label = "Local",
+            count = localCount,
+            emphasized = localCount > 0,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun SourceCountPill(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    count: Int,
+    emphasized: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    val color = if (label == "Cloud") colorScheme.primary else colorScheme.secondary
+
+    Surface(
+        modifier = modifier,
+        color = if (emphasized) color.copy(alpha = 0.14f) else colorScheme.surfaceContainerLow,
+        contentColor = if (emphasized) color else colorScheme.onSurfaceVariant,
+        shape = CircleShape,
+        border = BorderStroke(
+            1.dp,
+            if (emphasized) color.copy(alpha = 0.28f) else colorScheme.outlineVariant.copy(alpha = 0.16f)
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(19.dp)
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            Text(
+                text = formatCount(count),
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Black)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SubscriptionSourceHeader(
+    group: SubscriptionSourceGroup
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    val accentColor = if (group.isCloud) colorScheme.primary else colorScheme.secondary
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            color = accentColor.copy(alpha = 0.16f),
+            contentColor = accentColor,
+            shape = CircleShape,
+            border = BorderStroke(1.dp, accentColor.copy(alpha = 0.24f)),
+            modifier = Modifier.size(44.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = if (group.isCloud) Icons.Outlined.CloudQueue else Icons.Outlined.Storage,
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+        }
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = group.title,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                )
+                SignalChip(
+                    label = "${formatCount(group.cards.size)} ${group.label}",
+                    color = accentColor
+                )
+            }
+            Text(
+                text = group.subtitle,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    color = colorScheme.onSurfaceVariant
+                )
+            )
+        }
+    }
+}
+
 @Composable
 private fun SignalGlyph(
     color: Color,
@@ -1574,6 +1812,8 @@ private fun SignalChip(
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
         )
     }
@@ -1741,14 +1981,27 @@ private fun SubscriptionSignalLane(
                     )
                 }
                 Spacer(modifier = Modifier.width(10.dp))
-                SignalChip(
-                    label = when (risk) {
-                        QuotaRisk.Critical -> "Critical"
-                        QuotaRisk.Watch -> "Watch"
-                        QuotaRisk.Healthy -> "Healthy"
-                    },
-                    color = stateColor
-                )
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    SignalChip(
+                        label = subscriptionCard.sourceLabel,
+                        color = if (subscriptionCard.isCloudSynced) {
+                            colorScheme.primary
+                        } else {
+                            colorScheme.secondary
+                        }
+                    )
+                    SignalChip(
+                        label = when (risk) {
+                            QuotaRisk.Critical -> "Critical"
+                            QuotaRisk.Watch -> "Watch"
+                            QuotaRisk.Healthy -> "Healthy"
+                        },
+                        color = stateColor
+                    )
+                }
             }
 
             Row(
@@ -1794,6 +2047,14 @@ private fun SubscriptionSignalLane(
                         color = colorScheme.onSurfaceVariant
                     ),
                     modifier = Modifier.weight(1.25f)
+                )
+                SignalChip(
+                    label = if (subscriptionCard.isCloudSynced) "Cloud source" else "Local source",
+                    color = if (subscriptionCard.isCloudSynced) {
+                        colorScheme.primary
+                    } else {
+                        colorScheme.secondary
+                    }
                 )
                 if (subscriptionCard.canOpenDetail) {
                     Icon(

@@ -34,7 +34,10 @@ data class SubscriptionCardUiModel(
     val syncLabel: String,
     val syncDescription: String,
     val isConnected: Boolean,
-    val canOpenDetail: Boolean
+    val canOpenDetail: Boolean,
+    val isCloudSynced: Boolean,
+    val sourceLabel: String,
+    val sourceDescription: String
 )
 
 data class HomeHubUiState(
@@ -146,6 +149,7 @@ class HomeHubViewModel(
         val providerUi = providerUiRegistry.getOrFallback(subscription.provider.id)
         val canOpenDetail = true
         val isReadOnlyDetail = !subscription.isProviderSupported
+        val isCloudSynced = subscription.isCloudSynced
         return SubscriptionCardUiModel(
             subscriptionId = subscription.id,
             providerId = subscription.provider.id,
@@ -170,7 +174,14 @@ class HomeHubViewModel(
                 "Update the app or remove this subscription. Cached quota remains visible."
             },
             isConnected = !isReadOnlyDetail && subscription.syncStatus.isConnected,
-            canOpenDetail = canOpenDetail
+            canOpenDetail = canOpenDetail,
+            isCloudSynced = isCloudSynced,
+            sourceLabel = if (isCloudSynced) "Cloud" else "Local",
+            sourceDescription = if (isCloudSynced) {
+                "Managed by QuotaHub Relay"
+            } else {
+                "Added on this device"
+            }
         )
     }
 

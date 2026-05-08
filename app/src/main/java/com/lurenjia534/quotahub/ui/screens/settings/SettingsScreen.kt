@@ -32,6 +32,8 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.outlined.CloudQueue
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Key
+import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.Palette
@@ -39,13 +41,18 @@ import androidx.compose.material.icons.outlined.PrivacyTip
 import androidx.compose.material.icons.outlined.ScreenRotation
 import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.Storage
+import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Update
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
+import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -64,12 +71,16 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.lurenjia534.quotahub.data.cloud.CloudSyncSettings
 import com.lurenjia534.quotahub.data.preferences.RefreshCadence
 import com.lurenjia534.quotahub.ui.components.rememberQuotaHaptics
 import com.lurenjia534.quotahub.ui.theme.QuotaHubTheme
+import java.text.DateFormat
+import java.util.Date
 import kotlinx.coroutines.delay
 
 private enum class RefreshProfile(
@@ -114,19 +125,25 @@ fun SettingsScreen(
     hapticConfirmation: Boolean,
     landscapeMonitorMode: Boolean,
     hideLandscapeMonitorHud: Boolean,
-    serverClientMode: Boolean,
     forceDarkMode: Boolean,
     refreshCadence: RefreshCadence,
     backgroundRefreshEnabled: Boolean,
     notificationPermissionGranted: Boolean,
+    cloudSyncSettings: CloudSyncSettings,
+    cloudOperationInProgress: Boolean,
     onHighEmphasisMetricsChange: (Boolean) -> Unit,
     onHapticConfirmationChange: (Boolean) -> Unit,
     onLandscapeMonitorModeChange: (Boolean) -> Unit,
     onHideLandscapeMonitorHudChange: (Boolean) -> Unit,
-    onServerClientModeChange: (Boolean) -> Unit,
     onForceDarkModeChange: (Boolean) -> Unit,
     onBackgroundRefreshEnabledChange: (Boolean) -> Unit,
     onRefreshCadenceChange: (RefreshCadence) -> Unit,
+    onCloudSyncEnabledChange: (Boolean) -> Unit,
+    onCloudRelayBaseUrlChange: (String) -> Unit,
+    onCloudClientTokenSave: (String) -> Unit,
+    onCloudClientTokenClear: () -> Unit,
+    onTestCloudConnection: () -> Unit,
+    onCloudSyncNow: () -> Unit,
     onRequestNotificationPermission: () -> Unit,
     onAboutClick: () -> Unit,
     bottomContentPadding: Dp = 0.dp,
@@ -182,8 +199,8 @@ fun SettingsScreen(
                     dynamicPaletteEnabled = dynamicPaletteEnabled,
                     usageAlerts = usageAlerts,
                     privacyShield = privacyShield,
-                    serverClientMode = serverClientMode,
-                    backgroundRefreshEnabled = backgroundRefreshEnabled
+                    backgroundRefreshEnabled = backgroundRefreshEnabled,
+                    cloudSyncEnabled = cloudSyncSettings.enabled
                 )
             }
         }
@@ -302,23 +319,25 @@ fun SettingsScreen(
                     index = 2,
                     icon = Icons.Outlined.CloudQueue,
                     title = "Server coordination",
-                    subtitle = "Gate any future web-managed subscription sync before this device accepts it."
+                    subtitle = "Connect this device to QuotaHub Relay and import server-managed subscriptions."
                 ) {
-                    ToggleControlRow(
-                        icon = Icons.Outlined.CloudQueue,
-                        title = "Remote client mode",
-                        description = "Allow this device to link to a trusted QuotaHub web server after strict authentication is implemented.",
-                        checked = serverClientMode,
-                        onCheckedChange = onServerClientModeChange,
-                        onAfterCheckedChange = { checked ->
+                    CloudSyncRelayWorkspace(
+                        settings = cloudSyncSettings,
+                        operationInProgress = cloudOperationInProgress,
+                        onEnabledChange = onCloudSyncEnabledChange,
+                        onRelayBaseUrlChange = onCloudRelayBaseUrlChange,
+                        onClientTokenSave = onCloudClientTokenSave,
+                        onClientTokenClear = onCloudClientTokenClear,
+                        onTestConnection = onTestCloudConnection,
+                        onSyncNow = onCloudSyncNow,
+                        onAfterEnabledChange = { checked ->
                             quotaHaptics.toggle(checked)
                         }
                     )
-                    ServerModeScopeReadout(enabled = serverClientMode)
                     ControlSummaryStrip(
                         icon = Icons.Outlined.Security,
-                        title = if (serverClientMode) "Client gate armed" else "Local-only client",
-                        body = "UI shell only. No endpoints, server auth, or remote subscription sync are active in this build."
+                        title = if (cloudSyncSettings.isConfigured) "Relay credentials stored" else "Relay setup required",
+                        body = "Enable Remote client mode in the web dashboard, create a qhr_ client token, then sync this device."
                     )
                 }
             }
@@ -418,7 +437,7 @@ fun SettingsScreen(
                     onHighEmphasisMetricsChange(true)
                     onHapticConfirmationChange(true)
                     onLandscapeMonitorModeChange(false)
-                    onServerClientModeChange(false)
+                    onCloudSyncEnabledChange(false)
                     onBackgroundRefreshEnabledChange(false)
                     usageAlerts = notificationPermissionGranted
                     lowBalanceBanner = true
@@ -455,8 +474,8 @@ private fun SettingsControlHeader(
     dynamicPaletteEnabled: Boolean,
     usageAlerts: Boolean,
     privacyShield: Boolean,
-    serverClientMode: Boolean,
-    backgroundRefreshEnabled: Boolean
+    backgroundRefreshEnabled: Boolean,
+    cloudSyncEnabled: Boolean
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val titleScale by animateFloatAsState(
@@ -535,7 +554,7 @@ private fun SettingsControlHeader(
                 index = 3
             )
             HeaderSignalChip(
-                label = if (serverClientMode) "Remote client armed" else "Local only",
+                label = if (cloudSyncEnabled) "Cloud sync on" else "Local only",
                 icon = Icons.Outlined.CloudQueue,
                 index = 4
             )
@@ -792,47 +811,229 @@ private fun ReadoutControlRow(
 }
 
 @Composable
-private fun ServerModeScopeReadout(enabled: Boolean) {
+private fun CloudSyncRelayWorkspace(
+    settings: CloudSyncSettings,
+    operationInProgress: Boolean,
+    onEnabledChange: (Boolean) -> Unit,
+    onRelayBaseUrlChange: (String) -> Unit,
+    onClientTokenSave: (String) -> Unit,
+    onClientTokenClear: () -> Unit,
+    onTestConnection: () -> Unit,
+    onSyncNow: () -> Unit,
+    onAfterEnabledChange: (Boolean) -> Unit
+) {
+    var pendingToken by rememberSaveable { mutableStateOf("") }
     val colorScheme = MaterialTheme.colorScheme
+    val canUseRelay = settings.relayBaseUrl.isNotBlank() && settings.hasClientToken
+    val containerColor by animateColorAsState(
+        targetValue = if (settings.enabled) {
+            colorScheme.primaryContainer.copy(alpha = 0.42f)
+        } else {
+            colorScheme.surfaceContainerLow
+        },
+        animationSpec = spring(stiffness = 420f, dampingRatio = 0.9f),
+        label = "cloudRelayWorkspaceContainer"
+    )
+    val borderColor by animateColorAsState(
+        targetValue = if (settings.enabled) {
+            colorScheme.primary.copy(alpha = 0.42f)
+        } else {
+            colorScheme.outlineVariant.copy(alpha = 0.16f)
+        },
+        animationSpec = spring(stiffness = 420f, dampingRatio = 0.9f),
+        label = "cloudRelayWorkspaceBorder"
+    )
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 6.dp, vertical = 2.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+    fun commitEnabled(updated: Boolean) {
+        onEnabledChange(updated)
+        onAfterEnabledChange(updated)
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = containerColor,
+        shape = expressiveSettingsShape(11),
+        border = BorderStroke(1.dp, borderColor),
+        tonalElevation = if (settings.enabled) 2.dp else 0.dp
     ) {
-        Text(
-            text = "Subscription boundaries",
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
-        )
-        Text(
-            text = "Planned scopes keep local, team server, and private cloud subscriptions separate.",
-            style = MaterialTheme.typography.bodyMedium.copy(
-                color = colorScheme.onSurfaceVariant
-            )
-        )
-        Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            SourceScopeChip(
-                icon = Icons.Outlined.Storage,
-                label = "Local",
-                value = "On device",
-                emphasized = true
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ControlGlyph(
+                    icon = Icons.Outlined.CloudQueue,
+                    emphasized = settings.enabled
+                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    Text(
+                        text = "Cloud sync",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Text(
+                        text = "Pull server-managed subscriptions from QuotaHub Relay with a dashboard-generated token.",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = colorScheme.onSurfaceVariant
+                        )
+                    )
+                }
+                Switch(
+                    checked = settings.enabled,
+                    onCheckedChange = ::commitEnabled
+                )
+            }
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Link,
+                    contentDescription = null,
+                    tint = colorScheme.primary,
+                    modifier = Modifier
+                        .padding(top = 2.dp)
+                        .size(20.dp)
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(
+                        text = "Relay connection",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)
+                    )
+                    Text(
+                        text = settings.lastResultMessage
+                            ?: "Use the public relay URL and the one-time qhr_ token from dashboard settings.",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = colorScheme.onSurfaceVariant
+                        )
+                    )
+                }
+            }
+
+            OutlinedTextField(
+                value = settings.relayBaseUrl,
+                onValueChange = onRelayBaseUrlChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Relay URL") },
+                placeholder = { Text("https://relay.example.com") },
+                shape = RoundedCornerShape(18.dp),
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Outlined.CloudQueue,
+                        contentDescription = null
+                    )
+                }
             )
-            SourceScopeChip(
-                icon = Icons.Outlined.CloudQueue,
-                label = "Team server",
-                value = if (enabled) "Auth required" else "Off",
-                emphasized = enabled
+
+            OutlinedTextField(
+                value = pendingToken,
+                onValueChange = { pendingToken = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = {
+                    Text(if (settings.hasClientToken) "Replace client token" else "Client token")
+                },
+                placeholder = {
+                    Text(if (settings.hasClientToken) "Stored token present" else "qhr_...")
+                },
+                visualTransformation = PasswordVisualTransformation(),
+                shape = RoundedCornerShape(18.dp),
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Outlined.Key,
+                        contentDescription = null
+                    )
+                }
             )
-            SourceScopeChip(
-                icon = Icons.Outlined.PrivacyTip,
-                label = "Private cloud",
-                value = "Separate",
-                emphasized = false
-            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(
+                    onClick = {
+                        onClientTokenSave(pendingToken)
+                        pendingToken = ""
+                    },
+                    enabled = pendingToken.isNotBlank() && !operationInProgress,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(18.dp)
+                ) {
+                    Text("Save token")
+                }
+                OutlinedButton(
+                    onClick = onClientTokenClear,
+                    enabled = settings.hasClientToken && !operationInProgress,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(18.dp)
+                ) {
+                    Text("Clear")
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(
+                    onClick = onTestConnection,
+                    enabled = canUseRelay && !operationInProgress,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(18.dp)
+                ) {
+                    Text(if (operationInProgress) "Working" else "Test")
+                }
+                FilledTonalButton(
+                    onClick = onSyncNow,
+                    enabled = settings.enabled && canUseRelay && !operationInProgress,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(18.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Sync,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Sync now")
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                SourceScopeChip(
+                    icon = Icons.Outlined.Storage,
+                    label = "Local",
+                    value = "Kept",
+                    emphasized = true,
+                    modifier = Modifier.weight(1f)
+                )
+                SourceScopeChip(
+                    icon = Icons.Outlined.CloudQueue,
+                    label = "Relay",
+                    value = if (settings.enabled) "Enabled" else "Paused",
+                    emphasized = settings.enabled,
+                    modifier = Modifier.weight(1f)
+                )
+                SourceScopeChip(
+                    icon = Icons.Outlined.Update,
+                    label = "Last sync",
+                    value = settings.lastSyncAt?.let(::formatSettingsTimestamp) ?: "Never",
+                    emphasized = settings.lastSyncAt != null,
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
 }
@@ -842,25 +1043,29 @@ private fun SourceScopeChip(
     icon: ImageVector,
     label: String,
     value: String,
-    emphasized: Boolean
+    emphasized: Boolean,
+    modifier: Modifier = Modifier
 ) {
     val colorScheme = MaterialTheme.colorScheme
 
     Surface(
+        modifier = modifier,
         color = if (emphasized) colorScheme.primaryContainer else colorScheme.surfaceContainerHigh,
         contentColor = if (emphasized) colorScheme.onPrimaryContainer else colorScheme.onSurface,
         shape = RoundedCornerShape(18.dp),
         border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.14f))
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(16.dp)
             )
             Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text(
@@ -1165,6 +1370,13 @@ private fun expressiveSettingsShape(index: Int): RoundedCornerShape {
     }
 }
 
+private fun formatSettingsTimestamp(epochMillis: Long): String {
+    return DateFormat.getDateTimeInstance(
+        DateFormat.SHORT,
+        DateFormat.SHORT
+    ).format(Date(epochMillis))
+}
+
 @Preview(showBackground = true)
 @Composable
 private fun SettingsScreenPreview() {
@@ -1174,19 +1386,25 @@ private fun SettingsScreenPreview() {
             hapticConfirmation = true,
             landscapeMonitorMode = false,
             hideLandscapeMonitorHud = true,
-            serverClientMode = false,
             forceDarkMode = false,
             refreshCadence = RefreshCadence.Balanced,
             backgroundRefreshEnabled = false,
             notificationPermissionGranted = true,
+            cloudSyncSettings = CloudSyncSettings(),
+            cloudOperationInProgress = false,
             onHighEmphasisMetricsChange = {},
             onHapticConfirmationChange = {},
             onLandscapeMonitorModeChange = {},
             onHideLandscapeMonitorHudChange = {},
-            onServerClientModeChange = {},
             onForceDarkModeChange = {},
             onBackgroundRefreshEnabledChange = {},
             onRefreshCadenceChange = {},
+            onCloudSyncEnabledChange = {},
+            onCloudRelayBaseUrlChange = {},
+            onCloudClientTokenSave = {},
+            onCloudClientTokenClear = {},
+            onTestCloudConnection = {},
+            onCloudSyncNow = {},
             onRequestNotificationPermission = {},
             onAboutClick = {}
         )

@@ -2,6 +2,7 @@ package com.lurenjia534.quotahub.data.repository
 
 import android.util.Log
 import androidx.room.withTransaction
+import com.lurenjia534.quotahub.data.cloud.CloudSubscriptionIdentity
 import com.lurenjia534.quotahub.data.local.QuotaDatabase
 import com.lurenjia534.quotahub.data.local.QuotaSnapshotDao
 import com.lurenjia534.quotahub.data.local.QuotaSnapshotEntity
@@ -121,6 +122,87 @@ class SubscriptionRepository(
             lastSyncCause = syncStatus.lastSyncCause?.name
         )
         return subscriptionDao.insertSubscription(entity)
+    }
+
+    suspend fun upsertCloudSubscription(
+        remoteSubscriptionId: String,
+        providerId: String,
+        displayTitle: String?,
+        customTitle: String?,
+        syncStatus: SubscriptionSyncStatus,
+        snapshot: QuotaSnapshot?
+    ): Long {
+        val credentialMarker = CloudSubscriptionIdentity.credentialMarker(remoteSubscriptionId)
+        val existing = subscriptionDao.getAllSubscriptionsOnce()
+            .firstOrNull { it.apiKey == credentialMarker }
+        val title = customTitle
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?: displayTitle?.trim()?.takeIf { it.isNotBlank() }
+        val entity = existing?.copy(
+            providerId = providerId,
+            customTitle = title,
+            syncState = syncStatus.state.toPersistedState().name,
+            lastSuccessAt = syncStatus.lastSuccessAt,
+            lastFailureAt = syncStatus.lastFailureAt,
+            lastFailureKind = syncStatus.lastFailureKind?.name,
+            lastError = syncStatus.lastError,
+            retryAfterUntil = syncStatus.retryAfterUntil,
+            nextEligibleSyncAt = syncStatus.nextEligibleSyncAt,
+            syncStartedAt = syncStatus.syncStartedAt,
+            lastSyncCause = syncStatus.lastSyncCause?.name
+        ) ?: SubscriptionEntity(
+            providerId = providerId,
+            customTitle = title,
+            apiKey = credentialMarker,
+            syncState = syncStatus.state.toPersistedState().name,
+            lastSuccessAt = syncStatus.lastSuccessAt,
+            lastFailureAt = syncStatus.lastFailureAt,
+            lastFailureKind = syncStatus.lastFailureKind?.name,
+            lastError = syncStatus.lastError,
+            retryAfterUntil = syncStatus.retryAfterUntil,
+            nextEligibleSyncAt = syncStatus.nextEligibleSyncAt,
+            syncStartedAt = syncStatus.syncStartedAt,
+            lastSyncCause = syncStatus.lastSyncCause?.name
+        )
+
+        val localSubscriptionId = if (existing == null) {
+            subscriptionDao.insertSubscription(entity)
+        } else {
+            subscriptionDao.updateSubscription(entity)
+            entity.id
+        }
+        if (snapshot != null) {
+            cacheQuotaSnapshot(
+                subscriptionId = localSubscriptionId,
+                capturedSnapshot = CapturedQuotaSnapshot(snapshot = snapshot)
+            )
+        }
+        return localSubscriptionId
+    }
+
+    suspend fun deleteCloudSubscriptions(remoteSubscriptionIds: Collection<String>): Int {
+        val credentialMarkers = remoteSubscriptionIds
+            .filter { it.isNotBlank() }
+            .map(CloudSubscriptionIdentity::credentialMarker)
+            .toSet()
+        if (credentialMarkers.isEmpty()) {
+            return 0
+        }
+
+        val cloudSubscriptionIds = subscriptionDao.getAllSubscriptionsOnce()
+            .filter { it.apiKey in credentialMarkers }
+            .map { it.id }
+        if (cloudSubscriptionIds.isEmpty()) {
+            return 0
+        }
+
+        database.withTransaction {
+            cloudSubscriptionIds.forEach { subscriptionId ->
+                subscriptionDao.deleteSubscriptionById(subscriptionId)
+            }
+        }
+        return cloudSubscriptionIds.size
     }
 
     override suspend fun updateSubscriptionCredentials(
@@ -341,10 +423,15 @@ class SubscriptionRepository(
     }
 
     private fun toSubscription(entity: SubscriptionEntity): Subscription {
+        val cloudRemoteId = CloudSubscriptionIdentity.remoteSubscriptionId(entity.apiKey)
         val descriptor = providerCatalog.descriptor(entity.providerId)
         val provider = descriptor?.let { SubscriptionProvider.Supported(it) }
             ?: SubscriptionProvider.Unsupported(entity.providerId)
-        val credentialState = descriptor?.let { resolveCredentialState(entity, it) }
+        val credentialState = if (cloudRemoteId != null) {
+            CredentialState.Available
+        } else {
+            descriptor?.let { resolveCredentialState(entity, it) }
+        }
             ?: CredentialState.Broken(
                 reason = "Provider module is unavailable in the current app build."
             )
@@ -353,8 +440,9 @@ class SubscriptionRepository(
             credentialState = credentialState,
             syncStatus = entity.toSyncStatus().withCredentialState(
                 credentialState = credentialState,
-                forceAuthFailed = descriptor != null
-            )
+                forceAuthFailed = descriptor != null && cloudRemoteId == null
+            ),
+            cloudRemoteId = cloudRemoteId
         )
     }
 

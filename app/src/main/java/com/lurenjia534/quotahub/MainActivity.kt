@@ -50,6 +50,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -64,6 +65,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.lurenjia534.quotahub.data.preferences.UiPreferencesRepository
+import com.lurenjia534.quotahub.data.cloud.CloudSyncRepository
 import com.lurenjia534.quotahub.data.update.AvailableUpdate
 import com.lurenjia534.quotahub.data.update.UpdateChecker
 import androidx.core.content.ContextCompat
@@ -84,6 +86,7 @@ import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaDetailProjectorRegi
 import com.lurenjia534.quotahub.sync.SubscriptionRefreshPolicy
 import com.lurenjia534.quotahub.ui.theme.QuotaHubTheme
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onStart() {
@@ -105,6 +108,7 @@ class MainActivity : ComponentActivity() {
         val providerQuotaDetailProjectorRegistry = application.providerQuotaDetailProjectorRegistry
         val providerUiRegistry = application.providerUiRegistry
         val uiPreferencesRepository = application.uiPreferencesRepository
+        val cloudSyncRepository = application.cloudSyncRepository
         val subscriptionRefreshPolicy = application.subscriptionRefreshPolicy
         setContent {
             val uiPreferences by uiPreferencesRepository.preferences.collectAsState()
@@ -116,6 +120,7 @@ class MainActivity : ComponentActivity() {
                     providerQuotaDetailProjectorRegistry = providerQuotaDetailProjectorRegistry,
                     providerUiRegistry = providerUiRegistry,
                     uiPreferencesRepository = uiPreferencesRepository,
+                    cloudSyncRepository = cloudSyncRepository,
                     subscriptionRefreshPolicy = subscriptionRefreshPolicy
                 )
             }
@@ -143,13 +148,16 @@ fun QuotaApp(
     providerQuotaDetailProjectorRegistry: ProviderQuotaDetailProjectorRegistry,
     providerUiRegistry: ProviderUiRegistry,
     uiPreferencesRepository: UiPreferencesRepository,
+    cloudSyncRepository: CloudSyncRepository,
     subscriptionRefreshPolicy: SubscriptionRefreshPolicy
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     val uiPreferences by uiPreferencesRepository.preferences.collectAsState()
+    val cloudSyncSettings by cloudSyncRepository.settings.collectAsState()
     val subscriptionCards by subscriptionRegistry.snapshots.collectAsState(initial = emptyList())
+    val coroutineScope = rememberCoroutineScope()
     val navigationItems = remember(subscriptionCards) {
         bottomNavItemsData(showAddSubscription = subscriptionCards.isNotEmpty())
     }
@@ -159,6 +167,7 @@ fun QuotaApp(
     var availableUpdate by remember { mutableStateOf<AvailableUpdate?>(null) }
     var navigationControlsVisible by rememberSaveable { mutableStateOf(true) }
     var navigationRevealKey by remember { mutableIntStateOf(0) }
+    var cloudOperationInProgress by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val currentVersionName = context.versionNameOrFallback()
     var notificationPermissionGranted by remember {
@@ -254,7 +263,6 @@ fun QuotaApp(
                         hapticConfirmation = uiPreferences.hapticConfirmation,
                         landscapeMonitorMode = landscapeMonitorMode,
                         hideLandscapeMonitorHud = uiPreferences.hideLandscapeMonitorHud,
-                        serverClientMode = uiPreferences.serverClientMode,
                         forceDarkMode = uiPreferences.forceDarkMode,
                         backgroundRefreshEnabled = uiPreferences.backgroundRefreshEnabled,
                         notificationPermissionGranted = notificationPermissionGranted,
@@ -262,10 +270,33 @@ fun QuotaApp(
                         onHapticConfirmationChange = uiPreferencesRepository::setHapticConfirmation,
                         onLandscapeMonitorModeChange = uiPreferencesRepository::setLandscapeMonitorMode,
                         onHideLandscapeMonitorHudChange = uiPreferencesRepository::setHideLandscapeMonitorHud,
-                        onServerClientModeChange = uiPreferencesRepository::setServerClientMode,
                         onForceDarkModeChange = uiPreferencesRepository::setForceDarkMode,
                         onBackgroundRefreshEnabledChange = uiPreferencesRepository::setBackgroundRefreshEnabled,
                         onRefreshCadenceChange = uiPreferencesRepository::setRefreshCadence,
+                        cloudSyncSettings = cloudSyncSettings,
+                        cloudOperationInProgress = cloudOperationInProgress,
+                        onCloudSyncEnabledChange = cloudSyncRepository::setEnabled,
+                        onCloudRelayBaseUrlChange = cloudSyncRepository::setRelayBaseUrl,
+                        onCloudClientTokenSave = cloudSyncRepository::setClientToken,
+                        onCloudClientTokenClear = cloudSyncRepository::clearClientToken,
+                        onTestCloudConnection = {
+                            if (!cloudOperationInProgress) {
+                                cloudOperationInProgress = true
+                                coroutineScope.launch {
+                                    cloudSyncRepository.testConnection()
+                                    cloudOperationInProgress = false
+                                }
+                            }
+                        },
+                        onCloudSyncNow = {
+                            if (!cloudOperationInProgress) {
+                                cloudOperationInProgress = true
+                                coroutineScope.launch {
+                                    cloudSyncRepository.syncNow()
+                                    cloudOperationInProgress = false
+                                }
+                            }
+                        },
                         onRequestNotificationPermission = ::requestNotificationPermission,
                         onCheckForUpdate = {
                             UpdateChecker().checkForUpdate(currentVersionName).fold(

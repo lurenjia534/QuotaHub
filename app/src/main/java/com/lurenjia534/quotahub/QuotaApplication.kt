@@ -4,6 +4,8 @@ import android.app.Application
 import android.util.Log
 import com.lurenjia534.quotahub.bootstrap.provider.ProviderRegistryAssembly
 import com.lurenjia534.quotahub.bootstrap.provider.ProviderModules
+import com.lurenjia534.quotahub.data.cloud.CloudSyncPreferencesRepository
+import com.lurenjia534.quotahub.data.cloud.CloudSyncRepository
 import com.lurenjia534.quotahub.data.local.QuotaDatabase
 import com.lurenjia534.quotahub.data.preferences.UiPreferencesRepository
 import com.lurenjia534.quotahub.data.provider.ProviderCatalog
@@ -51,13 +53,31 @@ class QuotaApplication : Application() {
         ProviderRegistryAssembly.providerUiRegistry(providerModules)
     }
 
+    private val apiKeyCipher: AndroidKeystoreApiKeyCipher by lazy {
+        AndroidKeystoreApiKeyCipher()
+    }
+
     val subscriptionRepository: SubscriptionRepository by lazy {
         SubscriptionRepository(
             database = database,
             subscriptionDao = database.subscriptionDao(),
             quotaSnapshotDao = database.quotaSnapshotDao(),
             providerCatalog = providerCatalog,
-            credentialVault = EncryptedCredentialVault(AndroidKeystoreApiKeyCipher())
+            credentialVault = EncryptedCredentialVault(apiKeyCipher)
+        )
+    }
+
+    val cloudSyncPreferencesRepository: CloudSyncPreferencesRepository by lazy {
+        CloudSyncPreferencesRepository(
+            context = this,
+            cipher = apiKeyCipher
+        )
+    }
+
+    val cloudSyncRepository: CloudSyncRepository by lazy {
+        CloudSyncRepository(
+            preferencesRepository = cloudSyncPreferencesRepository,
+            subscriptionRepository = subscriptionRepository
         )
     }
 
@@ -68,7 +88,8 @@ class QuotaApplication : Application() {
             cardProjectorRegistry = ProviderRegistryAssembly.subscriptionCardProjectorRegistry(
                 providerModules
             ),
-            syncCoordinator = subscriptionSyncCoordinator
+            syncCoordinator = subscriptionSyncCoordinator,
+            cloudSyncRepository = cloudSyncRepository
         )
     }
 
@@ -136,6 +157,12 @@ class QuotaApplication : Application() {
             }
         }
         backgroundRefreshScheduler.start()
+        applicationScope.launch {
+            val settings = cloudSyncRepository.settings.value
+            if (settings.enabled && settings.isConfigured) {
+                cloudSyncRepository.syncNow()
+            }
+        }
     }
 
     fun startForegroundRefresh() {

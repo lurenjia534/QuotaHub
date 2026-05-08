@@ -2,6 +2,7 @@ package com.lurenjia534.quotahub.data.provider
 
 import com.lurenjia534.quotahub.data.model.QuotaRisk
 import com.lurenjia534.quotahub.data.model.SubscriptionSyncStatus
+import com.lurenjia534.quotahub.data.cloud.CloudSyncRepository
 import com.lurenjia534.quotahub.data.repository.SubscriptionRepository
 import com.lurenjia534.quotahub.sync.SubscriptionSyncCoordinator
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -26,7 +27,8 @@ class SubscriptionRegistry(
     private val repository: SubscriptionRepository,
     private val providerCatalog: ProviderCatalog,
     private val cardProjectorRegistry: SubscriptionCardProjectorRegistry,
-    private val syncCoordinator: SubscriptionSyncCoordinator
+    private val syncCoordinator: SubscriptionSyncCoordinator,
+    private val cloudSyncRepository: CloudSyncRepository? = null
 ) {
     val providers: List<ProviderDescriptor>
         get() = providerCatalog.descriptors
@@ -57,7 +59,13 @@ class SubscriptionRegistry(
     }
 
     fun getGateway(subscription: com.lurenjia534.quotahub.data.model.Subscription): SubscriptionGateway {
-        return if (subscription.isProviderSupported) {
+        return if (subscription.isCloudSynced && cloudSyncRepository != null) {
+            CloudRelaySubscriptionGateway(
+                subscriptionData = subscription,
+                repository = repository,
+                cloudSyncRepository = cloudSyncRepository
+            )
+        } else if (subscription.isProviderSupported) {
             RepositoryBackedSubscriptionGateway(
                 subscriptionData = subscription,
                 repository = repository,
