@@ -5,6 +5,18 @@ the matching version section from this file as release notes.
 
 ## [Unreleased]
 
+## [v1.4.5] - 2026-05-08
+
+- Added QuotaHub Relay cloud sync with encrypted client token storage, relay
+  connection testing, manual sync, startup sync, and server-managed subscription
+  refresh.
+- Added cloud subscription import as local read-through projections without
+  storing provider credentials on the Android device.
+- Added Relay deletion pruning so cloud subscriptions removed on the server are
+  cleared from the Android Home view on the next sync.
+- Split Home subscriptions into clearly labeled Cloud and Local sections, with
+  source badges on each subscription card.
+
 ## [v1.4.4] - 2026-05-05
 
 - Added an optional WorkManager-backed background refresh toggle that runs
