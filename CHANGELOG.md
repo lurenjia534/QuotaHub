@@ -5,6 +5,8 @@ the matching version section from this file as release notes.
 
 ## [Unreleased]
 
+## [v1.4.6] - 2026-05-17
+
 - Added an App palette settings page with Material 3 color source selection,
   active color role previews, and app-controlled palette presets for devices
   without reliable system dynamic color support.
