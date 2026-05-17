@@ -26,8 +26,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.outlined.CloudQueue
 import androidx.compose.material.icons.outlined.DarkMode
@@ -67,6 +69,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
@@ -77,8 +80,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.lurenjia534.quotahub.data.cloud.CloudSyncSettings
 import com.lurenjia534.quotahub.data.preferences.RefreshCadence
+import com.lurenjia534.quotahub.data.preferences.ThemeColorSource
+import com.lurenjia534.quotahub.data.preferences.ThemePalette
 import com.lurenjia534.quotahub.ui.components.rememberQuotaHaptics
 import com.lurenjia534.quotahub.ui.theme.QuotaHubTheme
+import com.lurenjia534.quotahub.ui.theme.appThemePalettePreviewColors
 import java.text.DateFormat
 import java.util.Date
 import kotlinx.coroutines.delay
@@ -126,6 +132,8 @@ fun SettingsScreen(
     landscapeMonitorMode: Boolean,
     hideLandscapeMonitorHud: Boolean,
     forceDarkMode: Boolean,
+    themeColorSource: ThemeColorSource,
+    themePalette: ThemePalette,
     refreshCadence: RefreshCadence,
     backgroundRefreshEnabled: Boolean,
     notificationPermissionGranted: Boolean,
@@ -136,6 +144,8 @@ fun SettingsScreen(
     onLandscapeMonitorModeChange: (Boolean) -> Unit,
     onHideLandscapeMonitorHudChange: (Boolean) -> Unit,
     onForceDarkModeChange: (Boolean) -> Unit,
+    onThemeColorSourceChange: (ThemeColorSource) -> Unit,
+    onThemePaletteChange: (ThemePalette) -> Unit,
     onBackgroundRefreshEnabledChange: (Boolean) -> Unit,
     onRefreshCadenceChange: (RefreshCadence) -> Unit,
     onCloudSyncEnabledChange: (Boolean) -> Unit,
@@ -145,11 +155,11 @@ fun SettingsScreen(
     onTestCloudConnection: () -> Unit,
     onCloudSyncNow: () -> Unit,
     onRequestNotificationPermission: () -> Unit,
+    onAppPaletteClick: () -> Unit,
     onAboutClick: () -> Unit,
     bottomContentPadding: Dp = 0.dp,
     modifier: Modifier = Modifier
 ) {
-    var dynamicPaletteEnabled by rememberSaveable { mutableStateOf(true) }
     var usageAlerts by rememberSaveable { mutableStateOf(notificationPermissionGranted) }
     var lowBalanceBanner by rememberSaveable { mutableStateOf(true) }
     var privacyShield by rememberSaveable { mutableStateOf(true) }
@@ -196,7 +206,8 @@ fun SettingsScreen(
             AnimatedSection(visible = headerVisible) {
                 SettingsControlHeader(
                     refreshProfile = refreshProfile,
-                    dynamicPaletteEnabled = dynamicPaletteEnabled,
+                    themeColorSource = themeColorSource,
+                    themePalette = themePalette,
                     usageAlerts = usageAlerts,
                     privacyShield = privacyShield,
                     backgroundRefreshEnabled = backgroundRefreshEnabled,
@@ -211,17 +222,12 @@ fun SettingsScreen(
                     index = 0,
                     icon = Icons.Outlined.Palette,
                     title = "Display signal",
-                    subtitle = "Tune how quota state reads before any provider-specific detail."
+                    subtitle = "Choose how QuotaHub derives Material 3 tones across devices."
                 ) {
-                    ToggleControlRow(
-                        icon = Icons.Outlined.Palette,
-                        title = "Wallpaper palette",
-                        description = "Borrow system-derived tones so provider accents feel native to the device.",
-                        checked = dynamicPaletteEnabled,
-                        onCheckedChange = { dynamicPaletteEnabled = it },
-                        onAfterCheckedChange = { checked ->
-                            quotaHaptics.toggle(checked)
-                        }
+                    AppPaletteEntryRow(
+                        themeColorSource = themeColorSource,
+                        themePalette = themePalette,
+                        onClick = onAppPaletteClick
                     )
                     ToggleControlRow(
                         icon = Icons.Outlined.Visibility,
@@ -419,7 +425,7 @@ fun SettingsScreen(
                     ReadoutControlRow(
                         icon = Icons.Filled.AutoAwesome,
                         title = "Accent source",
-                        value = if (dynamicPaletteEnabled) "Dynamic color" else "App controlled",
+                        value = if (themeColorSource == ThemeColorSource.System) "System tones" else themePalette.title,
                         description = "Material Expressive uses motion, type, and tone together instead of heavy chrome."
                     )
                 }
@@ -433,7 +439,8 @@ fun SettingsScreen(
         item {
             RestoreTuningCommand(
                 onClick = {
-                    dynamicPaletteEnabled = true
+                    onThemeColorSourceChange(ThemeColorSource.System)
+                    onThemePaletteChange(ThemePalette.QuotaHub)
                     onHighEmphasisMetricsChange(true)
                     onHapticConfirmationChange(true)
                     onLandscapeMonitorModeChange(false)
@@ -471,7 +478,8 @@ private fun AnimatedSection(
 @Composable
 private fun SettingsControlHeader(
     refreshProfile: RefreshProfile,
-    dynamicPaletteEnabled: Boolean,
+    themeColorSource: ThemeColorSource,
+    themePalette: ThemePalette,
     usageAlerts: Boolean,
     privacyShield: Boolean,
     backgroundRefreshEnabled: Boolean,
@@ -479,7 +487,7 @@ private fun SettingsControlHeader(
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val titleScale by animateFloatAsState(
-        targetValue = if (dynamicPaletteEnabled) 1f else 0.985f,
+        targetValue = if (themeColorSource == ThemeColorSource.System) 1f else 0.985f,
         animationSpec = spring(stiffness = 360f, dampingRatio = 0.85f),
         label = "settingsTitleScale"
     )
@@ -534,7 +542,7 @@ private fun SettingsControlHeader(
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             HeaderSignalChip(
-                label = if (dynamicPaletteEnabled) "Dynamic palette" else "App palette",
+                label = if (themeColorSource == ThemeColorSource.System) "System tones" else themePalette.title,
                 icon = Icons.Outlined.Palette,
                 index = 0
             )
@@ -679,6 +687,111 @@ private fun SectionControlRail(
                     shape = RoundedCornerShape(99.dp)
                 )
         )
+    }
+}
+
+@Composable
+private fun AppPaletteEntryRow(
+    themeColorSource: ThemeColorSource,
+    themePalette: ThemePalette,
+    onClick: () -> Unit
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    val selectedAppPalette = themeColorSource == ThemeColorSource.AppPalette
+    val shape = expressiveSettingsShape(8)
+    val containerColor by animateColorAsState(
+        targetValue = if (selectedAppPalette) {
+            colorScheme.primaryContainer.copy(alpha = 0.62f)
+        } else {
+            colorScheme.surfaceContainerLow
+        },
+        animationSpec = spring(stiffness = 420f, dampingRatio = 0.9f),
+        label = "appPaletteEntryContainer"
+    )
+    val borderColor by animateColorAsState(
+        targetValue = if (selectedAppPalette) {
+            colorScheme.primary.copy(alpha = 0.42f)
+        } else {
+            colorScheme.outlineVariant.copy(alpha = 0.16f)
+        },
+        animationSpec = spring(stiffness = 420f, dampingRatio = 0.9f),
+        label = "appPaletteEntryBorder"
+    )
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .clickable(
+                role = Role.Button,
+                onClick = onClick
+            ),
+        color = containerColor,
+        contentColor = colorScheme.onSurface,
+        shape = shape,
+        border = BorderStroke(1.dp, borderColor),
+        tonalElevation = if (selectedAppPalette) 2.dp else 0.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ControlGlyph(
+                icon = Icons.Outlined.Palette,
+                emphasized = selectedAppPalette
+            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                Text(
+                    text = "App palette",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+                )
+                Text(
+                    text = if (selectedAppPalette) {
+                        "${themePalette.title} is applied on every device."
+                    } else {
+                        "System tones are active; ${themePalette.title} remains the fallback palette."
+                    },
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        color = colorScheme.onSurfaceVariant
+                    )
+                )
+                SettingsPaletteSwatches(colors = appThemePalettePreviewColors(themePalette))
+            }
+            Surface(
+                color = colorScheme.surfaceContainerHigh,
+                contentColor = colorScheme.primary,
+                shape = CircleShape,
+                modifier = Modifier.size(42.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsPaletteSwatches(colors: List<Color>) {
+    val outline = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.32f)
+
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        colors.forEach { color ->
+            Surface(
+                modifier = Modifier.size(22.dp),
+                color = color,
+                shape = CircleShape,
+                border = BorderStroke(1.dp, outline)
+            ) {}
+        }
     }
 }
 
@@ -1380,13 +1493,18 @@ private fun formatSettingsTimestamp(epochMillis: Long): String {
 @Preview(showBackground = true)
 @Composable
 private fun SettingsScreenPreview() {
-    QuotaHubTheme {
+    QuotaHubTheme(
+        themeColorSource = ThemeColorSource.AppPalette,
+        themePalette = ThemePalette.Lagoon
+    ) {
         SettingsScreen(
             highEmphasisMetrics = true,
             hapticConfirmation = true,
             landscapeMonitorMode = false,
             hideLandscapeMonitorHud = true,
             forceDarkMode = false,
+            themeColorSource = ThemeColorSource.AppPalette,
+            themePalette = ThemePalette.Lagoon,
             refreshCadence = RefreshCadence.Balanced,
             backgroundRefreshEnabled = false,
             notificationPermissionGranted = true,
@@ -1397,6 +1515,8 @@ private fun SettingsScreenPreview() {
             onLandscapeMonitorModeChange = {},
             onHideLandscapeMonitorHudChange = {},
             onForceDarkModeChange = {},
+            onThemeColorSourceChange = {},
+            onThemePaletteChange = {},
             onBackgroundRefreshEnabledChange = {},
             onRefreshCadenceChange = {},
             onCloudSyncEnabledChange = {},
@@ -1406,6 +1526,7 @@ private fun SettingsScreenPreview() {
             onTestCloudConnection = {},
             onCloudSyncNow = {},
             onRequestNotificationPermission = {},
+            onAppPaletteClick = {},
             onAboutClick = {}
         )
     }

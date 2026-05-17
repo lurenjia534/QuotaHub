@@ -5,6 +5,15 @@ the matching version section from this file as release notes.
 
 ## [Unreleased]
 
+- Added an App palette settings page with Material 3 color source selection,
+  active color role previews, and app-controlled palette presets for devices
+  without reliable system dynamic color support.
+- Added persisted theme color source and palette preferences, including full
+  light and dark Material 3 color schemes for the built-in palettes.
+- Enabled the Material 3 Expressive motion scheme at the app theme level.
+- Updated Android compile/target SDK and Compose Material 3 dependencies for
+  the current Expressive API surface.
+
 ## [v1.4.5] - 2026-05-08
 
 - Added QuotaHub Relay cloud sync with encrypted client token storage, relay

@@ -9,12 +9,57 @@ data class UiPreferences(
     val highEmphasisMetrics: Boolean = true,
     val hapticConfirmation: Boolean = true,
     val forceDarkMode: Boolean = false,
+    val themeColorSource: ThemeColorSource = ThemeColorSource.System,
+    val themePalette: ThemePalette = ThemePalette.QuotaHub,
     val landscapeMonitorMode: Boolean = false,
     val hideLandscapeMonitorHud: Boolean = true,
     val backgroundRefreshEnabled: Boolean = false,
     val refreshCadence: RefreshCadence = RefreshCadence.Balanced,
     val dismissedUpdateTag: String? = null
 )
+
+enum class ThemeColorSource {
+    System,
+    AppPalette;
+
+    companion object {
+        fun fromPersisted(value: String?): ThemeColorSource {
+            return entries.firstOrNull { it.name == value } ?: System
+        }
+    }
+}
+
+enum class ThemePalette(
+    val title: String,
+    val description: String
+) {
+    QuotaHub(
+        title = "QuotaHub",
+        description = "Balanced purple tones with clear quota emphasis."
+    ),
+    Lagoon(
+        title = "Lagoon",
+        description = "Cool teal and blue tones for a calmer dashboard."
+    ),
+    Grove(
+        title = "Grove",
+        description = "Green tonal roles for usage and health scanning."
+    ),
+    Ember(
+        title = "Ember",
+        description = "Warm orange accents for stronger action hierarchy."
+    ),
+    Graphite(
+        title = "Graphite",
+        description = "Neutral surfaces with restrained mauve emphasis."
+    );
+
+    companion object {
+        fun fromPersisted(value: String?): ThemePalette {
+            return entries.firstOrNull { it.name == value } ?: QuotaHub
+        }
+    }
+}
 
 enum class RefreshCadence(
     val autoRefreshIntervalMillis: Long?
@@ -63,6 +108,22 @@ class UiPreferencesRepository(context: Context) {
         _preferences.value = _preferences.value.copy(forceDarkMode = enabled)
     }
 
+    fun setThemeColorSource(source: ThemeColorSource) {
+        sharedPreferences.edit()
+            .putString(KEY_THEME_COLOR_SOURCE, source.name)
+            .apply()
+
+        _preferences.value = _preferences.value.copy(themeColorSource = source)
+    }
+
+    fun setThemePalette(palette: ThemePalette) {
+        sharedPreferences.edit()
+            .putString(KEY_THEME_PALETTE, palette.name)
+            .apply()
+
+        _preferences.value = _preferences.value.copy(themePalette = palette)
+    }
+
     fun setLandscapeMonitorMode(enabled: Boolean) {
         sharedPreferences.edit()
             .putBoolean(KEY_LANDSCAPE_MONITOR_MODE, enabled)
@@ -108,6 +169,12 @@ class UiPreferencesRepository(context: Context) {
             highEmphasisMetrics = sharedPreferences.getBoolean(KEY_HIGH_EMPHASIS_METRICS, true),
             hapticConfirmation = sharedPreferences.getBoolean(KEY_HAPTIC_CONFIRMATION, true),
             forceDarkMode = sharedPreferences.getBoolean(KEY_FORCE_DARK_MODE, false),
+            themeColorSource = ThemeColorSource.fromPersisted(
+                sharedPreferences.getString(KEY_THEME_COLOR_SOURCE, null)
+            ),
+            themePalette = ThemePalette.fromPersisted(
+                sharedPreferences.getString(KEY_THEME_PALETTE, null)
+            ),
             landscapeMonitorMode = sharedPreferences.getBoolean(KEY_LANDSCAPE_MONITOR_MODE, false),
             hideLandscapeMonitorHud = sharedPreferences.getBoolean(KEY_HIDE_LANDSCAPE_MONITOR_HUD, true),
             backgroundRefreshEnabled = sharedPreferences.getBoolean(KEY_BACKGROUND_REFRESH_ENABLED, false),
@@ -123,6 +190,8 @@ class UiPreferencesRepository(context: Context) {
         const val KEY_HIGH_EMPHASIS_METRICS = "high_emphasis_metrics"
         const val KEY_HAPTIC_CONFIRMATION = "haptic_confirmation"
         const val KEY_FORCE_DARK_MODE = "force_dark_mode"
+        const val KEY_THEME_COLOR_SOURCE = "theme_color_source"
+        const val KEY_THEME_PALETTE = "theme_palette"
         const val KEY_LANDSCAPE_MONITOR_MODE = "landscape_monitor_mode"
         const val KEY_HIDE_LANDSCAPE_MONITOR_HUD = "hide_landscape_monitor_hud"
         const val KEY_BACKGROUND_REFRESH_ENABLED = "background_refresh_enabled"

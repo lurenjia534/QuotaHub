@@ -113,7 +113,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             val uiPreferences by uiPreferencesRepository.preferences.collectAsState()
             QuotaHubTheme(
-                darkTheme = uiPreferences.forceDarkMode || isSystemInDarkTheme()
+                darkTheme = uiPreferences.forceDarkMode || isSystemInDarkTheme(),
+                themeColorSource = uiPreferences.themeColorSource,
+                themePalette = uiPreferences.themePalette
             ) {
                 QuotaApp(
                     subscriptionRegistry = subscriptionRegistry,
@@ -264,6 +266,8 @@ fun QuotaApp(
                         landscapeMonitorMode = landscapeMonitorMode,
                         hideLandscapeMonitorHud = uiPreferences.hideLandscapeMonitorHud,
                         forceDarkMode = uiPreferences.forceDarkMode,
+                        themeColorSource = uiPreferences.themeColorSource,
+                        themePalette = uiPreferences.themePalette,
                         backgroundRefreshEnabled = uiPreferences.backgroundRefreshEnabled,
                         notificationPermissionGranted = notificationPermissionGranted,
                         onHighEmphasisMetricsChange = uiPreferencesRepository::setHighEmphasisMetrics,
@@ -271,6 +275,8 @@ fun QuotaApp(
                         onLandscapeMonitorModeChange = uiPreferencesRepository::setLandscapeMonitorMode,
                         onHideLandscapeMonitorHudChange = uiPreferencesRepository::setHideLandscapeMonitorHud,
                         onForceDarkModeChange = uiPreferencesRepository::setForceDarkMode,
+                        onThemeColorSourceChange = uiPreferencesRepository::setThemeColorSource,
+                        onThemePaletteChange = uiPreferencesRepository::setThemePalette,
                         onBackgroundRefreshEnabledChange = uiPreferencesRepository::setBackgroundRefreshEnabled,
                         onRefreshCadenceChange = uiPreferencesRepository::setRefreshCadence,
                         cloudSyncSettings = cloudSyncSettings,

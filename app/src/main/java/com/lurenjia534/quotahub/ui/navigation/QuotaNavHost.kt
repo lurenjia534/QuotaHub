@@ -19,6 +19,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.lurenjia534.quotahub.data.preferences.RefreshCadence
+import com.lurenjia534.quotahub.data.preferences.ThemeColorSource
+import com.lurenjia534.quotahub.data.preferences.ThemePalette
 import com.lurenjia534.quotahub.data.provider.SubscriptionGateway
 import com.lurenjia534.quotahub.data.provider.SubscriptionRegistry
 import com.lurenjia534.quotahub.sync.SubscriptionRefreshPolicy
@@ -29,6 +31,7 @@ import com.lurenjia534.quotahub.ui.screens.home.ProviderQuotaDetailProjectorRegi
 import com.lurenjia534.quotahub.ui.provider.ProviderUiRegistry
 import com.lurenjia534.quotahub.ui.screens.about.AboutScreen
 import com.lurenjia534.quotahub.ui.screens.about.ManualUpdateCheckResult
+import com.lurenjia534.quotahub.ui.screens.settings.AppPaletteScreen
 import com.lurenjia534.quotahub.ui.screens.settings.SettingsScreen
 
 @Composable
@@ -44,6 +47,8 @@ fun QuotaNavHost(
     landscapeMonitorMode: Boolean,
     hideLandscapeMonitorHud: Boolean,
     forceDarkMode: Boolean,
+    themeColorSource: ThemeColorSource,
+    themePalette: ThemePalette,
     backgroundRefreshEnabled: Boolean,
     notificationPermissionGranted: Boolean,
     cloudSyncSettings: CloudSyncSettings,
@@ -53,6 +58,8 @@ fun QuotaNavHost(
     onLandscapeMonitorModeChange: (Boolean) -> Unit,
     onHideLandscapeMonitorHudChange: (Boolean) -> Unit,
     onForceDarkModeChange: (Boolean) -> Unit,
+    onThemeColorSourceChange: (ThemeColorSource) -> Unit,
+    onThemePaletteChange: (ThemePalette) -> Unit,
     onBackgroundRefreshEnabledChange: (Boolean) -> Unit,
     onRefreshCadenceChange: (RefreshCadence) -> Unit,
     onCloudSyncEnabledChange: (Boolean) -> Unit,
@@ -158,6 +165,8 @@ fun QuotaNavHost(
                 landscapeMonitorMode = landscapeMonitorMode,
                 hideLandscapeMonitorHud = hideLandscapeMonitorHud,
                 forceDarkMode = forceDarkMode,
+                themeColorSource = themeColorSource,
+                themePalette = themePalette,
                 refreshCadence = refreshCadence,
                 backgroundRefreshEnabled = backgroundRefreshEnabled,
                 notificationPermissionGranted = notificationPermissionGranted,
@@ -169,6 +178,8 @@ fun QuotaNavHost(
                 onLandscapeMonitorModeChange = onLandscapeMonitorModeChange,
                 onHideLandscapeMonitorHudChange = onHideLandscapeMonitorHudChange,
                 onForceDarkModeChange = onForceDarkModeChange,
+                onThemeColorSourceChange = onThemeColorSourceChange,
+                onThemePaletteChange = onThemePaletteChange,
                 onBackgroundRefreshEnabledChange = onBackgroundRefreshEnabledChange,
                 onRefreshCadenceChange = onRefreshCadenceChange,
                 onCloudSyncEnabledChange = onCloudSyncEnabledChange,
@@ -178,11 +189,27 @@ fun QuotaNavHost(
                 onTestCloudConnection = onTestCloudConnection,
                 onCloudSyncNow = onCloudSyncNow,
                 onRequestNotificationPermission = onRequestNotificationPermission,
+                onAppPaletteClick = {
+                    navController.navigate(Screen.AppPalette.route) {
+                        launchSingleTop = true
+                    }
+                },
                 onAboutClick = {
                     navController.navigate(Screen.About.route) {
                         launchSingleTop = true
                     }
                 }
+            )
+        }
+
+        composable(route = Screen.AppPalette.route) {
+            AppPaletteScreen(
+                themeColorSource = themeColorSource,
+                themePalette = themePalette,
+                hapticConfirmation = hapticConfirmation,
+                onThemeColorSourceChange = onThemeColorSourceChange,
+                onThemePaletteChange = onThemePaletteChange,
+                onBackClick = { navController.popBackStack() }
             )
         }
 

@@ -27,7 +27,8 @@ class UiPreferencesRepositoryTest {
         assertTrue(preferences.highEmphasisMetrics)
         assertTrue(preferences.hapticConfirmation)
         assertFalse(preferences.landscapeMonitorMode)
-        assertFalse(preferences.serverClientMode)
+        assertEquals(ThemeColorSource.System, preferences.themeColorSource)
+        assertEquals(ThemePalette.QuotaHub, preferences.themePalette)
         assertFalse(preferences.backgroundRefreshEnabled)
         assertEquals(RefreshCadence.Balanced, preferences.refreshCadence)
         assertNull(preferences.dismissedUpdateTag)
@@ -65,34 +66,35 @@ class UiPreferencesRepositoryTest {
     }
 
     @Test
-    fun setServerClientMode_updatesStateAndPersistsValue() {
+    fun setThemeColorSource_updatesStateAndPersistsValue() {
         clearPreferences()
         val repository = UiPreferencesRepository(context)
 
-        repository.setServerClientMode(true)
+        repository.setThemeColorSource(ThemeColorSource.AppPalette)
 
-        assertTrue(repository.preferences.value.serverClientMode)
-        assertTrue(UiPreferencesRepository(context).preferences.value.serverClientMode)
+        assertEquals(ThemeColorSource.AppPalette, repository.preferences.value.themeColorSource)
+        assertEquals(ThemeColorSource.AppPalette, UiPreferencesRepository(context).preferences.value.themeColorSource)
 
-        repository.setServerClientMode(false)
+        repository.setThemeColorSource(ThemeColorSource.System)
 
-        assertFalse(repository.preferences.value.serverClientMode)
-        assertFalse(UiPreferencesRepository(context).preferences.value.serverClientMode)
+        assertEquals(ThemeColorSource.System, repository.preferences.value.themeColorSource)
+        assertEquals(ThemeColorSource.System, UiPreferencesRepository(context).preferences.value.themeColorSource)
     }
 
     @Test
-    fun setServerClientMode_doesNotMutateLocalDisplayPreferences() {
+    fun setThemePalette_updatesStateAndPersistsValue() {
         clearPreferences()
         val repository = UiPreferencesRepository(context)
 
-        repository.setHighEmphasisMetrics(false)
-        repository.setLandscapeMonitorMode(true)
-        repository.setServerClientMode(true)
+        repository.setThemePalette(ThemePalette.Ember)
 
-        val preferences = repository.preferences.value
-        assertFalse(preferences.highEmphasisMetrics)
-        assertTrue(preferences.landscapeMonitorMode)
-        assertTrue(preferences.serverClientMode)
+        assertEquals(ThemePalette.Ember, repository.preferences.value.themePalette)
+        assertEquals(ThemePalette.Ember, UiPreferencesRepository(context).preferences.value.themePalette)
+
+        repository.setThemePalette(ThemePalette.Graphite)
+
+        assertEquals(ThemePalette.Graphite, repository.preferences.value.themePalette)
+        assertEquals(ThemePalette.Graphite, UiPreferencesRepository(context).preferences.value.themePalette)
     }
 
     @Test
